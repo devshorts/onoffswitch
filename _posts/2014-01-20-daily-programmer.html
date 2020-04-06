@@ -1,0 +1,87 @@
+---
+layout: post
+title: A daily programmer - nuts and bolts
+date: 2014-01-20 08:00:13.000000000 -08:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- dailyprogrammer
+- haskell
+- IO
+- monad
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560993964;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4316;}i:1;a:1:{s:2:"id";i:4262;}i:2;a:1:{s:2:"id";i:4327;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2014/01/20/daily-programmer/"
+---
+<p>I've mentioned <a href="http://www.reddit.com/r/dailyprogrammer">r/dailyprogrammer</a> in <a href="http://onoffswitch.net/?s=daily+programmer" target="_blank" rel="noopener noreferrer">previous posts</a>, since I think they are fun little problems to solve when I have time on my hands.  They're also great problem sets to do when learning a new language. </p>
+<p>This time around I decided to do an <a href="http://www.reddit.com/r/dailyprogrammer/comments/1sob1e/121113_challenge_144_easy_nuts_bolts/" target="_blank" rel="noopener noreferrer">easy one</a> with haskell.  </p>
+<h2>Nuts and bolts problem description</h2>
+<p>The goal is stated as:</p>
+<blockquote><p>You have just been hired at a local home improvement store to help compute the proper costs of inventory. The current prices are out of date and wrong; you have to figure out which items need to be re-labeled with the correct price.</p>
+<p>You will be first given a list of item-names and their current price. You will then be given another list of the same item-names but with the correct price. You must then print a list of items that have changed, and by how much.</p></blockquote>
+<p>The formal inputs and outputs:</p>
+<blockquote><p>Input Description<br />
+The first line of input will be an integer N, which is for the number of rows in each list. Each list has N-lines of two space-delimited strings: the first string will be the unique item name (without spaces), the second string will be the price (in whole-integer cents). The second list, following the same format, will have the same unique item-names, but with the correct price. Note that the lists may not be in the same order!<br />
+Output Description</p>
+<p>For each item that has had its price changed, print a row with the item name and the price difference (in cents). Print the sign of the change (e.g. '+' for a growth in price, or '-' for a loss in price). Order does not matter for output.</p></blockquote>
+<p>And the sample input/output:</p>
+<blockquote><p>Sample Input 1<br />
+4<br />
+CarriageBolt 45<br />
+Eyebolt 50<br />
+Washer 120<br />
+Rivet 10<br />
+CarriageBolt 45<br />
+Eyebolt 45<br />
+Washer 140<br />
+Rivet 10</p>
+<p>Sample Output 1<br />
+Eyebolt -5<br />
+Washer +20</p></blockquote>
+<h2>My haskell solution</h2>
+<p>And here is my haskell solution</p>
+<p>[haskell]<br />
+module Temp where</p>
+<p>import Control.Monad<br />
+import Data.List</p>
+<p>data Item = Item { name :: String, price :: Integer }<br />
+				deriving (Show, Read, Ord, Eq)</p>
+<p>strToLine :: String -&gt; Item<br />
+strToLine str = Item name (read price)<br />
+	where<br />
+		name:price:_ = words str </p>
+<p>formatPair :: (Item, Item) -&gt; [Char]<br />
+formatPair (busted, actual) = format<br />
+	where<br />
+		diff = price actual - price busted<br />
+		direction = if diff &gt; 0 then &quot;+&quot; else &quot;-&quot;<br />
+		format = name busted ++ &quot; &quot; ++ direction ++ show (abs diff) </p>
+<p>getPairs :: IO [(Item, Item)]<br />
+getPairs = do<br />
+	n &lt;- readLn<br />
+	let readGroup = fmap (sort . map strToLine) (replicateM n getLine)<br />
+	old &lt;- readGroup<br />
+	new &lt;- readGroup<br />
+	let busted = filter (\(a,b) -&gt; a /= b) $ zip old new<br />
+	return $ busted</p>
+<p>printPairs :: IO [(Item, Item)] -&gt; IO [String]<br />
+printPairs pairs = fmap (map formatPair) pairs<br />
+[/haskell]</p>
+<p>I had a lot of fun with this one, since it really forced me to understand and utilize <code>fmap</code> given that you had to deal with being in the <code>IO</code> monad.  I also liked being "forced" to separate the IO from the pure. I say forced in quotes because it's really not that helpful to do all your work in the IO function; it's not reusable.   </p>
+<p>Also I found that by sticking to strongly typed data I had a more difficult time than if I had just leveraged the fact that the input was really a key value pair.  However, the engineer in me knows that things could change, and I hate taking shortcuts. By strongly typing the input data and separating out the parsing function from the code that does filtering and formatting, we could extend the problem set to include other fields without having to jump back to the IO code.  </p>
+<p>Anyways, things are getting easier with haskell, but I'm still struggling with leveraging all the available libraries and constructs.  I guess that just comes with time and practice.</p>

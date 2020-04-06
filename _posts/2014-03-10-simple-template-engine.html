@@ -1,0 +1,178 @@
+---
+layout: post
+title: A simple templating engine
+date: 2014-03-10 08:00:07.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- F#
+- fparsec
+- java
+- parsing
+- tempating
+- velocity
+meta:
+  _edit_last: '1'
+  _su_rich_snippet_type: none
+  _syntaxhighlighter_encoded: '1'
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1554621603;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3710;}i:1;a:1:{s:2:"id";i:4306;}i:2;a:1:{s:2:"id";i:4737;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2014/03/10/simple-template-engine/"
+---
+<p>I wanted to talk about templating, since templating is a common thing you run into. Often times you want to cleanly do a string replace on a bunch of text, and sometimes even need minimal language processing to do what you want. For example, Java has a templating engine called Velocity, but lots of languages have libraries that do this kind of work. I thought it'd be fun to create a small templating engine from scratch with F# as an after work exercise.</p>
+<p>The goal is to give the templating processor a set of lookup bags that can be resolved by variables. For example, if I use a variable <code>$devshorts.isgreat</code> that should correspond to a bag that is keyed first off of <code>devshorts</code> which returns a new bag, and then a new bag that has a key <code>isgreat</code> which should return a value.</p>
+<h2>Getting the AST</h2>
+<p>First, lets parse the language and get an abstract syntax tree.  Anything that is prefixed with dollar sign is a language construct, anything not is a literal.  As with most parsing tasks, I jump straight to fparsec.</p>
+<p>[fsharp]<br />
+namespace FPropEngine</p>
+<p>module Parser = </p>
+<p>    open FParsec</p>
+<p>    type Ast =<br />
+        | Bag of string list<br />
+        | Literals of string<br />
+        | ForLoop of string * Ast * Ast list</p>
+<p>    let tokenPrefix = '$'</p>
+<p>    let tagStart = pstring (string tokenPrefix)</p>
+<p>    let token n = tagStart &gt;&gt;. pstring n |&gt;&gt; ignore </p>
+<p>    let tagDelim = eof &lt;|&gt; spaces1</p>
+<p>    let endTag = token &quot;end&quot; </p>
+<p>    let forTag = token &quot;for&quot; </p>
+<p>    let languageSpecific = [attempt endTag; forTag] |&gt; List.map (fun i -&gt; i .&gt;&gt; tagDelim)</p>
+<p>    let anyReservedToken = attempt (languageSpecific |&gt; List.reduce (&lt;|&gt;))</p>
+<p>    let tokenable = many1Chars (satisfy isDigit &lt;|&gt; satisfy isLetter)</p>
+<p>    let element = attempt (tokenable .&gt;&gt; pstring &quot;.&quot;) &lt;|&gt; tokenable</p>
+<p>    let nonTokens = many1Chars (satisfy (isNoneOf [tokenPrefix])) |&gt;&gt; Literals</p>
+<p>    let bag = tagStart &gt;&gt;. many1 element |&gt;&gt; Bag</p>
+<p>    let innerElement = notFollowedBy anyReservedToken &gt;&gt;. (nonTokens &lt;|&gt; bag)</p>
+<p>    let tagFwd, tagImpl = createParserForwardedToRef()</p>
+<p>    let forLoop = parse {<br />
+        do! spaces<br />
+        do! forTag<br />
+        do! spaces<br />
+        do! skipAnyOf &quot;$&quot;<br />
+        let! alias = tokenable<br />
+        do! spaces<br />
+        let! _ = pstring &quot;in&quot;<br />
+        do! spaces<br />
+        let! elements = bag<br />
+        do! spaces<br />
+        let! body = many tagFwd<br />
+        do! spaces<br />
+        do! endTag<br />
+        do! spaces<br />
+        return ForLoop (alias, elements, body)<br />
+    } </p>
+<p>    tagImpl := attempt forLoop &lt;|&gt; innerElement</p>
+<p>    let get str =<br />
+        match run (many tagFwd) str with<br />
+             | Success(r, _, _) -&gt; r<br />
+             | Failure(r,_,_) -&gt; failwith &quot;nothing&quot;<br />
+[/fsharp]</p>
+<p>I've exposed only one language construct (a for loop), and anything else is just a basic string replace bag (which will already be deconstructed into its individual components, i.e. <code>$foo.bar</code> will be <code>["foo";"bar"]</code>).</p>
+<h2>Contexts</h2>
+<p>The next thing we need is a way to store a context, and to resolve a requested path from the context.  Since I want to be able to add key value pairs to the context but have the values be different (sometimes they should be a string, other times they should be other context bags), we need to be able to handle that.</p>
+<p>For example, lets say I make a context called "anton".  In this context I want to have key "isGreat" that resolves to "kropp".  That would end up being a leaf node in this context path. But how do I represent a path like "anton.shmanton.isGreat".  The key "shmanton" should resolve to a new context under the current context of "anton".  Also, in order to leverage for loops, we need some keys to resolve to multiple values. So now we have 3 types of results: a string, a string list, or another context.  Given that, lets create a context class that can handle creating these contexts, as well as resolving a context path.</p>
+<p>[fsharp]<br />
+module Formatter =<br />
+    open Parser<br />
+    open System.Collections.Generic</p>
+<p>    type Context () =<br />
+        let ctxs = new Dictionary&lt;string, ContextType&gt;()<br />
+        let runtime = new Dictionary&lt;string, string&gt;()</p>
+<p>        member x.add (key, values) = ctxs.[key] &lt;- List values<br />
+        member x.add (key, value)  = ctxs.[key] &lt;- Value value<br />
+        member x.add (key, ctx)    = ctxs.[key] &lt;- More ctx</p>
+<p>        member x.runtimeAdd (key, value) = runtime.[key] &lt;- value<br />
+        member x.runtimeRemove key = runtime.Remove key |&gt; ignore</p>
+<p>        member x.add (dict:Dictionary&lt;string, string&gt;) =<br />
+            for keys in dict do<br />
+                ctxs.[keys.Key] &lt;- Value keys.Value</p>
+<p>        member x.resolve list =<br />
+            match list with<br />
+                | [] -&gt; None<br />
+                | h::t -&gt;<br />
+                    if runtime.ContainsKey h then<br />
+                        Some [runtime.[h]]<br />
+                    else if ctxs.ContainsKey h then<br />
+                        ctxs.[h].resolve t<br />
+                    else<br />
+                        None            </p>
+<p>    and ContextType =<br />
+        | Value of string<br />
+        | List of string list<br />
+        | More of Context<br />
+        member x.resolve list =<br />
+            match x with<br />
+                | Value str -&gt; Some [str]<br />
+                | List strs -&gt; Some strs<br />
+                | More ctx -&gt; ctx.resolve list<br />
+[/fsharp]</p>
+<p>One thing that is tricky here: <code>ctxs.[h].resolve t</code> doesn't call the same <code>resolve</code> function on the Context class. It actually calls the resolve function on the ContextType.  This way each type can resolve itself.  If you call resolve on a string, it'll return itself (as a list).  If you resolve on a list, it'll return the list.  But, if you call resolve on a context, it'll proxy that request back to the Context class.  </p>
+<p>You may also be wondering what "runTimeAdd" and "runtimeRemove" are.  Those will make sense when we actually create the language interpreter. It may be a little overkill to call this a "language" but it kind of is!</p>
+<h2>Applying the context to the AST</h2>
+<p>Now we need to interpret the syntax tree and apply the context bag to any context related tokens. If anybody read my previous posts about my language I wrote, this should all sound pretty similar (cause it is!)</p>
+<p>[fsharp]<br />
+module Runner =<br />
+    open Formatter<br />
+    open Parser </p>
+<p>    let rec private eval (ctx : Context) = function<br />
+        | Bag list -&gt;<br />
+            match ctx.resolve list with<br />
+                | Some item -&gt; item<br />
+                | None -&gt; [List.fold (fun acc i -&gt; acc + &quot;.&quot; + i) &quot;$&quot; list]<br />
+        | Literals l -&gt; [l]<br />
+        | ForLoop (alias, bag, contents) -&gt;<br />
+            [for value in (eval ctx bag) do<br />
+                ctx.runtimeAdd (alias, value)<br />
+                for elem in contents do<br />
+                    yield! eval ctx elem<br />
+                ctx.runtimeRemove alias]</p>
+<p>    let run ctx text =<br />
+        Parser.get text<br />
+            |&gt; List.map (eval ctx)<br />
+            |&gt; List.reduce List.append<br />
+            |&gt; List.reduce (+)<br />
+[/fsharp]</p>
+<p>What we have here is an eval function that acts as the main interpreter dispatch loop.  It's asked to evaluate the current token its given based on its current context.  </p>
+<p>If we have a string literal, we just return it (as a list, since I am creating a list of evaluated results).  </p>
+<p>If there is a bag (like <code>$anton.isgreat</code>) then try and resolve the bag path from the context.</p>
+<p>If there is a for loop we want to evaluate the result of the for predicate and bind its value to the alias.  Then for each element we want to evaluate the contents of the for loop.  This is where we need to create a runtime storage of the alias, so we can do later lookups in the context.  You can see that each for loop adds its alias to the context and then removes it from the context afterwards.  This would mimic a regular language where inner loops can access outer declared variables, but not vice versa.  </p>
+<h2>Trying it out</h2>
+<p>Let's give our templating engine a whirl:</p>
+<p>[fsharp]</p>
+<p>let artists = new Context()<br />
+let root = new Context()</p>
+<p>artists.add(&quot;nirvana&quot;, [&quot;come as you are&quot;;&quot;smells like teen spirit&quot;]);<br />
+root.add(&quot;artists&quot;, artists );</p>
+<p>let templateText = &quot;$for $song in $artists.nirvana<br />
+		The current song is $song!<br />
+		$for $secondTime in $artists.nirvana<br />
+			Oh lets just loop again for fun. First value: $song, second: $secondTime<br />
+		$end<br />
+	 $end&quot;</p>
+<p>[/fsharp]</p>
+<p>And the result is</p>
+<p>[fsharp]<br />
+&gt; Runner.run root templateText;;<br />
+val it : string =<br />
+  &quot;The current song is come as you are!<br />
+		Oh lets just loop again for fun. First value: come as you are, second: come as you are<br />
+		Oh lets just loop again for fun. First value: come as you are, second: smells like teen spirit<br />
+   The current song is smells like teen spirit!<br />
+		Oh lets just loop again for fun. First value: smells like teen spirit, second: come as you are<br />
+		Oh lets just loop again for fun. First value: smells like teen spirit, second: smells like teen spirit<br />
+		&quot;<br />
+[/fsharp]</p>
+<p>Not too bad!</p>
+<p>Full source available at my <a href="https://github.com/devshorts/Playground/tree/master/FPropBag" target="_blank" rel="noopener noreferrer">github</a></p>

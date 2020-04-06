@@ -1,0 +1,144 @@
+---
+layout: post
+title: Handle reconnections to signalR host
+date: 2012-08-21 14:38:32.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+- Imported
+tags:
+- ".NET"
+- c#
+- Rx
+- SignalR
+- tasks
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  dsq_thread_id: '830832847'
+  _su_title: ''
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561163778;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:289;}i:1;a:1:{s:2:"id";i:2365;}i:2;a:1:{s:2:"id";i:4091;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2012/08/21/handle-reconnections-to-signalr-host/"
+---
+<p><em>This article was originally published at <a href="http://tech.blinemedical.com/handle-reconnections-to-signalr-host/" target="_blank" rel="noopener noreferrer">tech.blinemedical.com</a></em></p>
+<p><a href="https://github.com/SignalR/SignalR/">SignalR</a> does a great job of dealing with reconnecting to a host when either the client disconnects or the server disconnects. This is pretty handy since it handles all the intricacies of a persistent http connection for you. But what it doesn't deal with is the initial negotiation to a server. If that fails you are stuck retrying yourself. I wrote a simple reconnection function that leverages the scheduling functionality of <a href="http://msdn.microsoft.com/en-us/data/gg577609.aspx">Rx</a> to continuously try to reconnect to the server.</p>
+<p>For our SignalR usage (version 0.5.2), I'm using the exposed <a href="https://github.com/SignalR/SignalR/wiki/QuickStart-Hubs">Hub</a> functionality, not the<a href="https://github.com/SignalR/SignalR/wiki/QuickStart-Persistent-Connections"> persistent connections</a> since I liked the encapsulation that Hub's gave us. In the following example, we have a local member variable called <code>Connection</code> which is a <code>HubConnection</code> type created with this code.</p>
+<p>[csharp]<br />
+HubConnection Connection = new HubConnection(Url);<br />
+[/csharp]</p>
+<p>HubConnection has a Start method that you use to initialize connections to the Url.  <code>Connection.Start()</code> internally creates an asynchronous task that looks like this, after unwrapping the nicely packaged methods:</p>
+<p>[csharp]<br />
+private Task Negotiate(IClientTransport transport)<br />
+{<br />
+    var negotiateTcs = new TaskCompletionSource&lt;object&gt;();</p>
+<p>    transport.Negotiate(this).Then(negotiationResponse =&gt;<br />
+    {<br />
+        VerifyProtocolVersion(negotiationResponse.ProtocolVersion);</p>
+<p>        ConnectionId = negotiationResponse.ConnectionId;</p>
+<p>        var data = OnSending();<br />
+        StartTransport(data).ContinueWith(negotiateTcs);<br />
+    })<br />
+    .ContinueWithNotComplete(negotiateTcs);</p>
+<p>    var tcs = new TaskCompletionSource&lt;object&gt;();<br />
+    negotiateTcs.Task.ContinueWith(task =&gt;<br />
+    {<br />
+        try<br />
+        {<br />
+            // If there's any errors starting then Stop the connection<br />
+            if (task.IsFaulted)<br />
+            {<br />
+                Stop();<br />
+                tcs.SetException(task.Exception);<br />
+            }<br />
+            else if (task.IsCanceled)<br />
+            {<br />
+                Stop();<br />
+                tcs.SetCanceled();<br />
+            }<br />
+            else<br />
+            {<br />
+                tcs.SetResult(null);<br />
+            }<br />
+        }<br />
+        catch (Exception ex)<br />
+        {<br />
+            tcs.SetException(ex);<br />
+        }<br />
+    },<br />
+    TaskContinuationOptions.ExecuteSynchronously);</p>
+<p>    return tcs.Task;<br />
+}<br />
+[/csharp]</p>
+<p>The comment above the <code>IsFaulted</code> check says that if the server fails to connect, an exception is set and the transport is closed<code></code>. Since SignalR utilizes the task parallel library we can just call Start() again and get a new task.</p>
+<p>Here is the snippet we use to continuously reconnect:</p>
+<p>[csharp]<br />
+/// &lt;summary&gt;<br />
+/// Handles if the connection start task fails and retries every 5 seconds until<br />
+/// it succeeds<br />
+/// &lt;/summary&gt;<br />
+/// &lt;param name=&quot;startTask&quot;&gt;&lt;/param&gt;<br />
+/// &lt;param name=&quot;connectionSucessAction&quot;&gt;&lt;/param&gt;<br />
+private void HandleConnectionStart(Task startTask)<br />
+{<br />
+    startTask.ContinueWith(task =&gt;<br />
+    {<br />
+        try<br />
+        {<br />
+            if (task.IsFaulted)<br />
+            {<br />
+                // make sure to observe the exception or we can get an aggregate exception<br />
+                foreach (var e in task.Exception.Flatten().InnerExceptions)<br />
+                {<br />
+                    Log.WarnOnce(this, &quot;Observed exception trying to handle connection start: &quot; + e.Message);<br />
+                }</p>
+<p>                Log.WarnOnce(this, &quot;Unable to connect to url {0}, retrying every 5 seconds&quot;, Url);<br />
+                RetryConnectionStart();<br />
+            }<br />
+            else<br />
+            {<br />
+                // do success actions<br />
+            }<br />
+        }<br />
+        catch(Exception ex)<br />
+        {<br />
+            Log.ErrorOnce(this, &quot;Error handling connection start, retrying&quot;, ex);<br />
+            RetryConnectionStartRescheduler();<br />
+        }<br />
+    });<br />
+}</p>
+<p>private void RetryConnectionStartRescheduler()<br />
+{<br />
+    ThreadUtil.ScheduleToThreadPool(TimeSpan.FromSeconds(5),<br />
+        () =&gt;<br />
+        {<br />
+            try<br />
+            {<br />
+                HandleConnectionStart(Connection.Start());<br />
+            }<br />
+            catch(Exception ex)<br />
+            {<br />
+                Log.ErrorOnce(this, &quot;Error retrying connection start, retrying&quot;, ex);<br />
+                RetryConnectionStartRescheduler();<br />
+            }<br />
+        });</p>
+<p>}<br />
+[/csharp]</p>
+<p><code>ThreadUtil.ScheduleToThreadPool</code> is a wrapper we have on top of the Rx framework's threadpool scheduler. Internally it looks like this</p>
+<p>[csharp]<br />
+public static void ScheduleToThreadPool(TimeSpan executeTime, Action action)<br />
+{<br />
+    Scheduler.ThreadPool.Schedule(DateTime.Now.Add(executeTime), action);<br />
+}<br />
+[/csharp]</p>
+<p>It's important to note that you have to touch the exception object of a faulted task or use the exception Handle method in order to avoid an <a href="http://msdn.microsoft.com/en-us/library/dd997415.aspx">UnobservedTaskExceptions</a>. Those happen to unobserved exceptions which are then rethrown on the finalizer thread.</p>
+<p>In conclusion, by leveraging tasks and a couple simple scheduling utilities, we can cleanly and asynchronously schedule a new task to connect periodically. When we finally connect we can continue with our initialization logic. At this point the remaining signalR reconnection logic is handled by the hub.</p>

@@ -1,0 +1,219 @@
+---
+layout: post
+title: Minimizing the null ref with dynamic proxies
+date: 2013-05-20 08:00:33.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- dynamic proxy
+- maybe monad
+- 'null'
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561365978;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4493;}i:1;a:1:{s:2:"id";i:3565;}i:2;a:1:{s:2:"id";i:3723;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/05/20/minimizing-null-ref/"
+---
+<p>In a production application you frequently can find yourself working with objects that have a large accessor chain like</p>
+<p>[code]<br />
+student.School.District.Street.Name<br />
+[/code]</p>
+<p>But when you want to program defensively you need to always do null checks on any reference type.  So your accessing chain looks more like this instead</p>
+<p>[csharp]<br />
+if (student.School != null)<br />
+{<br />
+    if (student.School.District != null)<br />
+    {<br />
+        if (student.School.District.Street != null)<br />
+        {<br />
+            s += student.School.District.Street.Name;<br />
+        }<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>Which sucks.  Especially since its easy to forget to add a null check, and not to mention it clutters the code up.  Even if you used an option type, you still have to check if it's something or if its nothing, and dealing with huge option chains is just as annoying.</p>
+<p>One solution is to use the <a href="http://devtalk.net/csharp/chained-null-checks-and-the-maybe-monad/" target="_blank" rel="noopener noreferrer">maybe monad</a>, which can be implemented using extension methods and lambdas. While this is certainly better, it can still can get unwieldy.  </p>
+<p>What I really want is a way to just access the chain, and if any part of it is null for it to return null.  </p>
+<h2>The magic of Castle Dynamic Proxy</h2>
+<p>This is where the magic of <a href="http://www.castleproject.org/projects/dynamicproxy/" target="_blank" rel="noopener noreferrer">castle dynamic proxy</a> comes into play.  Castle creates <a href="http://www.codeproject.com/Articles/121568/Dynamic-Type-Using-Reflection-Emit#heading0002" target="_blank" rel="noopener noreferrer">runtime byte code</a> that can subclass your class and intercept method calls to it.  This means you can now control what happens each time a method is invoked on your function, both by manipulating the return value and by choosing whether or not to even invoke the function.  Lots of libraries use castle to do neat things, like the <a href="https://code.google.com/p/moq/" target="_blank" rel="noopener noreferrer">moq library</a> from google and <a href="http://nhforge.org/" target="_blank" rel="noopener noreferrer">NHibernate</a>.  </p>
+<p>For my purposes, I wanted to create a null safe proxy that lets me safely iterate through the function call chain. Before I dive into it, lets see what the final result is:</p>
+<p>[csharp]<br />
+var user = new User();</p>
+<p>var name = user.NeverNull().School.District.Street.Name.Final();<br />
+[/csharp]</p>
+<p>At this point <code>name</code> can be either null, or the street name. But since this user never set any of its public properties everything is null, so name here will be null. At this point I can do one null check and move on.</p>
+<h2>The start</h2>
+<p><code>NeverNull</code> is an extension method that wraps the invocation target (the thing calling the method) with a new dynamic proxy.    </p>
+<p>[csharp]<br />
+public static T NeverNull&lt;T&gt;(this T source) where T : class<br />
+{<br />
+    return (T) _generator.CreateClassProxyWithTarget(typeof(T), new[] { typeof(IUnBoxProxy) }, source, new NeverNullInterceptor(source));<br />
+}<br />
+[/csharp]</p>
+<p>I'm doing a few things here.  First I'm making a proxy that wraps the source object. The proxy will be of the same type as the source. Second, I'm telling castle to also add the <code>IUnBoxProxy</code> interface to the proxy implementation. We'll see why that's used later. All it means is that the proxy that is returned implements not only all the methods of the source, but is also going to be of the <code>IUnBoxProxy</code> interface.  Third, I am telling castle to use a <code>NeverNullInterceptor</code> that holds a reference to the source item.  This interceptor is responsible for manipulating any function calls on the source object.</p>
+<h2>The method interceptor</h2>
+<p>The interceptor isn't that complicated.  Here is the whole class:</p>
+<p>[csharp]<br />
+public class NeverNullInterceptor : IInterceptor<br />
+{<br />
+    private object Source { get; set; }</p>
+<p>    public NeverNullInterceptor(object source)<br />
+    {<br />
+        Source = source;<br />
+    }</p>
+<p>    public void Intercept(IInvocation invocation)<br />
+    {<br />
+        try<br />
+        {<br />
+            if (invocation.Method.DeclaringType == typeof(IUnBoxProxy))<br />
+            {<br />
+                invocation.ReturnValue = Source;<br />
+                return;<br />
+            }</p>
+<p>            invocation.Proceed();</p>
+<p>            var returnItem = Convert.ChangeType(invocation.ReturnValue, invocation.Method.ReturnType);</p>
+<p>            if (!PrimitiveTypes.Test(invocation.Method.ReturnType))<br />
+            {<br />
+                invocation.ReturnValue = invocation.ReturnValue == null<br />
+                                             ? ProxyExtensions.NeverNullProxy(invocation.Method.ReturnType)<br />
+                                             : ProxyExtensions.NeverNull(returnItem, invocation.Method.ReturnType);<br />
+            }<br />
+        }<br />
+        catch (Exception ex)<br />
+        {<br />
+            invocation.ReturnValue = null;<br />
+        }<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>The main gist of this class is that whenever a function gets called on a proxy object, the interceptor can capture the function call. We created the specific proxy to be tied to this interceptor as part of the proxy generation.</p>
+<p>When a function is captured by the interceptor, the interceptor can choose to invoke the actual underlying function if it wants to (via the proceed method).  After that, the interceptor tests to see if the function return value was null or not. If the value wasn't null, the interceptor then proxies the return value (creating a chain of proxy objects). This means that the next function call in the accessor chain is now also on a proxy!</p>
+<p>But, if the return value was null we still need to continue the accessor chain. Unlike the maybe monad, we can't bail in the middle of the call. So, what we do instead is to create an empty proxy of the same type.  This just gives us a way to capture invocations onto what would otherwise be a null object.  Castle can give you a proxy that doesn't wrap any target.   This is what moq does as well.  If anyone calls a function on this proxy, the interceptor's intercept method gets called and we can choose to not proceed with the actual invocation!  There's no underlying wrapped target, it's just the interceptor catching calls. </p>
+<p>In the scenario where the return result is null, here is the function to proxy the type</p>
+<p>[csharp]<br />
+public static object NeverNullProxy(Type t)<br />
+{<br />
+    return _generator.CreateClassProxy(t, new[] { typeof(IUnBoxProxy) }, new NeverNullInterceptor(null));<br />
+}<br />
+[/csharp]</p>
+<p>Now, you may notice that I'm passing <code>null</code> to the constructor of the interceptor, but previously I passed a source object to the constructor. This is because I want the interceptor to know what is the underlying proxied target.  This is how I'm going to be able to unbox the final value out of the proxy chain when it's requested.  This is also the reason for the <code>IUnBoxProxy</code> interface we added.</p>
+<h2>Getting the value out!</h2>
+<p>At this point there is an entire proxy chain set up. Once you enter the proxy chain, all other functions on that object are also proxies.  But at some point you want to get the actual value out, whether its null or not. This is where that special interface comes in. Using an extension method on all object types we can cast the object to the special interface (remembering that the object we're working on is actually a proxy and that it should have implemented the special interface we told it to) and execute a function on it. It really doesn't matter which function, just a function</p>
+<p>[csharp]<br />
+public static T Final&lt;T&gt;(this T source)<br />
+{<br />
+    var proxy = (source as IUnBoxProxy);<br />
+    if (proxy == null)<br />
+    {<br />
+        return source;<br />
+    }</p>
+<p>    return (T)proxy.Value;<br />
+}<br />
+[/csharp]</p>
+<p>Since the proxy is actually a dynamic proxy that was created we get caught back in the interceptor.  This is why this block exists</p>
+<p>[csharp]<br />
+if (invocation.Method.DeclaringType == typeof(IUnBoxProxy))<br />
+{<br />
+    invocation.ReturnValue = Source;<br />
+    return;<br />
+}<br />
+[/csharp]</p>
+<p>If the declaring type (i.e. the thing calling the function) is of that type (which it is since we explicitly cast it to it) then return the internal stored unboxed proxy.  If the proxy contained null then a null gets returned, otherwise the last thing in the chain gets returned.</p>
+<p>I specificailly excluded primitives during the proxy boxing phase since a primitive implies the final ending of the chain. That and castle kept throwing me an error saying that it</p>
+<p>[csharp]<br />
+Could not load type 'Castle.Proxies.StringProxy' from assembly 'DynamicProxyGenAssembly2, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null' because the parent type is sealed.<br />
+[/csharp]</p>
+<p>But thats OK since we don't need to proxy primitives in this scenario.</p>
+<h2>Performance tests</h2>
+<p>Now this is great and all, but if it incurs an enormous performance penalty then we can't really use it.  This is where I ran some unscientific tests.  In a unit test run in release I checked the relative execution time of the following 3 functions:</p>
+<p>Create an empty user and use the never null proxy to check a string some amount of times.  The console writeline exists only to make sure the compiler doesn't optimize out unused variables.</p>
+<p>[csharp]<br />
+private void NullWithProxy(int amount)<br />
+{<br />
+    var user = new User();</p>
+<p>    var s = &quot;na&quot;;<br />
+    for (int i = 0; i &lt; amount; i++)<br />
+    {<br />
+        s += user.NeverNull().School.District.Street.Name.Final() ?? &quot;na&quot;;<br />
+    }</p>
+<p>    Console.WriteLine(s.FirstOrDefault());<br />
+}<br />
+[/csharp]</p>
+<p>Test a non null object chain with the proxy</p>
+<p>[csharp]<br />
+ private void TestNonNullWithProxy(int amount)<br />
+ {<br />
+     var student = new User<br />
+     {<br />
+         School = new School<br />
+         {<br />
+             District = new District<br />
+             {<br />
+                 Street = new Street<br />
+                 {<br />
+                     Name = &quot;Elm&quot;<br />
+                 }<br />
+             }<br />
+         }<br />
+     };</p>
+<p>     var s = &quot;na&quot;;<br />
+     for (int i = 0; i &lt; amount; i++)<br />
+     {<br />
+         s += student.NeverNull().School.District.Street.Name.Final();<br />
+     }</p>
+<p>     Console.WriteLine(s.FirstOrDefault());<br />
+ }<br />
+[/csharp]</p>
+<p>And finally test a bunch of if statements on a non null object</p>
+<p>[csharp]<br />
+private void NonNullNoProxy(int amount)<br />
+{<br />
+    var student = new User<br />
+            {<br />
+                School = new School<br />
+                         {<br />
+                             District = new District<br />
+                                        {<br />
+                                            Street = new Street<br />
+                                                     {<br />
+                                                         Name = &quot;Elm&quot;<br />
+                                                     }<br />
+                                        }<br />
+                         }<br />
+            };</p>
+<p>    var s = &quot;na&quot;;<br />
+    for (int i = 0; i &lt; amount; i++)<br />
+    {<br />
+        if (student.School != null)<br />
+        {<br />
+            if (student.School.District != null)<br />
+            {<br />
+                if (student.School.District.Street != null)<br />
+                {<br />
+                    s += student.School.District.Street.Name;<br />
+                }<br />
+            }<br />
+        }<br />
+    }</p>
+<p>    Console.WriteLine(s.FirstOrDefault());<br />
+}<br />
+[/csharp]</p>
+<p>And the results are</p>
+<p><a href="http://onoffswitch.net/wp-content/uploads/2013/05/performanceChart.png" rel="attachment wp-att-3781"><img src="http://onoffswitch.net/wp-content/uploads/2013/05/performanceChart-1024x692.png" alt="performanceChart" width="1024" height="692" class="alignnone size-large wp-image-3781" /></a></p>
+<p>You can see on iteration 1 that there is a big spike in using the proxy. That's because castle has to initially create and then cache dynamic proxies. After that things level out and grow linearly.  While you do incur a penalty hit, its not that far off from regular if checks.  Doing 4 chained proxy checks 5000 times runs about 200 milliseconds, compared to 25 milliseconds with direct if checks. While its 8 times longer, you get the security of knowing you won't accidentally have a null reference exception.  For lower amounts of accessing the time is pretty comparable.</p>
+<h2>Conclusion</h2>
+<p>Unfortunately a downside to all of this is that castle can only proxy methods and properties that are marked as <code>virtual</code>.  Also I had a lot of difficulty getting proxying of enumerables to work.  I was only able to get it to work with things that are declared as <code>IEnumerable</code> or <code>List</code> but not Dictionary or HashSet or anything else.  If you know how to do this please <a href="http://stackoverflow.com/questions/16525589/interceptor-for-ienumerable-methods" target="_blank" rel="noopener noreferrer">let me know</a>! Because of those limitations I wouldn't suggest using this in a production application. But, maybe, one of these days a language will come out with this built in and I'll be pretty stoked about that.</p>
+<p>For full source check out <a href="https://github.com/devshorts/Playground/tree/master/NoNulls" target="_blank" rel="noopener noreferrer">my github</a>.  Also I'd like to thank my coworker <a href="http://fmansoor.wordpress.com/" target="_blank" rel="noopener noreferrer">Faisal</a> for really helping out on this idea.  It was his experience with dynamic proxies that led to this post.</p>

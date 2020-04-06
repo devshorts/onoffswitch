@@ -1,0 +1,140 @@
+---
+layout: post
+title: Implementing partial functions
+date: 2013-03-11 08:00:18.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- c#
+- language implementation
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _wpas_done_all: '1'
+  _su_title: ''
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1559795293;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3565;}i:1;a:1:{s:2:"id";i:4028;}i:2;a:1:{s:2:"id";i:2020;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/03/11/implementing-partial-functions/"
+---
+<p>This next section I had a lot of fun with, and originally I didn't plan on implementing it at all.  The only reason I did it is because I had a stroke of genius while in the shower one morning. Today, I'm going to talk about how I supported partial functions in my toy programming language.</p>
+<p>First let's look at what a partial function looks like in my language.  I took an F# approach where any function whose argument count is less than the declared count becomes a new function (even though F# functions are curried by default but mine are not). For example, in <a href="http://en.wikibooks.org/wiki/Standard_ML_Programming/Types" target="_blank" rel="noopener noreferrer">ML type notation</a> you could have a function of type</p>
+<p>[fsharp]<br />
+'a -&gt; 'b -&gt; 'c<br />
+[/fsharp]</p>
+<p>Which means that it takes something of type a and type b as arguments, and returns a type c. If we pass this function only a <code>'a</code> then it'll return to us a new function of type </p>
+<p>[fsharp]<br />
+'b -&gt; 'c<br />
+[/fsharp]</p>
+<p>Since the first argument has been captured.</p>
+<p>Here is an example from one of my unit tests to drive the point home</p>
+<p>[csharp]<br />
+void func(string printer, int y){<br />
+    print printer;<br />
+    print y;<br />
+}</p>
+<p>var partial = func('guy');</p>
+<p>int x = 1;</p>
+<p>partial(x);</p>
+<p>partial(2);</p>
+<p>var otherPartial = func('girl');</p>
+<p>otherPartial(3);<br />
+[/csharp]</p>
+<p>The <code>partial</code> variable is a function who now expects only 1 argument (since the first string argument to <code>func</code> was already applied).  This outputs</p>
+<p>[code]<br />
+guy<br />
+1<br />
+guy<br />
+2<br />
+girl<br />
+3<br />
+[/code]</p>
+<h2>Manipulating the syntax tree</h2>
+<p>If a function invoke AST has fewer arguments than the corresponding method symbol it's paired with then it needs to be partially applied. <em>[Note: I should mention that partial functions and currying are<a href="http://stackoverflow.com/a/10443057/310196" target="_blank" rel="noopener noreferrer"> not technically</a> the same, even though in practice the terminology is interchangeable. I only realized this after I named all the functions, so even if things are called "curry" this and "curry" that, it really means "partially apply"]</em></p>
+<p>[csharp]<br />
+public void Visit(FuncInvoke ast)<br />
+{<br />
+    if (ast.CallingScope != null)<br />
+    {<br />
+        ast.Arguments.ForEach(arg =&gt; arg.CallingScope = ast.CallingScope);<br />
+    }</p>
+<p>    ast.Arguments.ForEach(arg =&gt; arg.Visit(this));</p>
+<p>    SetScope(ast);</p>
+<p>    var functionType = Resolve(ast.FunctionName) as MethodSymbol;</p>
+<p>    if (functionType != null &amp;&amp; ast.Arguments.Count &lt; functionType.MethodDeclr.Arguments.Count)<br />
+    {<br />
+        var curriedMethod = CreateCurriedMethod(ast, functionType);</p>
+<p>        curriedMethod.Visit(this);</p>
+<p>        var methodSymbol = ScopeUtil.DefineMethod(curriedMethod);</p>
+<p>        Current.Define(methodSymbol);</p>
+<p>        ast.ConvertedExpression = curriedMethod;<br />
+    }<br />
+    else if(ResolvingTypes)<br />
+    {<br />
+        ast.AstSymbolType = ResolveType(ast.FunctionName, ast.CurrentScope);<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>What I end up doing is creating new hidden syntax tree that represents a closed on syntax tree.  In the example above we'll end up with an anonymous function that looks like this:</p>
+<p>[csharp]<br />
+void anonymous1(int y){<br />
+    string printer = 'guy';<br />
+    print printer;<br />
+    print y;<br />
+}<br />
+[/csharp]</p>
+<p>The captured argument becomes a variable declaration of the same name as the argument name with the value that was captured!  At this point the rest of the code works as is, because what does it care if it was defined this way by the user or by tree manipulation? It doesn't.  There is one caveat.  I created the concept of "converted expressions" for syntax trees. This means that what used to be a type inferred variable declaration, should now be treated as a method declaration. This is important.  <code>partial</code> (in our original example) is no longer a variable, it is now a method.  When I go to interpret this syntax tree, and use type definitions, I first need to check if the tree has been converted to something else (via the converted expression property).  </p>
+<h2>Building out the partial function</h2>
+<p>Building the actual partial function isn't that hard.  </p>
+<ol>
+<li>For each captured argument create a variable declaration syntax tree representing the argument name and the argument value</li>
+<li>Resolve the argument symbol. If the passed in argument was a user defined value, we need to validate that the type of that user defined value matches the expected type of the argument we are capturing. </li>
+<li>Add the new variable declaration to a list</li>
+<li>Create a new method where the variable declarations we just made are prepended to the original methods body</li>
+</ol>
+<p>From here on out we can treat this method just like any other regularly declared method.  The <code>MethodSymbol</code> type of the original method has a reference to its source syntax tree.  This way we can get access back to the data that this method symbol contains</p>
+<p>[csharp]<br />
+private LambdaDeclr CreateCurriedMethod(FuncInvoke ast, MethodSymbol functionType)<br />
+{<br />
+    var srcMethod = functionType.MethodDeclr;</p>
+<p>    var fixedAssignments = new List&lt;VarDeclrAst&gt;();</p>
+<p>    var count = 0;<br />
+    foreach (var argValue in ast.Arguments)<br />
+    {<br />
+        var srcArg = srcMethod.Arguments[count] as VarDeclrAst;</p>
+<p>        var token = new Token(srcArg.DeclarationType.Token.TokenType, argValue.Token.TokenValue);</p>
+<p>        var declr = new VarDeclrAst(token, srcArg.Token, new Expr(argValue.Token));</p>
+<p>        // if we're creating a partial using a variable then we need to resolve the variable type<br />
+        // otherwise we can make a symbol for the literal<br />
+        var newArgType = argValue.Token.TokenType == TokenType.Word ?<br />
+                                ast.CurrentScope.Resolve(argValue).Type<br />
+                            :   ScopeUtil.CreateSymbolType(argValue);</p>
+<p>        // create a symbol type for the target we're invoking on so we can do type checking<br />
+        var targetArgType = ScopeUtil.CreateSymbolType(srcArg.DeclarationType);</p>
+<p>        if (!TokenUtil.EqualOrPromotable(newArgType, targetArgType))<br />
+        {<br />
+            throw new InvalidSyntax(String.Format(&quot;Cannot pass argument {0} of type {1} to partial function {2} as argument {3} of type {4}&quot;,<br />
+                argValue.Token.TokenValue,<br />
+                newArgType.TypeName,<br />
+                srcMethod.MethodName.Token.TokenValue,<br />
+                srcArg.VariableName.Token.TokenValue,<br />
+                targetArgType.TypeName));<br />
+        }</p>
+<p>        fixedAssignments.Add(declr);</p>
+<p>        count++;<br />
+    }</p>
+<p>    var newBody = fixedAssignments.Concat(srcMethod.Body.ScopedStatements).ToList();</p>
+<p>    var curriedMethod = new LambdaDeclr(srcMethod.Arguments.Skip(ast.Arguments.Count).ToList(), new ScopeDeclr(newBody));</p>
+<p>    SetScope(curriedMethod);</p>
+<p>    return curriedMethod;<br />
+}<br />
+[/csharp]</p>

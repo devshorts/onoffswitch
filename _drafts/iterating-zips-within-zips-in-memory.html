@@ -1,0 +1,72 @@
+---
+layout: post
+title: Iterating zip's within zip's in memory
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: draft
+categories: []
+tags: []
+meta:
+  _syntaxhighlighter_encoded: '1'
+  dsq_thread_id: '841752010'
+  _su_title: ''
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/"
+---
+<p>Sometimes you don't want to unzip a file to disk just to access it's internals. This is pretty easy usually with most c# zip libraries, but what gets more complicated is when you start having zip's within <a href="http://qkme.me/3qw724">zip's within zip's</a> and you want to recursively iterate through everything in memory! Or maybe you want to search for something and only extract out the one file that you care about.</p>
+<p>We ran into this situation a few times and decided to abstract out iterating over hierarchical data structures. This way all we need to do is know if an item is a file and we can get its data stream, as well as if anything has any children (such as files in a zip or files in a directory) without having to care about what is in the node.</p>
+<p>For this library we've defined the concept of a <code>FileSystemNode</code>. All nodes derive from <code>FileSystemNode</code> and the base class is responsible for resolving what kind of sub node type it can be. For example, if the file is a zip file, it will resolve the "node" to be a <code>ZipContainer</code>. If the file is a directory it'll resolve to <code>RealDirectory</code>, etc. Now we have a unified API for working with heirarchal data. We can easily add more hierarchical types for custom data containers if we wanted to later.</p>
+<p>What we have in common are the following functions:</p>
+<ul>
+<li><code>Children</code> - Returns a list of any defined children - (this would be files in a directory, or files inside of a zip)</li>
+<li><code>IsDirectory</code> - <em>Tells us if the node is a directory</em> (this is true for zip files and directories, but not for files inside of a zip that aren't also zips)</li>
+<li><code>IsFile</code> - Tells us if the node is a file</li>
+<li><code>InputStream</code> - Gives us the input stream of whatever node we're on. If this is a directory it gives us nothing, but if its a zip file or regular file (on disk) it'll extract the data and return that as a stream</li>
+<li><code>Name</code> - The name of the item</li>
+<li><code>GetFile(string path)</code> - Returns to use a file of the same path (whether its a file in a directory or a file name in a zip archive)</li>
+<li><code>GetFiles</code> - Retuns us a list of file system nodes searched on the zip or directory</li>
+</ul>
+<p>Using these basic properties we can get, find, and act on data inside of a folder or a zip. What really makes this nice is that we no longer have to care what we're acting on. If someone passed in a file thats great, if someone passed in a zip we can work with that too. We've decoupled our logic from what we're actually working with and that lets us write simple unified code regardless of what kind of file system item is passed in.</p>
+<p>Lets jump into an example:</p>
+<p>To create a file system node we can use a static Create method on the base class to resolve the appropriate container and give us a base class reference:</p>
+<p>[csharp]<br />
+FileSystemNode zipContainer = FileSystemNode.Create(@&quot;../../../Resources/Outer.7z&quot;);<br />
+[/csharp]</p>
+<p>In this example (which is copied from the supplied unit tests project in our github) resolves a 7z file as a zip container. This particular zip has a structure like this:</p>
+<p><a href="http://tech.blinemedical.com/wp-content/uploads/2012/09/outerzip-e1347562933955.png"><img src="http://tech.blinemedical.com/wp-content/uploads/2012/09/outerzip-e1347562933955.png" alt="" width="601" height="217" class="alignnone size-full wp-image-498" /></a></p>
+<p><a href="http://tech.blinemedical.com/wp-content/uploads/2012/09/innerzip-e1347562953561.png"><img src="http://tech.blinemedical.com/wp-content/uploads/2012/09/innerzip-e1347562953561.png" alt="" width="601" height="195" class="alignnone size-full wp-image-497" /></a></p>
+<p>And since we've resolved <code>zipContainer</code> we can list the contents of it using <code>zipContainer.Children</code>. That will give us:</p>
+<p><em>File1.txt<br />
+InnerZip.7z</em></p>
+<p>But remember, we haven't unzipped this, this is all in memory.  Internally we're iterating over the <code>ArchiveFileInfo</code> collection of a zipped file and continuously resolving the child components. If it had been a directory we would've listed the files in the directory under the hood, but the abstraction is the same.</p>
+<p>[csharp]<br />
+public override IEnumerable&lt;FileSystemNode&gt; Children<br />
+{<br />
+    get<br />
+    {<br />
+        // When reading the .zip's contents, attempt to resolve any zipped file<br />
+        // in case it is also a container (ex. nested zip)<br />
+        return (Zip.ArchiveFileData.Select(<br />
+            entry =&gt; ResolvePossibleContainer(GetContent(entry))));<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>In the example zip I posted above, if we want to go into the file <code>InnerZip.7z</code> we could just recurse through the outer zip's children's property without having to worry about extracting out any subzips. It's all done in memory so its fast and cheap (assuming your zip isn't enormous). Even if you have a large zip file, if you are only looking to extract certain items (that aren't within zips themselves) you won't have to extract all the other miscellaneous files.  </p>
+<p>Now, lets say we want to find out what the data is in one of our file system node items is.  When we have an item we can just access its InputStream object and internally would do this:</p>
+<p>[csharp]<br />
+using (var stream = new StreamReader(child.InputStream))<br />
+{<br />
+    Console.WriteLine(&quot;{0} contents: {1}&quot;, child.Name, stream.ReadToEnd());<br />
+}<br />
+[/csharp]</p>
+<p>Where <code>child</code> is a <code>FileSystemNode</code>. At this point it doesn't matter if the child is a zip entry, or a file, the result is the same.  </p>
+<p>In practice I've only used this when I have zip's and it's made my life so much easier not having to care about zips within zips within zips. Realistically though I haven't found it that useful or realistic to be mixing directories, files, zips all in one, but there's nothing to say that couldn't happen. If you had some other mixed sort of file system data all you'd need to do is create a new subclass of <code>FileSystemNode</code> and the abstraction layer would work just fine.</p>
+<p>Check the full source and tests at our <a title="File System Traversal source" href="https://github.com/blinemedical/FileSystemTraversal" target="_blank" rel="noopener noreferrer">github</a>.</p>

@@ -1,0 +1,166 @@
+---
+layout: post
+title: Images, memory leaks, GDI+, and the aggregate function
+date: 2013-04-24 00:55:42.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Snippets
+tags:
+- c#
+- Image
+- memory leak
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561976764;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3524;}i:1;a:1:{s:2:"id";i:4028;}i:2;a:1:{s:2:"id";i:3232;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/04/24/memory-leaks-images/"
+---
+<p>I ran into a neat C# memory leak today that I wanted to share. It's not often you get a clear undeniable leak in C# and so I really had fun figuring this one out.</p>
+<p>Look at this and see if you can spot the leak:</p>
+<p>[csharp]<br />
+public static class Extensions<br />
+{<br />
+    public static Image Append(this Image source, Image append)<br />
+    {<br />
+        var newImage = new Bitmap(source.Width + append.Width, source.Height);<br />
+        using (var g = Graphics.FromImage(newImage))<br />
+        {<br />
+            g.DrawImage(source, 0, 0);</p>
+<p>            g.DrawImage(append, source.Width, 0);<br />
+        }</p>
+<p>        return newImage;<br />
+    }<br />
+}</p>
+<p>private static void Main(string[] args)<br />
+{<br />
+    var src = @&quot;C:\users\anton\desktop\bigImage.jpg&quot;;</p>
+<p>    var images = Enumerable.Repeat(Image.FromFile(src), 25).ToList();</p>
+<p>    var appendedImage = images.Aggregate((acc, i) =&gt; acc.Append(i));</p>
+<p>    foreach (var image in images)<br />
+    {<br />
+        image.Dispose();<br />
+    }</p>
+<p>    appendedImage.Dispose();</p>
+<p>    Console.ReadLine();<br />
+}<br />
+[/csharp]</p>
+<p>What this code does is create 25 instances of my bigImage.jpg (6.5MB), and then creates a new image consisting of those 25 images side by side. The aggregate function folds the list into a single image using the <code>Append</code> extension method. This way the accumulator is the new running image.</p>
+<p>Since <code>Image</code> is disposable, I've disposed of the source images, as well as the final new image. Should be cool right? </p>
+<p>And yet, even though I have deterministically released resources (the whole point of dispose), I have a memory leak!</p>
+<p><img src="http://onoffswitch.net/wp-content/uploads/2013/04/memLeakImage..png" alt="memLeakImage." width="484" height="95" class="alignnone size-full wp-image-3641" /></p>
+<p>Weird... </p>
+<p>What if I get rid of the fold and append everything in one go?</p>
+<p>[csharp]<br />
+public static Image Append(this Image source, List&lt;Image&gt; appends)<br />
+{<br />
+    var newImage = new Bitmap(source.Width + appends.Count() * source.Width, source.Height);<br />
+    using (var g = Graphics.FromImage(newImage))<br />
+    {<br />
+        g.DrawImage(source, 0, 0);</p>
+<p>        int i = 1;<br />
+        foreach (var item in appends)<br />
+        {<br />
+            g.DrawImage(item, i * source.Width, 0);</p>
+<p>            i++;<br />
+        }<br />
+    }</p>
+<p>    return newImage;<br />
+}</p>
+<p>private static void Main(string[] args)<br />
+{<br />
+    var src = @&quot;C:\users\anton.kropp\desktop\bigImage.jpg&quot;;</p>
+<p>    var images = Enumerable.Repeat(Image.FromFile(src), 25).ToList();</p>
+<p>    var appendedImage = images.First().Append(images.Skip(1).ToList());</p>
+<p>    foreach (var image in images)<br />
+    {<br />
+        image.Dispose();<br />
+    }</p>
+<p>    appendedImage.Dispose();</p>
+<p>    Console.ReadLine();<br />
+}<br />
+[/csharp]</p>
+<p>And now when I wait on the read at the end</p>
+<p><img src="http://onoffswitch.net/wp-content/uploads/2013/04/noMemLeakImage..png" alt="noMemLeakImage." width="506" height="44" class="alignnone size-full wp-image-3642" /></p>
+<p>No memory leak!</p>
+<p>Something with that aggregate function is causing a leak.  Well, when in doubt, go to the source. Here is the decompiled source for the <code>Aggregate</code> overload that uses the first element in the sequence as the seed</p>
+<p>[csharp highlight="14"]<br />
+[__DynamicallyInvokable]<br />
+public static TSource Aggregate&lt;TSource&gt;(this IEnumerable&lt;TSource&gt; source, Func&lt;TSource, TSource, TSource&gt; func)<br />
+{<br />
+    if (source == null)<br />
+        throw Error.ArgumentNull(&quot;source&quot;);<br />
+    if (func == null)<br />
+        throw Error.ArgumentNull(&quot;func&quot;);<br />
+    using (IEnumerator&lt;TSource&gt; enumerator = source.GetEnumerator())<br />
+    {<br />
+        if (!enumerator.MoveNext())<br />
+            throw Error.NoElements();<br />
+        TSource source1 = enumerator.Current;<br />
+        while (enumerator.MoveNext())<br />
+            source1 = func(source1, enumerator.Current);<br />
+        return source1;<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>Once I saw this I spotted the leak right away.  The issue is that each time an item is folded, the function is overwriting the reference to the first element with the aggregation lambda (highlighted).  Since the <code>Image</code> class wraps native GDI+ code, this means that unless you call dispose on each instance that is created, the underlying unmanaged resources are still sitting around!  </p>
+<p>The reason the second version works is because I am not making intermediary images via an accumulator. Each image reference that is created is tracked then properly destroyed.</p>
+<p>Now, understanding the issue, I was able to mimic the problem outside of the aggregate function:</p>
+<p>[csharp]<br />
+public static void MemLeak()<br />
+{<br />
+    var src = @&quot;C:\users\anton.kropp\desktop\bigImage.jpg&quot;;</p>
+<p>    Image image1 = null;</p>
+<p>    foreach (var i in Enumerable.Range(0, 10))<br />
+    {<br />
+        image1 = Image.FromFile(src);<br />
+    }</p>
+<p>    image1.Dispose();</p>
+<p>    Console.ReadLine();<br />
+}<br />
+[/csharp]</p>
+<p>Just because it's the same variable, does not mean it's the same reference.  Actually if we modify the code like this we can really drive the point home:</p>
+<p>[csharp]<br />
+public static void MemLeak()<br />
+{<br />
+    var src = @&quot;C:\users\anton.kropp\desktop\bigImage.jpg&quot;;</p>
+<p>    Image image1 = null;</p>
+<p>    Image previousImage;</p>
+<p>    foreach (var i in Enumerable.Range(0, 10))<br />
+    {<br />
+        previousImage = image1;</p>
+<p>        image1 = Image.FromFile(src);</p>
+<p>        Console.WriteLine(&quot;References equal? &quot; + ReferenceEquals(previousImage, image1));<br />
+    }</p>
+<p>    image1.Dispose();</p>
+<p>    Console.ReadLine();<br />
+}</p>
+<p>[/csharp]</p>
+<p>Which prints out</p>
+<p>[code]<br />
+References equal? False<br />
+References equal? False<br />
+References equal? False<br />
+References equal? False<br />
+References equal? False<br />
+References equal? False<br />
+References equal? False<br />
+References equal? False<br />
+References equal? False<br />
+References equal? False<br />
+[/code]</p>
+<p>Which makes sense.</p>
+<h2>Conclusion</h2>
+<p>What I got out of all of this is that you really need to know where your references are and understand what your temporary values are doing. Also, don't use disposable items as accumulators in an aggregator.</p>
+<p>This is where I really regret posting the last article as a response to  functional. If things were immutable by default I wouldn't have run into this problem.  :)</p>

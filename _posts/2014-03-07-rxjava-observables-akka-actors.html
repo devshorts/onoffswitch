@@ -1,0 +1,212 @@
+---
+layout: post
+title: RxJava Observables and Akka actors
+date: 2014-03-07 23:41:36.000000000 -08:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- actors
+- akka
+- functional reactive
+- java
+- Rx
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561910971;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4627;}i:1;a:1:{s:2:"id";i:4593;}i:2;a:1:{s:2:"id";i:4629;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2014/03/07/rxjava-observables-akka-actors/"
+---
+<p>I was playing with both <a href="http://akka.io/" target="_blank" rel="noopener noreferrer">akka</a> and <a href="https://github.com/Netflix/RxJava" target="_blank" rel="noopener noreferrer">rxjava</a> and came across the <a href="java.dzone.com/articles/creating-rxjava-observable" target="_blank" rel="noopener noreferrer">following post</a> that described how to map rxjava observables from messages posted to akka actors. </p>
+<p>Since my team works in java, I decided to try mapping the concept to java directly, but found that there was an issue. When I tried to have multiple subscribers listen on the stream I'd get an exception since more than one subscriber would send the "subscribe" message and try to modify the akka receive context.</p>
+<p>I also wanted to make it easier to extend the actors to be able to process a piece of work, and then resubmit it for consumption by the observable.</p>
+<h2>The subscribe command messages</h2>
+<p>First, let me show the commands we can send to the actors. This is just mapping the scala union type that the original blog post had.  The <code>@Data</code> attribute is part of <a href="projectlombok.org/features/index.html" target="_blank" rel="noopener noreferrer">project lombok</a> and auto creates an immutable class with a constructor and getters for your private final fields:</p>
+<p>[java]<br />
+package com.devshorts.rx;</p>
+<p>import java.io.Serializable;</p>
+<p>public class UnSubscribe implements Serializable {}<br />
+[/java]</p>
+<p>And</p>
+<p>[java]<br />
+package com.devshorts.rx;</p>
+<p>import lombok.Data;<br />
+import rx.functions.Action1;</p>
+<p>import java.io.Serializable;</p>
+<p>@Data<br />
+public class Subscribe implements Serializable {<br />
+    private final Action1 subscription;<br />
+}<br />
+[/java]</p>
+<h2>Observable actor</h2>
+<p>Second, let me show the mapped observable actor. This is the abstract class that all observable actors should inherit from and it manages changing the default akka context to invoke receive messages on the supplied procedure. All this means is that when the actor gets a <code>Subscribe</code> it'll change what function it uses to receive messages to the one that is supplied by the subscribe object: <code>onRecieve</code> won't ever get called anymore.  <code>unbecome</code> would undo that and set it back to the default handler.</p>
+<p>[java]<br />
+package com.devshorts.rx;</p>
+<p>import akka.actor.UntypedActor;<br />
+import akka.japi.Procedure;</p>
+<p>public abstract class ObservableActor extends UntypedActor {</p>
+<p>    @Override<br />
+    public void onReceive(final Object o) throws Exception {<br />
+        if(o instanceof Subscribe){<br />
+            System.out.println(&quot;Subscribed!&quot;);</p>
+<p>            // change the default 'onReceive' behavior to now be the anonymous class<br />
+            // implementation.  This means that all new requests will go to<br />
+            // processMessage and returned to the observable as a transformation<br />
+            getContext().become(new Procedure&lt;Object&gt;() {<br />
+                @Override<br />
+                public void apply(Object message) throws Exception {<br />
+                    if(message instanceof UnSubscribe){<br />
+                        getContext().unbecome();</p>
+<p>                        System.out.println(&quot;Unsubscribed&quot;);<br />
+                    }<br />
+                    else{<br />
+                        Subscribe subscriber = (Subscribe)(o);</p>
+<p>                        subscriber.getSubscription().call(processMessage(message));<br />
+                    }<br />
+                }<br />
+            });<br />
+        }<br />
+        else{<br />
+            System.out.println(&quot;Default behavior &quot; + o);<br />
+        }</p>
+<p>    }</p>
+<p>    protected abstract Object processMessage(Object message);<br />
+}<br />
+[/java]</p>
+<p>Notice the abstract method though. This is what I want all subsequent actors to implement and acts as the "do work" method.</p>
+<p>Here's an actor that just re-dispatches its input:</p>
+<p>[java]<br />
+package com.devshorts.rx;</p>
+<p>public class AkkEcho extends ObservableActor {<br />
+    @Override<br />
+    protected Object processMessage(Object message) {<br />
+        return message;<br />
+    }<br />
+}<br />
+[/java]</p>
+<p>And here is one that modifies the input a little</p>
+<p>[java]<br />
+package com.devshorts.rx;</p>
+<p>public class AkkaMapEcho extends ObservableActor {<br />
+    @Override<br />
+    protected Object processMessage(Object message) {<br />
+        String m = (String)(message);</p>
+<p>        return m + &quot; mapped!&quot;;<br />
+    }<br />
+}<br />
+[/java]</p>
+<h2>Creating the observable wrapper</h2>
+<p>Below is the observable wrapper. It creates a publish subject that handles incoming and outgoing messages, as well as taking care of instantiating only <em>one</em> observable bound the actor.  What is returned is now a safe consumable stream that multiple subscribers can read off of:</p>
+<p>[java]<br />
+package com.devshorts.rx;</p>
+<p>import akka.actor.ActorRef;<br />
+import rx.Observable;<br />
+import rx.Subscriber;<br />
+import rx.functions.Action1;<br />
+import rx.subjects.PublishSubject;</p>
+<p>public class ObservableUtil {</p>
+<p>    public static &lt;T&gt; Observable&lt;T&gt; fromActor(final ActorRef actor){<br />
+        final PublishSubject&lt;T&gt; subj = PublishSubject.create();</p>
+<p>        Observable&lt;T&gt; observable = Observable.create(new Observable.OnSubscribe&lt;T&gt;() {<br />
+            @Override<br />
+            public void call(final Subscriber&lt;? super T&gt; subscriber) {</p>
+<p>                /**<br />
+                 * Create an initial subscribe method that modifies<br />
+                 * the actors default behavior to proxy the request to the<br />
+                 * subscribers 'onNext' function.  This way<br />
+                 * when someone posts to the actor, we intercept the actors RESPONSE<br />
+                 * and pipe it into the subscribers work queue.<br />
+                 */<br />
+                Subscribe msg = new Subscribe(new Action1&lt;T&gt;() {<br />
+                    @Override<br />
+                    public void call(T o) {<br />
+                        subscriber.onNext(o);<br />
+                    }<br />
+                });</p>
+<p>                actor.tell(msg, ActorRef.noSender());<br />
+            }<br />
+        });</p>
+<p>        /**<br />
+         * Create one subscriber to this actor observable and re-proxy the result<br />
+         * to the subject (this lets other people subscribe to the subject, and keeps<br />
+         * the akka observable from having to worry about managing who is substring to what<br />
+         * and de-muddles up the behavior modification code. this call also invokes the<br />
+         * subscribe command pattern above.<br />
+         */<br />
+        observable.subscribe(new Action1&lt;T&gt;() {<br />
+            @Override<br />
+            public void call(T o) {<br />
+                subj.onNext(o);<br />
+            }<br />
+        });</p>
+<p>        /**<br />
+         * Return the subject's observable stream for others to subscribe on<br />
+         */<br />
+        return subj.asObservable();<br />
+    }<br />
+}<br />
+[/java]</p>
+<h2>Using it</h2>
+<p>You can imagine a distributed system where you have actors and they are receiving messages, but you want to work on their output transformations or listen to them via the observable API. </p>
+<p>This makes it really nice to have uniform time based event behaviors that you can leverage in your code. It no longer matters that the events are sourced from an akka actor, or if they are sourced from futures, or iterables, or whatever. They just exist, and you have subscribed to them.</p>
+<p>Now let's check out a unit test that uses the actor. We'll have two observables that listen and capture events, and the test will also be responsible for posting values to the actor.</p>
+<p>[java]<br />
+/**<br />
+ * Wrap an akka actor's behavior into an observable stream.<br />
+ *<br />
+ * Now your producer api is the actor, but your consumers can<br />
+ * manipulate the underlying event stream to create behaviors<br />
+ * @throws InterruptedException<br />
+ */<br />
+@Test<br />
+public void AkkaObservable() throws InterruptedException {<br />
+    final Object mutex = new Object();</p>
+<p>    final ActorRef actor = createActorOfType(AkkEcho.class);</p>
+<p>    final List&lt;String&gt; results = new ArrayList&lt;&gt;();<br />
+    final List&lt;String&gt; distinctResults = new ArrayList&lt;&gt;();</p>
+<p>    final Observable&lt;String&gt; observable = ObservableUtil.fromActor(actor);</p>
+<p>    observable.subscribe(new Action1&lt;String&gt;() {<br />
+        @Override<br />
+        public void call(String o) {<br />
+            System.out.println(o);</p>
+<p>            if(o.equals(&quot;done&quot;)){<br />
+                synchronized (mutex){ mutex.notify(); }<br />
+            }<br />
+            else{<br />
+                results.add(o);<br />
+            }<br />
+        }<br />
+    });</p>
+<p>    observable.distinct().subscribe(new Action1&lt;String&gt;() {<br />
+        @Override<br />
+        public void call(String o) {<br />
+            distinctResults.add(o);<br />
+        }<br />
+    });</p>
+<p>    actor.tell(&quot;foo&quot;,  ActorRef.noSender());<br />
+    actor.tell(&quot;foo&quot;,  ActorRef.noSender());<br />
+    actor.tell(&quot;foo&quot;,  ActorRef.noSender());<br />
+    actor.tell(&quot;bar&quot;,  ActorRef.noSender());<br />
+    actor.tell(&quot;done&quot;, ActorRef.noSender());</p>
+<p>    synchronized (mutex){ mutex.wait(); }</p>
+<p>    Assert.assertEquals(results, Arrays.asList(&quot;foo&quot;, &quot;foo&quot;, &quot;foo&quot;, &quot;bar&quot;));<br />
+    Assert.assertEquals(distinctResults, Arrays.asList(&quot;foo&quot;, &quot;bar&quot;, &quot;done&quot;));<br />
+}</p>
+<p>private ActorRef createActorOfType(Class&lt;? extends Actor&gt; clazz) {<br />
+    ActorSystem system = ActorSystem.create(&quot;client&quot;);</p>
+<p>    return system.actorOf(Props.create(clazz), &quot;rcv&quot;);<br />
+}<br />
+[/java]</p>
+<p>Oh, and this is onoffswitch.net's 100th post! wooo!</p>

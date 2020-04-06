@@ -1,0 +1,111 @@
+---
+layout: post
+title: Queued Deferred Instantiation in AS3
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: draft
+categories: []
+tags:
+- AS3
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_title: ''
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/"
+---
+<p>In AS3/flex there is the idea of a <a href="http://livedocs.adobe.com/flex/3/html/help.html?content=layoutperformance_05.html">creation policy</a> which determines the way that components are created by their parent containers. For the most part everyone leaves things at "auto", but when you start developing a large application you run into performance issues when too many things are created when they don't have to be.  Child components inherit their creation policy from the parent.</p>
+<p>A view stack, for example, does not create any of its children until you actually select to view it. This is known as deferred instantiation, and the viewstack does this for you automatically. However, sometimes you don't have things in a viewstack.  You could use the "queued" creation policy, which creates the first child in a container, then the second, etc, in order.  This works fine assuming everything is in the same container. But what if you want to mimic the queued creation policy but linked through different parent containers, and have some children automatically created before others? For example, imagine you have a (pseudocode) display heirarchy like this</p>
+<p>[csharp]<br />
+&lt;App&gt;<br />
+	&lt;container1&gt;<br />
+	  &lt;component1/&gt;<br />
+	  &lt;component2/&gt;<br />
+	&lt;/container1&gt;<br />
+	&lt;container2&gt;<br />
+	  &lt;component3&gt;<br />
+	  	&lt;item1/&gt;<br />
+	  	&lt;item2/&gt;<br />
+	  &lt;/component3&gt;<br />
+	&lt;/container2&gt;<br />
+&lt;/App&gt;<br />
+[/csharp]  </p>
+<p>How do you make it so that <code>component1</code> shows up first, then <code>item1</code> in <code>component3</code>, then <code>component2</code> in <code>container1</code>, but making sure that the parent containers (<code>container1</code>, <code>container2</code>) are ALREADY created?  You can't set creation policy none and then create the items manually using createComponentsFromDescriptors because that would create everything. Setting creation policy queued would create all of <code>container1</code> and then all of <code>container2</code>.  You really want to create and add a component, then when that component is done create and add the next component, regardless of who is its parent.</p>
+<p>For us, we have an internal dashboard panel that we want to visibly structure in a certain way (not in the same parent container) but control which <a href="http://en.wikipedia.org/wiki/Portlet">portlets</a> load first ordered by least processing to most processing. This way the user sees the page build out as fast as possible and isn't left with a loading screen thinking that the app is broken when really its building all its components.</p>
+<p>For this situation we created a "QueuedCreation" helper class.  </p>
+<p>Here is how it would look:</p>
+<p>[csharp]<br />
+// create our components in as3<br />
+var component1:ComponentType = new ComponentType();<br />
+var component2:ComponentType = new ComponentType();<br />
+var item1:ItemType = new ItemType();<br />
+var item2:ItemType = new ItemType();</p>
+<p>// create a queued creator instance<br />
+var queuedCreator:QueuedCreator = new QueuedCreator();</p>
+<p>// add(displayObject, container) which will register to add container.addChild(displayObject)<br />
+queuedCreator.add(component1, container1);<br />
+queuedCreator.add(item1, container2);<br />
+queuedCreator.add(component2, container1);<br />
+queuedCreator.add(item2, container2);<br />
+[/csharp]</p>
+<p>At this point we expect that container 1 is already created but has no children, same with <code>container2</code>. Then we'll schedule to add component1 to <code>container1</code>. When <code>component1</code> is created and added we'll then add item1 to container2.  After item1 is added we'll add <code>component2</code> to <code>container1</code>, followed by <code>item2</code> to <code>container2</code>.  </p>
+<p>This will give the appearance of the components loading one after the other. You can even have canvases in the containers already that show something like "Loading" and hide the loading when all the items are loaded.</p>
+<p>To start the process just do:</p>
+<p>[csharp]<br />
+queuedCreator.start();<br />
+[/csharp]</p>
+<p>And it will fire off the creation in the order you requested.  We've exposed a couple events to tell you when something was created and when the process is complete as well. Here is the full class:</p>
+<p>[csharp]<br />
+[Event(name=&quot;itemCreated&quot;, type=&quot;flash.events.Event&quot;)]<br />
+[Event(name=&quot;itemsComplete&quot;, type=&quot;flash.events.Event&quot;)]<br />
+public class QueuedCreator extends EventDispatcher<br />
+{<br />
+	public function QueuedCreator()<br />
+	{<br />
+	}</p>
+<p>	private var childCount:int = 0;</p>
+<p>	private var creationOrder:ArrayCollection = new ArrayCollection();</p>
+<p>	public function add(displayObject:DisplayObject, parent:Container):void{<br />
+		displayObject.addEventListener(FlexEvent.UPDATE_COMPLETE, childCompleteHandler, false, 0, true);</p>
+<p>		creationOrder.addItem(function():void{<br />
+			parent.addChild(displayObject);<br />
+		});<br />
+	}</p>
+<p>	private function buildChildren():void<br />
+	{<br />
+		creationOrder[childCount]();<br />
+		childCount++;<br />
+	}</p>
+<p>	private function childCompleteHandler(event:FlexEvent):void<br />
+	{<br />
+		dispatchEvent(new Event(&quot;itemCreated&quot;))<br />
+		if (childCount &lt; creationOrder.length)<br />
+		{<br />
+			buildChildren();<br />
+		}<br />
+		else{<br />
+			dispatchEvent(new Event(&quot;itemsComplete&quot;))<br />
+			reset();<br />
+		}<br />
+	}</p>
+<p>	private function reset():void<br />
+	{<br />
+		childCount = 0;<br />
+		creationOrder.removeAll();<br />
+	}</p>
+<p>	public function start():void{<br />
+		if(creationOrder != null &amp;&amp; creationOrder.length &gt; 0){<br />
+			buildChildren();<br />
+		}<br />
+	}<br />
+}<br />
+[/csharp]</p>
+<p>Something to keep in mind is that because we are using weak references to the event handlers in the <code>QueuedCreator</code> class that you should make sure to hold a reference to the queued creator from your class otherwise the object could get garbage collected and not finish.  The alternative is to modify the class and make the event handler a strong link, but then you'll have extra linked handlers that require more cleanup.</p>

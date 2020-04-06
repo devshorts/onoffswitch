@@ -1,0 +1,223 @@
+---
+layout: post
+title: The HTTP driver pattern
+date: 2017-07-24 23:30:07.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- http
+- library
+- patterns
+- scala
+meta:
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1557689075;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4939;}i:1;a:1:{s:2:"id";i:4945;}i:2;a:1:{s:2:"id";i:289;}}}}
+  _wpcom_is_markdown: '1'
+  _edit_last: '1'
+  _su_rich_snippet_type: none
+  _syntaxhighlighter_encoded: '1'
+  _wpas_done_all: '1'
+  _jetpack_dont_email_post_to_subs: '1'
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2017/07/24/http-driver-pattern/"
+---
+<p>Yet another SOA blog post, this time about calling services. I've seen a lot of posts, articles, even books, on how to <em>write</em> services but not a good way about <em>calling</em> services. It may seem trivial, isn't calling a service a matter of making a web request to one? Yes, it is, but in a larger organization it's not always so trivial.</p>
+<h1>Distributing fat clients</h1>
+<p>The problem I ran into was the service stack in use at my organization provided a feature rich client as an artifact of a services build. It had retries, metrics, tracing with zipkin, etc.  But, it also pulled in things like finagle, netty, jackson, and each service may be distributing slightly different versions of all of these dependencies.  When you start to consume 3, 4, 5 or more clients in your own service, suddenly you've gotten into an intractable mess of dependencies. Sometimes there's no actual way to resolve them all without forcing upgrades in other services!  That... sucks. It violates the idea of services in that my service is now coupled to your service.</p>
+<p>You don't want to force service owners to have to write clients for each service they want to call. That'd be a big waste of time and duplicated effort. If your organization is mono-lingual (i.e. all java/scala/whatever) then its still worth providing a feature rich client that has the sane things built in: retries, metrics, tracing, fast fail, serialization, etc.  But you don't want services leaking all the nuts and bolts to each other.</p>
+<p>One solution is to auto generate clients server side. This is akin to what <a href="https://docs.microsoft.com/en-us/dotnet/framework/wcf/whats-wcf">WCF</a> does, or projects like <a href="https://swagger.io/">swagger</a>, <a href="https://thrift.apache.org/">thrift</a> for RPC, etc.  The downside here is that the generated code is usually pretty nasty and sometimes its hard to plug in to augment the clients with custom tracing, correlation tracking, etc. Other times the API itself might need a few nicety helper methods that you don't want to expose in the raw API itself. But in the auto generated world, you can't do this.</p>
+<p>There are other projects like <a href="http://square.github.io/retrofit/">Retrofit</a> that look like they solve the problem since your client is just an interface and its only dependency is <a href="http://square.github.io/okhttp/">OkHttp</a>.  But retrofit isn't scala friendly (None's need custom support, default arguments in methods are not properly intercepted, etc).  You're also bound to the back-compat story of retrofit/okhttp, assuming that they can do things like make sure older versions live side by side together.</p>
+<p>In practice, I found that retrofit (even with scala's issues) didn't work well in a distributed services environment where everyone was at wildly different versions of things.</p>
+<h1>Abstracting HTTP</h1>
+<p>However, taking the idea from retrofit we can abstract away http calls with an http driver. Http really isn't that complicated, especially for how its used in conjuction with service to service calls:</p>
+<p>[scala]<br />
+import scala.concurrent.{ExecutionContext, Future}</p>
+<p>case class ApiRequest(<br />
+  path: String,<br />
+  queryParams: Seq[(String, Option[String])] = Nil,<br />
+  headers: Seq[(String, Option[String])] = Nil,<br />
+  options: Option[RequestOptions] = None<br />
+) </p>
+<p>case class RequestOptions(<br />
+  contentType: Option[String],<br />
+  characterSet: String = &quot;utf-8&quot;<br />
+)</p>
+<p>/**<br />
+ * A response with a body<br />
+ *<br />
+ * @param data     The deserialized data<br />
+ * @param response The raw http response<br />
+ * @tparam T The type to deserialize<br />
+ */<br />
+case class BodyResponse[T](data: T, response: RawResponse)</p>
+<p>/**<br />
+ * A raw response that contains code, the body and headers<br />
+ *<br />
+ * @param code<br />
+ * @param body<br />
+ * @param headers<br />
+ */<br />
+case class RawResponse(code: Int, body: String, headers: Map[String, List[String]])</p>
+<p>/**<br />
+ * An http error that all drivers should throw on non 2xx<br />
+ *<br />
+ * @param code  The code<br />
+ * @param body  An optional body<br />
+ * @param error The inner exception (may be driver specific)<br />
+ */<br />
+case class HttpError(code: Int, body: Option[String], error: Exception)<br />
+  extends Exception(s&quot;Error ${code}, body: ${body}&quot;, error)</p>
+<p>/**<br />
+ * Marker trait indicating an http client<br />
+ */<br />
+trait HttpClient</p>
+<p>/**<br />
+ * The simplest HTTP Driver. This is used to abstract libraries that call out over the wire.<br />
+ *<br />
+ * Anyone can create a driver as long as it implements this interface<br />
+ */<br />
+trait HttpDriver {<br />
+  val serializer: HttpSerializer</p>
+<p>  def get[TRes: Manifest](<br />
+    request: ApiRequest<br />
+  )(implicit executionContext: ExecutionContext): Future[BodyResponse[TRes]]</p>
+<p>  def post[TReq: Manifest, TRes: Manifest](<br />
+    request: ApiRequest,<br />
+    body: Option[TReq]<br />
+  )(implicit executionContext: ExecutionContext): Future[BodyResponse[TRes]]</p>
+<p>  def put[TReq: Manifest, TRes: Manifest](<br />
+    request: ApiRequest,<br />
+    body: Option[TReq]<br />
+  )(implicit executionContext: ExecutionContext): Future[BodyResponse[TRes]]</p>
+<p>  def patch[TReq: Manifest, TRes: Manifest](<br />
+    request: ApiRequest,<br />
+    body: Option[TReq]<br />
+  )(implicit executionContext: ExecutionContext): Future[BodyResponse[TRes]]</p>
+<p>  def custom[TReq: Manifest, TRes: Manifest](<br />
+    method: Methods,<br />
+    request: ApiRequest,<br />
+    body: Option[TReq]<br />
+  )(implicit executionContext: ExecutionContext): Future[BodyResponse[TRes]]</p>
+<p>  def delete[TRes: Manifest](<br />
+    request: ApiRequest<br />
+  )(implicit executionContext: ExecutionContext): Future[BodyResponse[TRes]]</p>
+<p>  def bytesRaw[TRes: Manifest](<br />
+    method: Methods,<br />
+    request: ApiRequest,<br />
+    body: Option[Array[Byte]]<br />
+  )(implicit executionContext: ExecutionContext): Future[BodyResponse[TRes]]<br />
+}<br />
+[/scala]</p>
+<p>Service owners who want to distribute a client can create clients that have no dependencies (other than the driver definition. Platform maintainers, like myself, can be dilligent about making sure the driver interface <em>never breaks</em>, or if it does is broken in a new namespace such that different versions can peacefully co-exist in the same process.</p>
+<p>An example client can now look like</p>
+<p>[scala]<br />
+class ServiceClient(driver: HttpDriver) {<br />
+  def ping()(implicit executionContext: ExecutionContext): Future[Unit] = {<br />
+    driver.get[Unit](&quot;/health&quot;).map(_.data)<br />
+  }<br />
+}<br />
+[/scala]</p>
+<p>But we still need to provide an implementation of a driver. This is where we can decouple things and provide drivers that are properly tooled with all the fatness we want (netty/finagle/zipkin tracing/monitoring/etc) and service owners can bind their clients to whatever driver they want.  Those provided implementations can be in their own shared library that only service's bind to (not service clients! i.e. terminal endpoints in the dependency graph)</p>
+<p>There are few advantages here:</p>
+<ul>
+<li>Clients can be distributed at multiple scala versions without dependency conflicts</li>
+<li>It's much simpler to version manage and back-compat an interface/trait than it is an entire lib</li>
+<li>Default drivers that <em>do the right thing</em> can be provided by the service framework, and back compat doesn't need to be taken into account there since the only consumer is the service (it never leaks).  </li>
+<li>Drivers are simple to use, so if someone needs to roll their own client its really simple to do it</li>
+</ul>
+<h1>Custom errors</h1>
+<p>We can do some other cool stuff now too, given we've abstracted away how to call http code.  Another common issue with clients is dealing with meaningful errors that aren't just the basic http 5xx/4xx codes.  For example, if you throw a 409 conflict you may want the client to actually receive a <code>WidgetInIncorrectState</code> exception for some calls, and in other calls maybe a <code>FooBarInUse</code> error that contains more semantic information. Basically overloading what a 409 means for a particular call/query.  One way of doing this is with a discriminator in the error body:</p>
+<p>[code lang=text]<br />
+HTTP 409 response:<br />
+{<br />
+   &quot;code&quot;: &quot;WidgetInIncorrectState&quot;,<br />
+   &quot;widgetName: &quot;foo&quot;,<br />
+   &quot;widgetSize&quot;: 1234<br />
+}<br />
+[/code]</p>
+<p>Given we don't want client code pulling in a json library to do json parsing, the driver needs to support <a href="https://github.com/FasterXML/jackson-docs/wiki/JacksonPolymorphicDeserialization">context aware deserialization</a>.</p>
+<p>To do that, I've exposed a <code>MultiType</code> object that defines</p>
+<ul>
+<li>Given a path into the json object, which field defines the discriminator</li>
+<li>Given a discriminator, which type to deserialize to</li>
+<li>Which http error code to apply all this too</li>
+</ul>
+<p>And it looks like:</p>
+<p>[code lang=scala]<br />
+/**<br />
+ * A type representing deserialization of multiple types.<br />
+ *<br />
+ * @param discriminatorField The field that represents the textual &quot;key&quot; of what the subtype is. Nested fields can be located using<br />
+ *                           json path format of / delimited. I.e /foo/bar<br />
+ * @param pathTypes          The lookup of the result of the discriminatorField to the subtype mapper<br />
+ * @tparam T The supertype of all the subtypes<br />
+ */<br />
+case class MultiType[T](<br />
+  discriminatorField: String,<br />
+  pathTypes: Map[String, SubType[_ &lt;: T]]<br />
+)</p>
+<p>/**<br />
+ * Represents a subtype as part of a multitype mapping<br />
+ *<br />
+ * @param path The optional json sub path (slash delimited) to deserialize the type as.<br />
+ * @tparam T The type to deserialize<br />
+ */<br />
+case class SubType[T: Manifest](path: Option[String] = None) {<br />
+  val clazz = manifest[T].runtimeClass.asInstanceOf[Class[T]]<br />
+}<br />
+[/code]</p>
+<p>Using this in a client looks like:</p>
+<p>[code lang=scala]<br />
+class ServiceClient(driver: HttpDriver) {<br />
+  val errorMappers = MultiType[ApiException](discriminatorField = &quot;code&quot;, Map(<br />
+    &quot;invalidData&quot; -&gt; SubType[InvalidDataException]()<br />
+  ))</p>
+<p>  def ping()(implicit executionContext: ExecutionContext): Future[Unit] = {<br />
+    driver.get[Unit](&quot;/health&quot;).map(_.data).failWithOnCode(500, errorMappers)<br />
+  }<br />
+}<br />
+[/code]</p>
+<p>This is saying that when I get the value <code>invalidData</code> in the json response of field <code>code</code> on an http 500 error, to actually throw an <code>InvalidDataException</code> in the client.</p>
+<p>How does this work? Well just like the http driver, we've abstracted the serializer and that's all plugged in by the service consumer</p>
+<p>[code lang=scala]<br />
+case class DiscriminatorDoesntExistException(msg: String) extends Exception(msg)</p>
+<p>object JacksonHttpSerializer {<br />
+  implicit def jacksonToHttpSerializer(jacksonSerializer: JacksonSerializer): HttpSerializer = {<br />
+    new JacksonHttpSerializer(jacksonSerializer)<br />
+  }<br />
+}</p>
+<p>class JacksonHttpSerializer(jackson: JacksonSerializer = new JacksonSerializer()) extends HttpSerializer {<br />
+  override def fromDiscriminator[SuperType](multiType: MultiType[SuperType])(str: String): SuperType = {<br />
+    val tree = jackson.objectMapper.readTree(str)</p>
+<p>    val node = tree.at(addPrefix(multiType.discriminatorField, &quot;/&quot;))</p>
+<p>    val subType = multiType.pathTypes.get(node.textValue()).orElse(multiType.defaultType).getOrElse {<br />
+      throw new RuntimeException(s&quot;Discriminator ${multiType.discriminatorField} does not exist&quot;)<br />
+    }</p>
+<p>    val treeToDeserialize = subType.path.map(m =&gt; tree.at(addPrefix(m, &quot;/&quot;))).getOrElse(tree)</p>
+<p>    jackson.objectMapper.treeToValue(treeToDeserialize, subType.clazz)<br />
+  }</p>
+<p>  override def toString[T](data: T): String = {<br />
+    jackson.toJson(data)<br />
+  }</p>
+<p>  override def fromString[T: Manifest](str: String): T = {<br />
+    jackson.fromJson(str)<br />
+  }</p>
+<p>  private def addPrefix(s: String, p: String) = {<br />
+    p + s.stripPrefix(p)<br />
+  }<br />
+}<br />
+[/code]</p>
+<h1>Inherent issues</h1>
+<p>While there are a lot of goodies in abstracting serialization and http calling into a library API provided with implementations (drivers), it does handicap the clients a little bit. Things like doing custom manipulation of the raw response, any sort of business logic, adding other libraries, etc is really frowned upon.  I'd argue this is a good thing and that this should all be handled at the service level since a client is always a <em>nice to have</em> and not a <em>requirement</em>.</p>
+<h1>Conclusion</h1>
+<p>The ultimate goal in SOA is separation. But 100% separation should not mean copy-pasting things, reinventing the wheel, or not sharing any code.  It just means you need to build the proper lightweight abstractions to help keep strong barriers between services without creating a distributed monolith.</p>
+<p>With the http drive abstraction pattern it's now easy to provide drives that use finagle-http under the hood, or okhttp, or apache http, etc.  Client writers can share their model and client code with helpful utilities without leaking dependencies.  And most importantly, service owners can update dependencies and move to new scala versions without fearing that their dependencies are going to cause runtime or compile time issues against pulled in clients, all while still iterating quickly and safely.</p>

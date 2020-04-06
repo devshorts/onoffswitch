@@ -1,0 +1,31 @@
+---
+layout: post
+title: The Cost of Threads
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: draft
+categories: []
+tags: []
+meta:
+  _su_title: ''
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/"
+---
+<p>We all know that creating too many threads is a bad idea, but not everyone knows the details of why this is true. I wanted to quickly summarize the reasons for limiting thread creation:</p>
+<h1>Scheduling</h1>
+<p>Threads are the fundamental schedulable item in a kernel scheduler. The more active threads you have, the slower things will be. <a href="http://en.wikipedia.org/wiki/Fair-share_scheduling" target="_blank" rel="noopener noreferrer">Fairness</a> ensures that every thread, in every process, will eventually get a <a href="http://en.wikipedia.org/wiki/Preemption_(computing)#Time_slice" target="_blank" rel="noopener noreferrer">timeslice</a>, so having too many threads means you have to wait that much longer for everything to eventually run. Depending on the ordering of thread scheduling, a costly <a href="http://en.wikipedia.org/wiki/Context_switch" target="_blank" rel="noopener noreferrer">process context switch</a> could occur. Too many context switches could result in virtual memory thrashing, causing you to load paged memory from disk every time the process is context switched back in. In general, scheduling is done with <a href="http://en.wikipedia.org/wiki/Round-robin_scheduling" target="_blank" rel="noopener noreferrer">round robin</a> and priorities in Windows (except for fixed priority real-time threads). It should be mentioned that inactive threads, threads that are blocked or in a thread sleep sit in a wait queue and don't affect the scheduler.</p>
+<h1>Memory Usage</h1>
+<p>By default, Windows threads get a <a href="http://msdn.microsoft.com/en-us/library/windows/desktop/ms686774(v=vs.85).aspx" target="_blank" rel="noopener noreferrer">1MB stack</a> to work with. This means if you spin up 1000 threads, you are using 1GB of memory JUST in thread stack space. The more threads allocated, the higher your chances of getting page faults and requiring your stack to be paged off of disk. This can really slow things down, since you are now constantly moving things between memory and disk (going back to the virtual memory trashing remark). You can <a href="http://www.atalasoft.com/cs/blogs/rickm/archive/2008/04/22/increasing-the-size-of-your-stack-net-memory-management-part-3.aspx" target="_blank" rel="noopener noreferrer">adjust the stack size</a> in C#, or using the windows API. However, I don't think it's a smart idea to go around doing this just to increase your thread count. Various other kernels, including Linux, have differing default stack allocations but the memory allocation issue in these kernels is the same.</p>
+<h1>Design</h1>
+<p>If you are wondering if you have made too many threads, you probably have. Ask yourself: are all the threads actually doing work, or are they sitting idle? If they are working, then this is a good case for an event driven design, where you can leverage the same thread for more work. Alternatively, you can use the <a href="http://msdn.microsoft.com/en-us/library/ms973903.aspx" target="_blank" rel="noopener noreferrer">threadpool</a> or <a href="http://msdn.microsoft.com/en-us/library/dd460717.aspx" target="_blank" rel="noopener noreferrer">task parallel library</a> to schedule work and distribute load. If you are doing IO work (and building a win32 native app) you can use <a href="http://xania.org/200807/iocp" target="_blank" rel="noopener noreferrer">io completion ports</a>.</p>
+<p>Having too many threads attacking the same problem also means that each thread does the work slowly, since it can only do things bit by bit. Trying to decrease computation time by adding threads could unintentionally increase the time it took to solve the problem! Try adding a semaphore to limit the number of concurrent threads on the same work item. Make this value <a href="http://tech.blinemedical.com/configure-all-the-things/" target="_blank" rel="noopener noreferrer">configurable</a> so you can fine tune it on different systems.</p>
+<h1>The Dilemma</h1>
+<p>Depending on your application, using more advanced thread management techniques can make maintenance difficult. If you really need that many threads, you should weigh the cost of implementation/maintenance with adding more machines for your problem. But, chances are that if you make some smart choices early, you will end up with a clean and easy-to-scale infrastructure.</p>

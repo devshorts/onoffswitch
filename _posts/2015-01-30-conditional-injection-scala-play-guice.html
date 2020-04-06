@@ -1,0 +1,137 @@
+---
+layout: post
+title: Conditional injection with scala play and guice
+date: 2015-01-30 01:08:21.000000000 -08:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- dependency injection
+- guice
+- java
+- scala
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1557884187;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4939;}i:1;a:1:{s:2:"id";i:4961;}i:2;a:1:{s:2:"id";i:4919;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2015/01/30/conditional-injection-scala-play-guice/"
+---
+<p>It's been a crazy year for me. For those who don't know I moved from the east coast to the west coast to work for a rather <em>large</em> softare company in seattle (I'll let you figure which one out) and after a few short weeks realized I made a horrible mistake and left the team. I then found a cool job at a smaller .net startup that was based in SF and met some awesome people and learned a lot. But, I've been poached by an old coworker and am now going to go work at a place that uses more open source things so I decided to kick into gear and investigate scala and play.</p>
+<p>For the most part I'm doing a mental mapping of .NET's web api framework to the scala play framework, but the more I play in play (pun intended) the more I like it.</p>
+<p>On one of my past projects a coworker of mine set up a really interesting framework leveraging ninject and web api where you can conditionally inject a data source for test data by supplying a query parameter to a rest API of "test".  So the end result looks something like:</p>
+<p>[csharp]<br />
+[GET(&quot;foo/{name}&quot;)]<br />
+public void GetExample(string name, [IDataSource] dataProvider){<br />
+   // act on data provider<br />
+}<br />
+[/csharp]</p>
+<p>The way it chose the correct data provider is by leveraging a custom parameter binder that will resolve the source from the ninject kernel based on the query parameters.  I've found that this worked out really well in practice. It lets the team set up some sample data while testers/qa/ui devs can start building out consuming code before the db layers are even complete.</p>
+<p>I really liked working with this pattern so I wanted to see how we can map this to the scala play framework. Forgive me if what I post isn't idiomatic scala, I've only been at it for a day :)</p>
+<p>First I want to define some data sources</p>
+<p>[scala]<br />
+trait DataSource{<br />
+  def get : String<br />
+}</p>
+<p>class ProdSource extends DataSource{<br />
+  override def get: String = &quot;prod&quot;<br />
+}</p>
+<p>class TestSource extends DataSource {<br />
+  override def get : String = &quot;test&quot;<br />
+}<br />
+[/scala]</p>
+<p>It should be pretty clear whats going on here. I've defined two classes that implement the data source trait. Which one that gets injected should be defined by a query parameter.</p>
+<p>Guice lets you define bindings for the same trait (interface) to a target class based on "keys".  What this means is you can say "<em>give me class A, and use the default binding</em>", or you can say "<em>give me class A, but the one that is tagged with interface Test</em>".  When you register the classes you can provider this extra tagging mechanism.  This is going to be useful because you can now request different versions of the interface from the binding kernel.</p>
+<p>Lets just walk through the remaining example. First we need the interface, but Guice wants it to be an annotation. Since scala has weird support for annotations and the JVM has shitty type erasure, I had to write the annotation in java</p>
+<p>[java]<br />
+import com.google.inject.BindingAnnotation;</p>
+<p>import java.lang.annotation.ElementType;<br />
+import java.lang.annotation.Retention;<br />
+import java.lang.annotation.RetentionPolicy;<br />
+import java.lang.annotation.Target;</p>
+<p>@Target(ElementType.TYPE)<br />
+@Retention(RetentionPolicy.RUNTIME)<br />
+@BindingAnnotation<br />
+public @interface TestAnnotation {}<br />
+[/java]</p>
+<p>I'm honestly not even sure I need the @Target, but whatever.</p>
+<p>Next we're gonna create some binding modules for Guice to use where we can specify the conditional binding:</p>
+<p>[scala]<br />
+package Modules</p>
+<p>import annotations.TestAnnotation<br />
+import com.google.inject.AbstractModule<br />
+import controllers.{DataSource, ProdSource, TestSource}</p>
+<p>class SourceModule extends AbstractModule {</p>
+<p>  override def configure(): Unit = {<br />
+    testable(classOf[DataSource], classOf[ProdSource], classOf[TestSource])<br />
+  }</p>
+<p>  def testable[TInterface, TMain &lt;: TInterface, TDev &lt;: TInterface](<br />
+               interface: Class[TInterface],<br />
+               main:      Class[TMain],<br />
+               test:      Class[TDev]) = {<br />
+    val markerClass = classOf[TestAnnotation]</p>
+<p>    bind(interface).to(main)</p>
+<p>    bind(interface) annotatedWith markerClass to test<br />
+  }<br />
+}<br />
+[/scala]</p>
+<p>What this is saying is that given the 3 types (the main interface, the implementation of the main item, and the implementation of the dev item) to conditionally bind the dev item to the marker class of "TestAnnotation".  This will make sense when you see how its used.</p>
+<p>As normal, guice is used to set up the controller instantation with the source module registered.</p>
+<p>[scala]<br />
+import Modules.{DbModule, SourceModule}<br />
+import com.google.inject.Guice<br />
+import play.api.GlobalSettings</p>
+<p>object Global extends GlobalSettings {</p>
+<p>  val kernel = Guice.createInjector(new SourceModule())</p>
+<p>  override def getControllerInstance[A](controllerClass: Class[A]): A = {<br />
+    kernel.getInstance(controllerClass)<br />
+  }<br />
+}<br />
+[/scala]</p>
+<p>Now comes the fun part of actually resolving the query parameter.  I'm going to wrap an action and create a new action so we can get a nodejs style <code>(datasource, request) =></code> lambda.  </p>
+<p>[scala]<br />
+trait Sourceable{<br />
+  val kernelSource : Injector</p>
+<p>  def WithSource[T] (clazz : Class[T]) (f: ((T, Request[AnyContent]) =&gt; Result)) : Action[AnyContent] = {<br />
+    Action { request =&gt; {<br />
+      val binder =<br />
+        request.getQueryString(sourceableQueryParamToggle) match {<br />
+          case Some(_) =&gt; kernelSource.getInstance(Key.get(clazz, classOf[TestAnnotation]))<br />
+          case None =&gt; kernelSource.getInstance(clazz)<br />
+        }</p>
+<p>      f(binder, request)<br />
+    }}<br />
+  }</p>
+<p>  def sourceableQueryParamToggle = &quot;test&quot;<br />
+}<br />
+[/scala]</p>
+<p>The kernel never has to be registered since Guice will auto inject it when its asked for (its implicity available). Whats happening here is that we set up the kernel and the target interface type we want to get (i.e. DataSource).  If the query string matches the sourceable query param toggle (i.e. the word "test") then it'll pick up the registered data source using the "test annotation" marker.  Otherwise it uses the default.</p>
+<p>Finally the controller now looks like this:</p>
+<p>[scala]<br />
+@Singleton<br />
+class Application @Inject() (db : DbAccess, kernel : Injector) extends Controller with Sourceable {<br />
+  override val kernelSource: Injector = kernel</p>
+<p>  def binding(name : String) = WithSource(classOf[DataSource]){ (provider, request) =&gt;<br />
+  {<br />
+    val result = name + &quot;: &quot; + provider.get</p>
+<p>    Ok(result)<br />
+  }}<br />
+}<br />
+[/scala]</p>
+<p>And the route</p>
+<p>[scala]<br />
+GET /foo/:name @controllers.Application.binding(name: String)<br />
+[/scala]</p>
+<p>The kernel value is provided to the trait and any other methods can now ask for a data provider of a particular type and get it.  </p>
+<p>Full source available at my <a href="https://github.com/devshorts/scala-injector">github</a>.</p>

@@ -1,0 +1,29 @@
+---
+layout: post
+title: Why \d is slower than [0-9]
+date: 2013-05-20 15:46:12.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Snippets
+tags:
+- regular expressions
+meta:
+  _edit_last: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1554335009;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2735;}i:1;a:1:{s:2:"id";i:4197;}i:2;a:1:{s:2:"id";i:4493;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/05/20/d-slower-0-9/"
+---
+<p>I learned an interesting thing today about regular expressions via this <a href="http://stackoverflow.com/questions/16621738/d-less-efficient-than-0-9" target="_blank" rel="noopener noreferrer">stackoverflow</a> question.  <code>\d</code>, commonly used as a shorthand for digits (which we usually think of as <code>0-9</code>) actually checks against all valid <a href="http://www.fileformat.info/info/unicode/category/Nd/list.htm" target="_blank" rel="noopener noreferrer">unicode digits</a>.  </p>
+<p>Given that, it makes sense why <code>\d</code> in a regular expression is slower, since it has to check against all possible digit types.  In C# you can limit the regular expression to use ECMAScript standards which doesn't include the full unicode subset of digits.  </p>
+<p>While I'm neither the question asker nor answerer, I wanted to share since this is something I didn't know about before.</p>

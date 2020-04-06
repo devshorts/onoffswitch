@@ -1,0 +1,179 @@
+---
+layout: post
+title: Managing service oriented local deployments
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: draft
+categories:
+- Code
+tags:
+- F#
+- service oriented architecture
+- wcf
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/"
+---
+<p>Service oriented architectures are becoming more and more prevalent today. For good reason too, they scale well both technically and personally.  That means that you can toss more machines to handle the service, as well as separate teams of engineers behind service responsibilities (letting you scale your teams).</p>
+<p>If you are working with WCF services, like I am, then you can mimic a local deployment of your application by leveraging visual studio file system publishing to a local hosted IIS directory.  This is great since you can have some service builds be local to your machine, some pointing to test services (deployed on an integration cloud), and have all the services pointing to the same database (like a shared SQL Server instance).</p>
+<p>When you work with one service at a time configuration is easy.  Update your web.config (or a local transform) to point to either local services, local databases, or remote services and remote databases.  But, things get a lot more annoying when you start having 3, or 4, or 5+ local services all pointing to different locations.  The web.config managment becomes tedious and error prone, and can really slow down development and debugging.</p>
+<h2>Description of the problem</h2>
+<p>Thankfully, the solution to handling this is easy. What if we had a tool that could read in a config that said which service contract to point to where, and which database name to point to which SQL server host and update all deployed web.config's with this info. Then all we had to do is run this tool against the deployed root and we can immediately switch over all references of services and connection strings.</p>
+<p>Let me demonstrate. Pretend we have a web.config with the following info:</p>
+<p>[xml]<br />
+&lt;connectionStrings&gt;<br />
+    &lt;add name=&quot;SomeName&quot; connectionString=&quot;Data Source=targetMachine;Initial Catalog=Target_Database;Integrated Security=True;&quot; providerName=&quot;System.Data.SqlClient&quot;/&gt;<br />
+    &lt;add name=&quot;OtherDatabase&quot; connectionString=&quot;Data Source=otherMachine;Initial Catalog=Other_Database;Integrated Security=True;&quot; providerName=&quot;System.Data.SqlClient&quot;/&gt;<br />
+&lt;/connectionStrings&gt;<br />
+[/xml]</p>
+<p>And also maybe wcf client information</p>
+<p>[xml]<br />
+&lt;client&gt;<br />
+    &lt;endpoint address=&quot;http://remoteMachine/services/Service.svc&quot;<br />
+        binding=&quot;basicHttpBinding&quot; bindingConfiguration=&quot;ServiceBindings&quot;<br />
+        contract=&quot;ExternalSvc.ExternalService&quot; name=&quot;BasicHttp_ExternalEmailService&quot; /&gt;<br />
+&lt;/client&gt;<br />
+[/xml]</p>
+<p>We want to switch all data source tags to be something else given the connection name, as well as switch over all endpoint addresses to another location given the contract they implement.</p>
+<h2>Leveraging type providers</h2>
+<p>If we leverage the XML type provider, we can really quickly get the web.config up and parsed</p>
+<p>[fsharp]<br />
+[&lt;Literal&gt;]<br />
+let sampleFile = &quot;sample.xml&quot;</p>
+<p>type WebConfig = XmlProvider&lt;sampleFile&gt;<br />
+[/fsharp]</p>
+<p>And we can create a JSON configuration object to represent where databases and services should point to:</p>
+<p>[fsharp]<br />
+type AppConfigs = {<br />
+    Services: Dictionary&lt;string, string&gt;<br />
+    DBs: Dictionary&lt;string, string&gt;<br />
+}</p>
+<p>let jsonToConfig str = JsonConvert.DeserializeObject&lt;AppConfigs&gt;(str)</p>
+<p>let lookup (config : Dictionary&lt;string, string&gt;) item =<br />
+    let (found, newValue) = config.TryGetValue(item)     </p>
+<p>    if found then Some newValue<br />
+    else None<br />
+[/fsharp]</p>
+<p>We'll also need a way to find the elements in the web.config we care about:</p>
+<p>[fsharp]<br />
+let findEndPoints (config: AppConfigs) (w: WebConfig.Configuration)  =<br />
+    try<br />
+        [<br />
+            for endpoint in w.SystemServiceModel.Client.Endpoints do<br />
+                yield endpoint<br />
+        ]<br />
+    with<br />
+        | ex -&gt;<br />
+            printfn &quot;no endpoints found&quot;<br />
+            []</p>
+<p>let findDatabases (config: AppConfigs) (w: WebConfig.Configuration)  =<br />
+    try<br />
+        [<br />
+            for connectionString in w.ConnectionStrings.Adds do<br />
+                yield connectionString<br />
+        ]<br />
+    with<br />
+        | ex -&gt;<br />
+            printfn &quot;No connection strings found&quot;<br />
+            []</p>
+<p>[/fsharp]</p>
+<p>Now that we've found the particular XML elements via the strongly typed type provider, we'll need to be able to update the underlying XElement with the new information we want. </p>
+<p>Updating the web.config's WCF client endpoint address is easy, it's just an attribute. But updating only the <code>"Data Source="</code> portion of the connection string is a little trickier. Here is a function that will take a valid connection string and replace "Data Source=" with the target database, but maintain the rest of the string</p>
+<p>[fsharp]<br />
+let replaceDataSourceWith newDbName sourceString  =<br />
+    let splits = split ';' sourceString<br />
+    let ``dataSource=`` = &quot;Data Source=&quot;<br />
+    [<br />
+        yield ``dataSource=`` + newDbName</p>
+<p>        for split in splits do<br />
+            if not (startsWith ``dataSource=`` split) then<br />
+                yield split<br />
+    ]<br />
+        |&gt; Seq.intersperse &quot;;&quot;<br />
+        |&gt; Seq.reduce (+)<br />
+[/fsharp]</p>
+<p>And we can leverage this now by looking for endpoints and connection string xelements and pair their new values into a tuple list</p>
+<p>[fsharp]<br />
+let newEndpointValues config (endpoints: WebConfig.Endpoint list) =<br />
+    [<br />
+        for endpoint in endpoints do<br />
+            match endpoint.Contract |&gt; lookup config.Services with<br />
+                | Some(newAddress) -&gt;  yield (endpoint.XElement, newAddress)<br />
+                | _ -&gt; ()<br />
+    ]</p>
+<p>let newDatabaseValues config (connectionStrings: WebConfig.Add3 list) =<br />
+    [<br />
+        for connectionString in connectionStrings do<br />
+            match connectionString.Name |&gt; lookup config.DBs with<br />
+                | Some(sourceDB) when not (isNullOrEmpty sourceDB) -&gt;<br />
+                    let mergedConnectionString = connectionString.ConnectionString |&gt; replaceDataSourceWith sourceDB<br />
+                    yield (connectionString.XElement, mergedConnectionString)<br />
+                | _ -&gt; ()<br />
+    ]<br />
+[/fsharp]</p>
+<p>Finally we need a way to actually update an attribute</p>
+<p>[fsharp]<br />
+let modifyXmlAttribute attributeName (xmlElement : XElement, newValue) =<br />
+    xmlElement.Attribute(XName.Get(attributeName)).SetValue(newValue)<br />
+[/fsharp]</p>
+<p>Now finally the main runner</p>
+<p>[fsharp]<br />
+let updateEndpoints (xml: WebConfig.Configuration) (config: AppConfigs) =<br />
+    xml |&gt; findEndPoints config<br />
+        |&gt; newEndpointValues config<br />
+        |&gt; List.iter (modifyXmlAttribute &quot;address&quot;)</p>
+<p>let updateConnections (xml: WebConfig.Configuration) (config: AppConfigs) =<br />
+    xml |&gt; findDatabases config<br />
+        |&gt; newDatabaseValues config<br />
+        |&gt; List.iter (modifyXmlAttribute &quot;connectionString&quot;)<br />
+[/fsharp]</p>
+<p>And finally...main</p>
+<p>[fsharp]<br />
+let sampleJson = @&quot;<br />
+{<br />
+    &quot;&quot;Services&quot;&quot;: {<br />
+        &quot;&quot;Test.Mgmt.Users&quot;&quot; : &quot;&quot;http://localhost/Users.svc&quot;&quot;<br />
+    },<br />
+    &quot;&quot;DBs&quot;&quot;: {<br />
+        &quot;&quot;DBName1&quot;&quot;:&quot;&quot;localhost&quot;&quot;,<br />
+        &quot;&quot;DBName2&quot;&quot;: &quot;&quot;localhost1&quot;&quot;,<br />
+        &quot;&quot;SomeOtherDb&quot;&quot; : &quot;&quot;localhost2&quot;&quot;<br />
+    }<br />
+}&quot;</p>
+<p>[&lt;EntryPoint&gt;]<br />
+let main argv = </p>
+<p>    if Array.length argv &lt;&gt; 2 then<br />
+        printfn &quot;Usage: &lt;deployed root&gt; &lt;json config path&gt;&quot;<br />
+        printfn &quot;&quot;<br />
+        printfn &quot;Json format:&quot;<br />
+        printfn &quot;&quot;<br />
+        printfn &quot;%s&quot; sampleJson<br />
+        1<br />
+    else<br />
+        let root = argv.[0]<br />
+        let config = argv.[1] |&gt; File.ReadAllText |&gt; jsonToConfig</p>
+<p>        for file in Directory.EnumerateFiles(root, &quot;Web.config&quot;, SearchOption.AllDirectories) do<br />
+            try<br />
+                let webXml = WebConfig.Load file<br />
+                updateEndpoints webXml config<br />
+                updateConnections webXml config<br />
+                webXml.XElement |&gt; save file<br />
+                printfn &quot;Updated %s&quot; file<br />
+            with<br />
+                | ex -&gt; printfn &quot;Failed to modify file %s: %A&quot; file ex<br />
+        0 // return an integer exit code<br />
+[/fsharp]</p>
+<h2>Conclusion</h2>
+<p>Now it's much easier to manage a multi deployed local service oriented WCF system.  If you want to point all your services to a certain database or endpoint address you can in one fell swoop.</p>
+<p>For full source check my <a href="https://github.com/devshorts/Playground/blob/master/WCFConfigManager/WebTransform/Program.fs">github</a></p>

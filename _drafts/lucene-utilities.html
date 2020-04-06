@@ -1,0 +1,291 @@
+---
+layout: post
+title: Lucene Utilities
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: draft
+categories: []
+tags:
+- ".NET"
+- C#
+- Lucene
+- utilitiy
+meta:
+  dsq_thread_id: '878115048'
+  _syntaxhighlighter_encoded: '1'
+  _edit_last: '1'
+  _su_title: ''
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/"
+---
+<p><a href="http://lucene.apache.org/core/">Lucene</a> is a high-performance scaleable search engine library that is a wonderful solution when you are faced with the problem of storing and searching large amounts of text based data.   Storing data in Lucene is easy: all you need to do is say where you want to store your database and start creating "documents" which represent a set of data. On that document you can then set fields (aka records) which have a name and a value and then add the document to the engine. We are using<a href="http://incubator.apache.org/lucene.net/"> Lucene.net</a> in the following post, so if you aren't familiar with Lucene it is worth perusing some Lucene.net <a href="http://codeclimber.net.nz/archive/2009/09/02/lucene.net-your-first-application.aspx">tutorials</a> before continuing.</p>
+<p>We are using Lucene to quickly search through tons of log files that we have.  There's no way anyone wants to search through over 100 GB of log files, so we decided it was necessary to parse each log and dump the entries into Lucene.</p>
+<p>A document in our case is a line in a log corresponding to an atomic entry. Each of the fields is a piece of metadata on the log: log time, log text, log type, the location on disk of where this log file is, etc.  In general, inserting and querying out of Lucene is easy but you have to build out a document object that represents your data to give to Lucene to add. We wanted to generalize the logic of working with Lucene so that we could easily add and edit fields for our documents and to be able to reuse the Lucene query/insert logic with different document types. This way if we wanted to have different Lucene indexes for different data types we could reuse all our code without having to ever manually construct a document.</p>
+<p>In order to do this we built a few utilities to help interact with Lucene. In a later post we'll share our generic search class that you can use with these utilities to abstract creating, inserting, and querying into Lucene databases.</p>
+<h1>Putting Data In</h1>
+<p>First we need to get data into the engine. We like typed data since it allows compile time checking so we decided to use reflection as a way to get data from an object and convert it to a Lucene document with its related metadata fields. Whenever we think about mapping one object to another I immediately think about using reflection since its dynamic and relatively simple. But in order to know enough about the data we're reflecting on we need a way to tag the fields. Attributes are a great way to tag data and to be able to get metadata about a field later. We created an attribute called <code>LuceneSearchFieldAttribute</code> which looks like this:</p>
+<p>[csharp]<br />
+public class LuceneSearchFieldAttribute : Attribute<br />
+{<br />
+    private bool _store = true;<br />
+    public Boolean Store<br />
+    {<br />
+        get { return _store; }<br />
+        set { _store = value; }<br />
+    }</p>
+<p>    public Boolean Analyze { get; set; }</p>
+<p>    private int _trimAmount = NullValue.Integer;<br />
+    public int TrimAmount<br />
+    {<br />
+        get { return _trimAmount; }<br />
+        set { _trimAmount = value; }<br />
+    }</p>
+<p>    public Boolean ForceToLower { get; set; }</p>
+<p>    public Boolean NumericField { get; set; }<br />
+}<br />
+[/csharp]</p>
+<ul>
+<li><strong>Store</strong> - This represents whether we store the data in lucene or not. If you don't store a field then it is searchable, but is not returned in the resulting set. This is used when you are using Lucene as a search index only and not also a database. An easy to digest explanation of Lucene storage attributes is available from<a href="http://stackoverflow.com/questions/650643/lucene-indexing-store-and-indexing-modes-explained"> this stack overflow post</a>:</li>
+<li><strong>Analyze</strong> - This represents whether we want to tokenize this field. This is used for if we're searching for substring matches on this fields. Non-tokenized values can only be searched by using the exact match.</li>
+<li><strong>TrimAmount</strong> - For our purposes we didn't want to store enormous fields for each document. This field, if its set, let us indicate to store only X characters in a field</li>
+<li><strong>NumericField</strong> - Lucene supports string fields and numeric fields. If our field was numeric we wanted to make sure we tagged it so we knew what to do with it later</li>
+</ul>
+<p>Now that we have a way to tag data we need a way to use this metadata. We created a base class that objects can inherit from called <code>LuceneDocument</code> which was responsible for using this metadata and constructing a Lucene Document that we could insert into the engine.</p>
+<p>Before we show the class I want to mention that you will see a call to a function named <code>LuceneUtils.ConvertDate</code>. That's because Lucene doesn't have a concept of dates: it only stores strings or numerals. I personally found the Lucene searching on numerals to be extremely difficult. In order to store dates and to easily search them (without having to tokenize them) we convert them into a known string representation. We use the same utility to insert dates into the engine and returns dates from our query. This gives us the ability to search by date ranges since Lucene can search for ranges using a <code>TermRangeFilter</code> as well as allowing Lucene to return to us sorted entries by date string.</p>
+<p>[csharp]<br />
+public static class LuceneUtils<br />
+{<br />
+    public static String ConvertDate(DateTime date)<br />
+    {<br />
+        return date.ToString(&amp;quot;yyyyMMddHHmmss&amp;quot;);<br />
+    }</p>
+<p>    public static DateTime ConvertDate(String date)<br />
+    {<br />
+        var year = Convert.ToInt32(date.Substring(0, 4));<br />
+        var month = Convert.ToInt32(date.Substring(4, 2));<br />
+        var day = Convert.ToInt32(date.Substring(6, 2));<br />
+        var hour = Convert.ToInt32(date.Substring(8, 2));<br />
+        var minute = Convert.ToInt32(date.Substring(10, 2));<br />
+        var second = Convert.ToInt32(date.Substring(12, 2));</p>
+<p>        return new DateTime(year, month, day, hour, minute, second);<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>Back to the document base class: it looks nasty, but that's just because we're iterating over the object and finding the attributes associated with each piece of data. I always think reflection code looks nasty, but its really just a bunch of linq. The idea is that once we're done we'll get a document with fields that map to the same members of our class! Lets break this class down a little. Here is the high level overview:</p>
+<p>[csharp]<br />
+public abstract class LuceneDocument<br />
+{<br />
+    public virtual List Fields<br />
+    {<br />
+        get<br />
+        {<br />
+            // returns a list of fields of this object that are tagged with LuceneSearchFieldAttribute<br />
+        }<br />
+    }</p>
+<p>    public virtual Document Document<br />
+    {<br />
+        get<br />
+        {<br />
+            //return a new document with fields populated from this object's tagged methods<br />
+        }<br />
+    }</p>
+<p>    private void AddStringField(Document doc, string name, object value, LuceneSearchFieldAttribute attribute, Field.Store store, Field.Index analyzed)<br />
+    {<br />
+        // add a string field to the document<br />
+    }</p>
+<p>    private void AddNumericField(Document doc, string name, object value, Field.Store store, Field.Index analyzed)<br />
+    {<br />
+       // add a numeric field to the document<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>Lets fill in some of the blanks here. The fields method is relatively straight forward:</p>
+<p>[csharp]<br />
+private List _fields;<br />
+public virtual List Fields<br />
+{<br />
+    get<br />
+    {<br />
+        if(_fields == null)<br />
+        {<br />
+            // get all the public properties of the object who are tagged with field names<br />
+        var publicProperties = GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance |<br />
+                                                        BindingFlags.OptionalParamBinding |<br />
+                                                        BindingFlags.CreateInstance).ToList();</p>
+<p>        List taggedMethods = publicProperties.Where(prop =&amp;gt; prop.GetCustomAttributes(typeof (LuceneSearchFieldAttribute), false).FirstOrDefault() != null).ToList();</p>
+<p>            _fields = taggedMethods.Select(p =&amp;gt; p.Name).ToList();<br />
+        }<br />
+        return _fields;<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>We're using reflection here (we do this a lot!) to find the fields that are tagged with our attribute. Nothing too crazy.</p>
+<p>The <code>Document</code> function is the bulk of the work: find the field, determine the type, get the data out of the object and into the field, add the field to the document.</p>
+<p>[csharp]<br />
+public virtual Document Document<br />
+{<br />
+    get<br />
+    {<br />
+        var doc = new Document();</p>
+<p>        // get all the public properties of the object who are tagged with field names<br />
+        var publicProperties = GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance |<br />
+                                                        BindingFlags.OptionalParamBinding |<br />
+                                                        BindingFlags.CreateInstance).ToList();</p>
+<p>        List taggedMethods = publicProperties.Where(prop =&amp;gt; prop.GetCustomAttributes(typeof (LuceneSearchFieldAttribute), false).FirstOrDefault() != null).ToList();</p>
+<p>        // lunene likes it when things are added in the same order, so lets do that<br />
+        // we'll just create an anonymous object here to track our property name, value, and the attribute values<br />
+        var methods = from i in taggedMethods.Select(p =&amp;gt; new<br />
+                      {<br />
+                           name = p.Name,<br />
+                           value = p.GetValue(this, null),<br />
+                           attribute = p.GetCustomAttributes(typeof (LuceneSearchFieldAttribute), false)<br />
+                                .FirstOrDefault() as LuceneSearchFieldAttribute<br />
+                      })<br />
+                      orderby i.name<br />
+                      select i;</p>
+<p>        // for each method lets extract the attribute information and add them to the dumcnet<br />
+        foreach (var method in methods)<br />
+        {<br />
+            Field.Store store = method.attribute.Store ? Field.Store.YES : Field.Store.NO;<br />
+            Field.Index analyzed = method.attribute.Analyze ? Field.Index.ANALYZED : Field.Index.NOT_ANALYZED;</p>
+<p>            bool useNumericField = method.attribute.NumericField;</p>
+<p>            if(useNumericField)<br />
+            {<br />
+                AddNumericField(doc, method.name, method.value, store, analyzed);<br />
+                continue;<br />
+            }</p>
+<p>            AddStringField(doc, method.name, method.value, method.attribute, store, analyzed);<br />
+        }</p>
+<p>        return doc;<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>The last two methods are basically just pulling a string or integer out of the object and creating a field. The string method checks if the field is a date and if so uses the known date to string storage pattern that we'll use later.</p>
+<p>[csharp]<br />
+private void AddStringField(Document doc, string name, object value, LuceneSearchFieldAttribute attribute, Field.Store store, Field.Index analyzed)<br />
+{<br />
+    string stringVal;<br />
+    if (value is DateTime)<br />
+    {<br />
+        stringVal = LuceneUtils.ConvertDate((DateTime)value);<br />
+    }<br />
+    else<br />
+    {<br />
+        stringVal = value != null ? value.ToString() : &amp;quot;&amp;quot;;<br />
+    }</p>
+<p>    if (!NullValue.IsNull(attribute.TrimAmount))<br />
+    {<br />
+        var trimAmount = attribute.TrimAmount;<br />
+        var trimNeeded = stringVal.Length &amp;gt; trimAmount;</p>
+<p>        if (trimNeeded)<br />
+        {<br />
+            stringVal = stringVal.Substring(0, trimAmount) + &amp;quot; ...trimmed&amp;quot;;<br />
+        }<br />
+    }</p>
+<p>    if (attribute.ForceToLower)<br />
+    {<br />
+        stringVal = stringVal.ToLowerInvariant();<br />
+    }</p>
+<p>    var field = new Field(name, stringVal, store, analyzed);<br />
+    doc.Add(field);<br />
+}</p>
+<p>private void AddNumericField(Document doc, string name, object value, Field.Store store, Field.Index analyzed)<br />
+{<br />
+    var numericField = new NumericField(name, store, analyzed == Field.Index.ANALYZED ? true : false);<br />
+    numericField.SetIntValue((int)value);<br />
+    doc.Add(numericField);<br />
+}<br />
+[/csharp]</p>
+<p>Now we've created a small base class that we can inherit from that maps our current object into a Lucene Document.  We can add more Lucene specific configuration via the attributes if we want to later.</p>
+<h1>Getting Data Out</h1>
+<p>Since we have a way to create a document and insert it, we need a way to transfer a document back into our object. What we created here is a static class with a single public function called <code>Populate</code>. This takes a Lucene Document class and a generic type T and uses reflection to populate the generic types fields whose names match the fields in the Document. This makes it easy for us to use typed objects with Lucene. As long as the Lucene database has documents with fields that match our objects, then we can just call <code>LuceneUtils&lt;T&gt;.Populate(LuceneDocument)</code>. This does the reverse logic of <code>LuceneDocument</code> base class. It knows what to do with certain data types such as Guids, enumerations, and Dates in order to re-fill our objects.</p>
+<p>The class has three functions: <code>Populate</code>, <code>GetFields</code>, and <code>SetFields</code>. <code>GetFields</code> creates a Dictionary of the available fields from the lucene document and maps them to their value. <code>SetFields</code> goes through the target item and sets its properties based on name. <code>Populate</code> just puts it all together.</p>
+<p>[csharp]<br />
+public static class LuceneUtils&amp;lt;T&amp;gt; where T : new()<br />
+{<br />
+    public static T Populate(Document doc)<br />
+    {<br />
+        var val = new T();<br />
+        SetFields(GetFields(doc), val);<br />
+        return val;<br />
+    }</p>
+<p>    private static Dictionary GetFields(Document doc)<br />
+    {<br />
+        var fields = doc.GetFields();</p>
+<p>        var returnDict = new Dictionary();</p>
+<p>        foreach (Field field in fields)<br />
+        {<br />
+            returnDict[field.Name()] = doc.Get(field.Name());<br />
+        }</p>
+<p>        return returnDict;<br />
+    }</p>
+<p>    private static void SetFields(Dictionary fields, Object obj)<br />
+    {<br />
+        // get all the public properties of the object who are tagged with field names<br />
+        var publicProperties = obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance |<br />
+                                                        BindingFlags.OptionalParamBinding |<br />
+                                                        BindingFlags.CreateInstance)<br />
+            .Where(prop =&amp;gt; prop.GetCustomAttributes(typeof(LuceneSearchFieldAttribute), false) != null);</p>
+<p>        var methods = publicProperties.Select(p =&amp;gt; p.Name);</p>
+<p>        foreach (var method in methods)<br />
+        {<br />
+            if (fields.ContainsKey(method))<br />
+            {<br />
+                object val = fields[method];<br />
+                PropertyInfo property = publicProperties.Where(p =&amp;gt; p.Name == method).FirstOrDefault();</p>
+<p>                object newValue;</p>
+<p>                if (property.PropertyType.IsEnum)<br />
+                {<br />
+                    newValue = Enum.Parse(property.PropertyType, val.ToString(), true);<br />
+                }<br />
+                else<br />
+                {<br />
+                    if (property.PropertyType == typeof(DateTime))<br />
+                    {<br />
+                        newValue = LuceneUtils.ConvertDate(val as String);<br />
+                    }<br />
+                    else if (property.PropertyType == typeof(Guid))<br />
+                    {<br />
+                        newValue = new Guid(val.ToString());<br />
+                    }<br />
+                    else<br />
+                    {<br />
+                        newValue = Convert.ChangeType(val, property.PropertyType, null);<br />
+                    }<br />
+                }<br />
+                property.SetValue(obj, newValue, null);<br />
+            }<br />
+        }<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p><strong>Putting it all together</strong></p>
+<p>Now that there is a way to create a lucene document and a way to extract a lucene document lets see how we can use this. Lets make an object that represents our data:</p>
+<p>[csharp]<br />
+public class User : LuceneDocument<br />
+{<br />
+   [LuceneSearchField]<br />
+   public string Name { get; set; }</p>
+<p>   [LuceneSearchField(NumericField = true)]<br />
+   public int Age { get; set; }<br />
+}<br />
+[/csharp]</p>
+<p>In order to use this object now all we have to do is add it to an open index</p>
+<p>[csharp]<br />
+var user = new User<br />
+{<br />
+    Name = &amp;quot;Anton&amp;quot;,<br />
+    Age = 28<br />
+};</p>
+<p>IndexWriter.AddDocument(user.Document);<br />
+[/csharp]</p>
+<p>Where IndexWriter is an open index of type <code>Lucene.Net.IndexWriter</code>.</p>
+<p>We've basically made it so we don't have to manually deal with mapping a lucene document result back into our target data type. For each item in our return query we can use the previous utilities to extract out our user object!</p>

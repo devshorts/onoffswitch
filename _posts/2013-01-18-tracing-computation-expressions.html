@@ -1,0 +1,242 @@
+---
+layout: post
+title: Tracing computation expressions
+date: 2013-01-18 15:43:48.000000000 -08:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories: []
+tags:
+- F#
+- monads
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  dsq_thread_id: '979357360'
+  _su_title: ''
+  _jetpack_related_posts_cache: a:1:{s:32:"d1e23d6ffe5a1de5892bb68020be156f";a:2:{s:7:"expires";i:1555043233;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2735;}i:1;a:1:{s:2:"id";i:4463;}i:2;a:1:{s:2:"id";i:4226;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/01/18/tracing-computation-expressions/"
+---
+<p><em>This article was originally published at <a href="http://tech.blinemedical.com/tracing-computation-expressions/" target="_blank" rel="noopener noreferrer">tech.blinemedical.com</a></em></p>
+<p>F# has a novel syntax feature called <a href="http://en.wikibooks.org/wiki/F_Sharp_Programming/Computation_Expressions" target="_blank" rel="noopener noreferrer"><em>computation expressions,</em></a> which lets you build complex monadic expressions with minimal syntax. Commonly shied away from, a <a href="http://stackoverflow.com/questions/2704652/monad-in-plain-english-for-the-oop-programmer-with-no-fp-background/2704795#2704795" target="_blank" rel="noopener noreferrer">monad</a> is simple: it's a function whose input is some state. A monad usually manipulates the state and returns a new state (which can be handed off to another monad).</p>
+<p>Monad's are maybe best known from <a href="http://www.haskell.org/haskellwiki/Monad" target="_blank" rel="noopener noreferrer">Haskell</a>, but they exist in scheme, ML, clojure, scala, and even show up in <a href="http://devtalk.net/csharp/chained-null-checks-and-the-maybe-monad/" target="_blank" rel="noopener noreferrer">C#</a> and other imperative languages.</p>
+<p>While the computation expression syntax is cool, short of the <a href="http://en.wikipedia.org/wiki/Monad_(functional_programming)#The_Maybe_monad" target="_blank" rel="noopener noreferrer">maybe monad</a>, and the baked-in <a href="http://msdn.microsoft.com/en-us/library/dd233250.aspx" target="_blank" rel="noopener noreferrer">async keyword</a>, I wasn't sure what I could do with this. Thankfully, I found an interesting post by <a href="http://langexplr.blogspot.com/2008/10/using-f-computation-expressions-to-read.html" target="_blank" rel="noopener noreferrer">Luis Diego Fallas</a> who posted an F# code sample leveraging computation expressions to read binary formatted files. However, if you are like me, and trying to better understand the power of computation expressions, tracing through these samples can be difficult. It's not because they are poorly written, but mostly because they are jumping into more complex usages.</p>
+<p>To clarify what's going on with computation expressions, I wanted to show what is passing through the monad. Computation expressions (also known as monads or workflows) can be tricky because you are overriding the language syntax. So what is a "let!" statement in one workflow is not the same as in another workflow.  On top of that statements themselves can return a value, not just have a left hand side assignment. If you feel your brain start to hurt, that's OK. It will get better. </p>
+<h2>An example</h2>
+<p>Let's start with a small sample to see how information passes through the workflow. This makes it easier to understand what computation expressions are doing:</p>
+<p>[fsharp]<br />
+open System</p>
+<p>type State =<br />
+    | Current of int * State<br />
+    | Terminated</p>
+<p>type Builder() =<br />
+    member this.Bind(value:int, rest:int-&gt;State) =<br />
+        State.Current((value, rest(value)))</p>
+<p>    member this.Return(returnValue:int) = State.Current(returnValue, State.Terminated)</p>
+<p>let builder = new Builder()</p>
+<p>let build _ = builder{<br />
+                        let! x = 1<br />
+                        let! y = 2<br />
+                        return 3<br />
+                }</p>
+<p>let stateChain = build()</p>
+<p>let rec formatState (chain:State) =<br />
+            match chain with<br />
+                | State.Terminated -&gt; Console.WriteLine()<br />
+                | State.Current(i, next) -&gt; Console.WriteLine(&quot;State: {0}&quot;, i)<br />
+                                            formatState next</p>
+<p>formatState stateChain</p>
+<p>Console.ReadKey() |&gt; ignore<br />
+[/fsharp]</p>
+<p>Which prints out</p>
+<p>[csharp]<br />
+State: 1<br />
+State: 2<br />
+State: 3<br />
+[/csharp]</p>
+<h2>Desugaring</h2>
+<p>Before we trace through what's happening, lets desugar the expression. If you aren't familiar with the bang syntax, a let! statement will compile into an execution on the builders Bind function and a return will compile into an execution on the builders Return function. Let's take the original expression:</p>
+<p>[fsharp]<br />
+let build _ = builder{<br />
+                        let! x = 1<br />
+                        let! y = 2<br />
+                        return 3<br />
+                }<br />
+[/fsharp]</p>
+<p>And show the same thing but without the syntactic sugar.</p>
+<p>[fsharp]<br />
+let desugared =<br />
+    builder.Bind(1, fun next -&gt;<br />
+                        let x = next // next = 1 since we took the input value of the bind,<br />
+                                     // and passed it to the next lambda</p>
+<p>                        let returnedState =<br />
+                            builder.Bind(2, fun next2 -&gt;<br />
+                                                let y = next2 // next2 is the value 2 here</p>
+<p>                                                let terminatedState = builder.Return(3)</p>
+<p>                                                //terminated state is now<br />
+                                                //State.Current(3, State.Terminated)</p>
+<p>                                                terminatedState<br />
+                                            )</p>
+<p>                        // the state here is<br />
+                        // State.Current(2, State.Current(3, State.Terminated))<br />
+                        returnedState<br />
+                    )<br />
+[/fsharp]</p>
+<p>The important thing to understand here is how the let! statement is deconstructed. The right hand side is the <code>value</code> input to the bind. Everything below the let! statement (and including the left hand side of the assignment), is inside of the bind lambda (passed to the <code>rest</code> argument of the bind function). The first thing the lambda does is actually apply the left hand side assignment with the input from the bind. In this case, the first let! statement assigns <code>x = 1</code>. Then it executes the remaining function, being the other let! and return statements.</p>
+<h2>Tracing it through</h2>
+<p>In the original sample, I've defined a discriminated union called <code>State</code> representing the current state. This union has two types. One, called <code>Current</code>, contains an integer as well as a link to the next state in the form of a tuple. The other, <code>Terminated</code>, is a value that we can use as a terminator for our state link. The example is really just for demonstration, since by being able to capture the state it's easier to understand how computation expressions work; it gives us a sense of where the monad has been.</p>
+<p>Let's take this one step at a time, with an even simpler example based on the above code. It's important to understand the deconstruction. The compiler will translate our computation expressions into invocations on the builder.</p>
+<p><a href="http://tech.blinemedical.com/wp-content/uploads/2012/12/photo-1-e1356539394542.jpg"><img class="aligncenter size-medium wp-image-2201" alt="builderDeconstruction1" src="http://tech.blinemedical.com/wp-content/uploads/2012/12/photo-1-300x227.jpg" width="300" height="227" /></a></p>
+<p>To desguar it we take the left hand side and everything after</p>
+<p><a href="http://tech.blinemedical.com/wp-content/uploads/2012/12/photo-2-e1356539595127.jpg"><img class="aligncenter size-medium wp-image-2202" alt="builderDeconstruction2" src="http://tech.blinemedical.com/wp-content/uploads/2012/12/photo-2-300x186.jpg" width="300" height="186" /></a></p>
+<p>And move it to a lambda. This lambda is what is going to be passed as the <code>rest</code> argument to the builder's bind function</p>
+<p><a href="http://tech.blinemedical.com/wp-content/uploads/2012/12/photo-3-e1356539579118.jpg"><img class="aligncenter size-medium wp-image-2203" alt="builderDeconstruction3" src="http://tech.blinemedical.com/wp-content/uploads/2012/12/photo-3-300x167.jpg" width="300" height="167" /></a></p>
+<p>The right hand side is going to be applied to the <code>value</code> argument of the bind function</p>
+<p><a href="http://tech.blinemedical.com/wp-content/uploads/2012/12/photo-4-e1356539561372.jpg"><img class="aligncenter size-medium wp-image-2204" alt="builderDeconstruction4" src="http://tech.blinemedical.com/wp-content/uploads/2012/12/photo-4-300x204.jpg" width="300" height="204" /></a></p>
+<p>Go back and look at how we've defined the bind function:</p>
+<p>[fsharp]<br />
+member this.Bind(value:int, rest:int-&gt;State) =<br />
+        State.Current((value, rest(value)))<br />
+[/fsharp]</p>
+<p>Here the <code>value</code> argument is 1. The second argument, <code>rest</code>, is the lambda. The lambda is going to have to return a <code>State</code> union since <code>State.Current</code> expects an integer, State tuple.</p>
+<p>When we execute the lambda inside the bind we pass the value (1) to the lambda, but we've also captured the current value. This means that this bind is going to return:</p>
+<p>[fsharp]<br />
+State.Current(1, rest(1))<br />
+[/fsharp]</p>
+<p>So here we apply the value to the function</p>
+<p><a href="http://tech.blinemedical.com/wp-content/uploads/2012/12/photo-5-e1356539528361.jpg"><img class="aligncenter size-medium wp-image-2205" alt="builderDeconstruction5" src="http://tech.blinemedical.com/wp-content/uploads/2012/12/photo-5-300x195.jpg" width="300" height="195" /></a></p>
+<p>This is where the left hand side statement (x) now gets assigned.</p>
+<p><a href="http://tech.blinemedical.com/wp-content/uploads/2012/12/photo6-e1356539509430.jpg"><img class="aligncenter size-medium wp-image-2206" alt="builderDeconstruction6" src="http://tech.blinemedical.com/wp-content/uploads/2012/12/photo6-300x184.jpg" width="300" height="184" /></a></p>
+<p>Now what about</p>
+<p>[fsharp]<br />
+builder.Return(2)<br />
+[/fsharp]</p>
+<p>Remember we defined the return function to return</p>
+<p>[fsharp]<br />
+member this.Return(returnValue:int) = State.Current(returnValue, State.Terminated)<br />
+[/fsharp]</p>
+<p>So with our simplified example this will return</p>
+<p>[fsharp]<br />
+State.Current(2, State.Terminated)<br />
+[/fsharp]</p>
+<p>The previous lambda now returns that same value, since that's the last line of the statement. So we're back now to the original bind function:</p>
+<p>[fsharp]<br />
+member this.Bind(value:int, rest:int-&gt;State) =<br />
+        State.Current((1, rest(1)))<br />
+[/fsharp]</p>
+<p>But <code>rest(1)</code> returns <code>State.Current(2, State.Terminated)</code>. Our final builders return value, in this example, is</p>
+<p>[fsharp]<br />
+State.Current(1, State.Current(2, State.Terminated))<br />
+[/fsharp]</p>
+<p>All the computation builder syntax is doing is just sugaring our statements up to give us these broken up functions.</p>
+<p>Back to the original sample. We added a second <code>let!</code> statement in there:</p>
+<p>[fsharp]<br />
+let build _ = builder{<br />
+                        let! x = 1<br />
+                        let! y = 2<br />
+                        return 3<br />
+                }<br />
+[/fsharp]</p>
+<p>Now, hopefully, you should be able to see how the final return from the computation expression is a state object representing what happened in the monad:</p>
+<p>[fsharp]<br />
+State.Current(1, State.Current(2, State.Current(3, State.Terminated)))<br />
+[/fsharp]</p>
+<h2>Combine and Yield</h2>
+<p>Computation expressions have more than just let! and return statements though. Once you get used to tracing through and thinking about the computation builder, it becomes easier to start writing workflows. Just for kicks, I wanted to see if I could write a computation expression to evaluate a basic arithmetic expression. Here I'm using <a href="http://en.wikipedia.org/wiki/Currying" target="_blank" rel="noopener noreferrer">partial functions</a> and the <code>Combine</code> property of the builder to build out the expression. If you wanted to, you can even use computation expressions within computation expressions. There's nothing keeping you from doing that.</p>
+<p>In general, there is a bunch of reserved syntax that maps to specific builder functions. The <a href="http://msdn.microsoft.com/en-us/library/dd233182.aspx" target="_blank" rel="noopener noreferrer">msdn</a> on computation syntax has these all defined.</p>
+<p>[fsharp]<br />
+open System</p>
+<p>type BuildTest() =<br />
+    member this.Combine(currentStatement, value) = currentStatement(value)<br />
+    member this.Return(value) = value<br />
+    member this.Yield(item) = item<br />
+    member this.Delay(item) = item()</p>
+<p>let builder = new BuildTest()</p>
+<p>type math() =<br />
+    member this.add x y = x + y<br />
+    member this.mult x y = x * y</p>
+<p>let m = new math()</p>
+<p>let build _ = builder{<br />
+                yield m.mult 2 // 2 * (1 + (2 + (3 + 0))<br />
+                yield m.add 1  // 1 + (2 + (3 + 0)<br />
+                yield m.add 2  // 2 + (3 + 0)<br />
+                yield m.add 3  // (3 + 0)<br />
+                return 0       // 0<br />
+            }</p>
+<p>let run = build()</p>
+<p>let monader = printf &quot;%s&quot; (&quot;got &quot; + run.ToString())</p>
+<p>Console.ReadKey() |&gt; ignore<br />
+[/fsharp]</p>
+<p>This snippet evaluates to 12.</p>
+<p>You can even add precedence by evaluating a computation expression within the computation expressions</p>
+<p>[fsharp]<br />
+builder{<br />
+    yield m.mult 2 // 2 * (1 + (8 + 0))<br />
+    yield m.add 1  // 1 + (8 + 0)</p>
+<p>    let parenth = builder{<br />
+                        yield m.mult 4 // 4 * 2<br />
+                        return 2  // 2<br />
+                    }</p>
+<p>    yield m.add parenth // 8 + 0</p>
+<p>    return 0       // 0<br />
+}<br />
+[/fsharp]</p>
+<p>Which evaluates to 18.</p>
+<h2>Tracing Combine and Yield</h2>
+<p>Just like before, there's a bunch of magic going on here, so it's easier if you follow along with the desugared version of the original arithmetic expression below.  </p>
+<p>[fsharp]<br />
+let desugared = builder.Delay(<br />
+                fun () -&gt; builder.Combine(builder.Yield(m.mult 2),<br />
+                    builder.Delay(<br />
+                        fun() -&gt; builder.Combine(builder.Yield(m.add 1),<br />
+                                builder.Delay(<br />
+                                    fun() -&gt; builder.Combine(builder.Yield(m.add 2),<br />
+                                            builder.Delay(<br />
+                                                fun() -&gt; builder.Combine(builder.Yield(m.add 3),<br />
+                                                    builder.Delay(<br />
+                                                        fun() -&gt; builder.Return(0))))))))))<br />
+[/fsharp]</p>
+<p>Each monadic function is wrapped in a <code>Delay</code>, which promptly executes it. Look at the builder's delay declaration - it takes a function and executes it.</p>
+<p>In our builder, the <code>Yield</code> just returns the same value. It doesn't do much but we needed to implement it to use the computation expression syntax.</p>
+<p>What we pass to the delay is an anonymous function that has a combine statement. <code>Combine</code>s take two things and produce a third. Here, we are passing the current partial function as the first argument (via the yield), and the value we want to use to evaluate this partial function as the second argument. However, the second argument isn't actually evaluated till the end. The combine will then apply the second argument (an integer) to the first argument (a partial function that takes an integer).</p>
+<p>For the basic arithmetic example, the final delay function returns 0. You can think of this as a "seed." If you think of it like a fold operation, this is very similar. When we finally return the seed, we bubble each evaluated expression back up the stack (starting with 0), so read the desugared version from the bottom up. In this way, we are executing the current curried statement with the previous statements evaluated value in the <code>Combine</code> method of the builder. Not the most practical application, but I thought it was a fun exercise.</p>
+<p>If you are confused why this example's desguaring contains the Delay method and the original example didn't, it's because the sugaring happens differently depending which builder constructs you use.</p>
+<h2>Under the hood</h2>
+<p>When you <a href="http://www.jetbrains.com/decompiler/" target="_blank" rel="noopener noreferrer">decompile</a> a computation expression, each monadic function gets compiled into it's own class representing a monad. In our arithmetic operation example, this is a Combine, Yield, Delay trio. It's not easy to read since the function names have been mangled, but you can see the general pattern here (formatting added).</p>
+<p>[csharp]<br />
+[Serializable]<br />
+internal class runu004089 : FSharpFunc&lt;Unit, int&gt;<br />
+{<br />
+    internal runu004089()<br />
+    {<br />
+    }</p>
+<p>    public override int Invoke(Unit unitVar0)<br />
+    {<br />
+        return ExpresionsTest.builder.Combine&lt;int, int&gt;(<br />
+        ExpresionsTest.builder.Yield&lt;FSharpFunc&lt;int, int&gt;&gt;(<br />
+            (FSharpFunc&lt;int, int&gt;) new ExpresionsTest.runu004089u002D1(2, ExpresionsTest.m)),<br />
+                ExpresionsTest.builder.Delay&lt;int&gt;(<br />
+                    (FSharpFunc&lt;Unit, int&gt;) new ExpresionsTest.runu004091u002D2()));<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>This decompliation represents the following sub-block.</p>
+<p>[fsharp]<br />
+builder.Combine(<br />
+    builder.Yield(m.add 2), builder.Delay( (*next function*) )<br />
+)<br />
+[/fsharp]</p>
+<p>Notice in the decompiled block that the class name is <code>runu004089</code> and the executable expression is compiled into an <code>Invoke</code> that returns an int. The decompiled assembly will actually be littered with these classes with mangled names, following a naming format of the target variable name (<code>run</code>) and an identifier (<code>u004089</code>). You can always decompile the computation expression to get a sense for how it's been desugared.</p>
+<h2>Conclusion</h2>
+<p>I said in the beginning that monads are simple, but I'll admit that I lied. Monads are tricky, there's no denying that. Maybe that's why there is <a href="https://www.google.com/search?q=%22what+is+a+monad%22" target="_blank" rel="noopener noreferrer">no shortage</a> of blog posts trying to explain the monad over and over again. But, in the end, once you wrap your head around it, I think computation expression syntax is a cool way of using the concept of a monad by decoupling what something is defined to do, vs how it's actually executed.</p>
+<p>I highly suggest running the examples and actually stepping through them bit by bit if you are having trouble following what is happening. Being able to see a desugared version of the code and using a debugger to inspect locals while stepping through examples makes it a lot clearer to see whats happening.</p>
+<h2>More reading</h2>
+<p>If you are curious here are some links to further reading <a href="http://stackoverflow.com/questions/44965/what-is-a-monad" target="_blank" rel="noopener noreferrer">explaining monads</a> and computation expressions (such as the <a href="http://en.wikibooks.org/wiki/F_Sharp_Programming" target="_blank" rel="noopener noreferrer">F# wikibook</a>). <a href="http://blogs.msdn.com/b/dsyme/archive/2007/09/22/some-details-on-f-computation-expressions-aka-monadic-or-workflow-syntax.aspx" target="_blank" rel="noopener noreferrer">Don Syme</a> also has a few posts explaining things really well that are definitely worth checking out.</p>

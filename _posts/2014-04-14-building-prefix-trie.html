@@ -1,0 +1,149 @@
+---
+layout: post
+title: Building a prefix trie
+date: 2014-04-14 08:00:48.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- autocomplete
+- haskell
+- trie
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558781240;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4011;}i:1;a:1:{s:2:"id";i:3847;}i:2;a:1:{s:2:"id";i:3656;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2014/04/14/building-prefix-trie/"
+---
+<p><a href="http://en.wikipedia.org/wiki/Trie" target="_blank" rel="noopener noreferrer">Prefix trie</a>'s are cool data structures that let you compress a dictionary of words based on their shared prefix. If you think about it, this makes a lot of sense. Why store <code>abs</code>, <code>abbr</code>, and <code>abysmal</code> when you only need to store <code>a,b,b,r,s,y,s,m,a,l</code>. Only storing what you have to (based on prefix) in this example gives you a 70% compression ratio! Not too bad, and it would only get better the more words you added.  </p>
+<p>The classical way of dealing with prefix tries is to store the suffixes using a map, but for fun I tried something different and used a list.  </p>
+<h2>Data</h2>
+<p>The main data structure I had was like this</p>
+<p>[haskell]<br />
+type Key a = [a]</p>
+<p>data Trie key = Node (Maybe key) [Trie key] Bool deriving (Show, Eq, Read)<br />
+[/haskell]</p>
+<p>So a trie is really just a node that has a list of other tries (which would be its suffixes). You can see an example of the structure with the word "foo":</p>
+<p>[haskell]<br />
+[Node (Just 'f')<br />
+     [Node (Just 'o')<br />
+        [Node (Just 'o') [] True]<br />
+     False]<br />
+ False]<br />
+[/haskell]</p>
+<p>It's printable to the screen, equatable, and can be serialized from text. It also contains a boolean field representing if it is the end of a word or not. You can see the boolean at the last "o" of the word, indicating the word terminates.  All the other characters are non-terminating fields.</p>
+<h2>Searching</h2>
+<p>Let's add a helper method to find a key in a list of tries. Remember that each root can contain a list of other trie's, so it'll be nice to be able to say "<em>hey, we're at root X which has a list of possible suffix starts Y. Let's find the next root from the list of Y and return it</em>".</p>
+<p>[haskell]<br />
+{-<br />
+    Finds a key in the trie list that matches the target key<br />
+-}<br />
+findKey :: (Eq t) =&gt; t -&gt; [Trie t] -&gt; Maybe (Trie t)<br />
+findKey key tries = L.find (\(Node next _ _) -&gt; next == Just key) tries<br />
+[/haskell]</p>
+<p>It takes an equatable value, and a list of Trie's of those values, and finds the key returned as an option type.</p>
+<p>We could even now write code to find a Trie</p>
+<p>[haskell]<br />
+{-<br />
+    Takes a key list and finds the trie that fullfils that prefix<br />
+-}<br />
+findTrie :: (Eq t) =&gt; Key t -&gt; [Trie t] -&gt; Maybe (Trie t)<br />
+findTrie [] _ = Nothing<br />
+findTrie (x:[]) tries = findKey x tries<br />
+findTrie (x:xs) tries = findKey x tries &gt;&gt;= nextTrie<br />
+    where nextTrie (Node _ next _) = findTrie xs next<br />
+[/haskell]</p>
+<p>Since <code>findKey</code> is an option type, we can leverage the option monadic bind operator <code>>>=</code>. This operator will pass a result to the next function only if the result is a <code>Just</code> type. This is a way to safely process 'nullable' items.</p>
+<h2>Insertion</h2>
+<p>Now the insertion code, which honestly was the most complicated.</p>
+<p>[haskell]<br />
+insert :: (Eq t) =&gt; Key t -&gt; [Trie t] -&gt; [Trie t]<br />
+insert [] t = t<br />
+insert (x:xs) tries =<br />
+    case findKey x tries of<br />
+        Nothing -&gt; [(Node (Just x) (insert xs [])) isEndWord]++tries<br />
+        Just value -&gt;<br />
+            let (Node key next word) = value<br />
+            in [Node key (insert xs next) (toggleWordEnd word)]++(except value)<br />
+    where<br />
+        except value = (L.filter ((/=) value) tries)<br />
+        isEndWord = if xs == [] then True else False<br />
+        toggleWordEnd old = if xs == [] then True else old<br />
+[/haskell]</p>
+<p>The trick to pure functional insertion is that you need to <em>rebuild</em> the entire data structure WHILE you search for where you want to actually add things.  </p>
+<p>In the first case where you try to find a key but didn't find it, you want to add the key as a neighbor to the other trees. So if you have a root word of "<em>abd</em>" but you add "<em>def</em>", the root character of "<em>d</em>" doesn't exist yet and needs to be added, hence creating a new list and appending it to the original tries list. Then you recursively go through the new element and add the remaining list. This is why the creation of the new element has a recursive call back to the insert function with the remaining list <code>xs</code>.  Also, since you created the new element as part of a recursive call, you know this element is already being properly appended to its root.  </p>
+<p>But, if the key already exists then that means you found a suffix that matches. At this point you need to bubble through the inner suffix tree to add the remaining items you want (basically following the suffix trie down to a point where you haven't already found a suffix root). Once thing to remember is that you also need to recreate the key you found, excluding the original element (hence the <code>except value</code> since we want to exclude the old version of the key before). </p>
+<p>On top of that, if you've already processed a root, but your word now ends at a root, you need to toggle if that suffix is a word completion. For example, if I've already added "<em>abcdef</em>" then "<em>f</em>" is the end of the word. But now if I add "<em>abc</em>" as a word, then both "<em>c</em>" AND "<em>f</em>" are end words (so "<em>c</em>"'s end word boolean needs to be toggled to true).  </p>
+<p>I found this concept to be a little complicated because its both finding, updating, and rebuilding the data structure all at the same time, but with practice it does get more natural to trace through.</p>
+<h2>Getting the words</h2>
+<p>Once you can build a trie though, we can leverage haskells list comprehensions to fold the words back out</p>
+<p>[haskell]<br />
+{-<br />
+    Gives you all the available words in the trie list<br />
+-}<br />
+allWords :: [Trie b] -&gt; [[b]]<br />
+allWords tries =<br />
+    let raw = rawWords tries<br />
+    in map (flatMap id) raw<br />
+    where<br />
+        flatMap f = Fold.concatMap (Fold.toList . f)<br />
+        rawWords tries = [key:next<br />
+                            | (Node key suffixes isWord) &lt;- tries<br />
+                            , next &lt;-<br />
+                                if isWord then<br />
+                                    []:(rawWords suffixes)<br />
+                                else<br />
+                                    rawWords suffixes]<br />
+[/haskell]</p>
+<p>Since we have a list of roots, we can go through each suffix and append the root character to it. If we encounter a word, we can pop in an empty list to create a delimiter.  The list comprehension will do every combination of every root with its suffixes, so we will get each word.</p>
+<p>But, this makes a list of characters and so I wanted to flatmap the list to create strings.</p>
+<h2>Guessing a suffix</h2>
+<p>We can even do auto complete stuff now! Let's look at how to guess what the available suffixes would be:</p>
+<p>[haskell]<br />
+{-<br />
+    This function takes a key list and returns the<br />
+    full words that match the key list. But, since we already<br />
+    know about the source key that matches (the input) we can<br />
+    prepend that information to any suffix information that is left.<br />
+    If the node found that matches the original query is a word in itself<br />
+    we can prepend that too since its a special case<br />
+-}<br />
+guess :: (Eq a) =&gt; Key a -&gt; [Trie a] -&gt; Maybe [Key a]<br />
+guess word trie =<br />
+    findTrie word trie &gt;&gt;= \(Node _ next isWord) -&gt;<br />
+    return $ (source isWord) ++ (prependOriginal word $ allWords next)<br />
+    where<br />
+        source isWord = if isWord then [word] else []<br />
+        prependOriginal word = map (\elem -&gt; word ++ elem)<br />
+[/haskell]</p>
+<p>The idea is we have a string, and our original roots. We then look for the suffixes and when we find the target trie that ends at the word we have, we can find all the words after that and prepend our original word.  </p>
+<h2>Examples</h2>
+<p>Lets look at some basic examples of how to use the Trie:</p>
+<p>[code]<br />
+*PrefixTree&gt; tries = build [&quot;word&quot;, &quot;wooordz&quot;, &quot;happy&quot;, &quot;hoppy&quot;]</p>
+<p>*PrefixTree&gt; guess &quot;h&quot; tries<br />
+Just [&quot;hoppy&quot;,&quot;happy&quot;]</p>
+<p>*PrefixTree&gt; allWords tries<br />
+[&quot;hoppy&quot;,&quot;happy&quot;,&quot;wooordz&quot;,&quot;word&quot;]</p>
+<p>*PrefixTree&gt; tries<br />
+[Node (Just 'h') [Node (Just 'o') [Node (Just 'p') [Node (Just 'p') [Node (Just 'y') [] True] False] False] False,Node (Just 'a') [Node (Just 'p') [Node (Just 'p') [Node (Just 'y') [] True] False] False] False] False,Node (Just 'w') [Node (Just 'o') [Node (Just 'o') [Node (Just 'o') [Node (Just 'r') [Node (Just 'd') [Node (Just 'z') [] True] False] False] False] False,Node (Just 'r') [Node (Just 'd') [] True] False] False] False]</p>
+<p>*PrefixTree&gt; guess &quot;ha&quot; tries<br />
+Just [&quot;happy&quot;]</p>
+<p>*PrefixTree&gt; guess &quot;hi&quot; tries<br />
+Nothing<br />
+[/code]  </p>
+<h2>Conclusion</h2>
+<p>It would be a lot faster to have leveraged a hash map instead of a list for the suffixes, since each time I need to find the suffix root I have to do an O(n) traversal, instead of an O(1), but since this isn't a production trie I'm not worried about it.  It was still a fun exercise!</p>
+<p>For a full example check my <a href="https://github.com/devshorts/Playground/tree/master/haskell_trie" target="_blank" rel="noopener noreferrer">github</a>.</p>

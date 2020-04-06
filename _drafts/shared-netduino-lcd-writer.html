@@ -1,0 +1,82 @@
+---
+layout: post
+title: Shared netduino lcd writer
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: draft
+categories: []
+tags:
+- C#
+- netduino
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_title: ''
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/"
+---
+<p>I was playing with my <a href="http://netduino.com/">netduino</a> where I had multiple threads running doing different work and I wanted to have some of those threads write to an attached <a href="https://www.sparkfun.com/products/9395">lcd panel</a>.  What I needed was a shared <a href="http://en.wikipedia.org/wiki/Singleton_pattern" target="_blank" rel="noopener noreferrer">singleton</a> that managed the competing resources for the lcd.  Just because it's running on a microprocessor doesn't mean you can't use a high level architectural design pattern.  I wrote a simple LcdWriter singleton that synchronizes requests to the serial port and now I can re-use this in other app's that I write.</p>
+<p>So now I need to do if I want to write to the hooked up LCD is </p>
+<p>[csharp]<br />
+LcdWriter.Instance.Write(&quot;foo&quot;);<br />
+[/csharp]</p>
+<p>There's really nothing too fancy about this. I spawn a new thread when the singleton fires up and it waits on a mutex to pulse it and tell it that it has data.  When it runs it locks on a shared lock object, clears the screen, resets the cursor position, and outputs whatever is stored in the <code>_lcdDisplay</code> field.  The only downside here is that I didn't expose a way to control which port your lcd has to be connected to. If we wanted to we could take an lcd port enum with the write function and have this singleton be a facade on top of another class that does the threadsafe work per serial port.</p>
+<p>[csharp]<br />
+public class LcdWriter<br />
+{<br />
+    #region Data</p>
+<p>    private SerialLcd _serialInterface;<br />
+    private static object _lockObject = new object();</p>
+<p>    private static string _lcdDisplay = string.Empty;<br />
+    private static AutoResetEvent mutex = new AutoResetEvent(false);</p>
+<p>    private static LcdWriter _instance;</p>
+<p>    #endregion</p>
+<p>    #region Singleton and Constructor </p>
+<p>    public static LcdWriter Instance<br />
+    {<br />
+        get<br />
+        {<br />
+            lock (_lockObject)<br />
+            {<br />
+                return _instance ?? (_instance = new LcdWriter());<br />
+            }<br />
+        }<br />
+    }</p>
+<p>    private LcdWriter()<br />
+    {<br />
+        _serialInterface = new SerialLcd(SerialPorts.COM2);</p>
+<p>        ThreadUtil.Start(() =&gt;<br />
+        {<br />
+            while (true)<br />
+            {<br />
+                _serialInterface.ClearDisplay();<br />
+                _serialInterface.SetCursorPosition(1, 1);</p>
+<p>                lock (_lockObject)<br />
+                {<br />
+                    _serialInterface.Write(_lcdDisplay);<br />
+                }</p>
+<p>                mutex.WaitOne();<br />
+            }<br />
+        });<br />
+    }</p>
+<p>    #endregion</p>
+<p>    #region Writer</p>
+<p>    public void Write(string text)<br />
+    {<br />
+        lock(_lockObject)<br />
+        {<br />
+            _lcdDisplay = text;<br />
+            mutex.Set();<br />
+        }<br />
+    }</p>
+<p>    #endregion<br />
+}<br />
+[/csharp]</p>

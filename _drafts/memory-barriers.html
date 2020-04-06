@@ -1,0 +1,26 @@
+---
+layout: post
+title: Memory Barriers and Instruction Reordering
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: pitch
+categories: []
+tags: []
+meta:
+  _edit_last: '1'
+  dsq_thread_id: '869941643'
+  _su_title: ''
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2012/09/23/memory-barriers/"
+---
+<h1>Memory barriers</h1>
+<p>As if locking can't be complicated enough, you have to consider what happens with processor instruction <a href="http://blogs.msdn.com/b/itgoestoeleven/archive/2008/03/07/joys-of-compiler-and-processor-reordering.aspx">reodering</a>. Modern processors reorder certain instructions to make as much use of the instruction pipeline as possible. Some instructions take more time than others. For example, if you're going to do an instruction that requires you to load data from a register, now that instruction is blocked while the load occurs. Modern architectures (processors and compilers) are smart enough to let a second instruction go through while the initial instruction is blocked on the load. All sorts of crazy magic happens here but what you need to know is that just because you wrote code in a certain order does not mean it will actually get executed in that order. </p>
+<p>Processors maintain program ordering but not physical ordering of instructions. Obviously this is problematic when you want to deal with the most up to date information. This is where the concept of a <a href="http://en.wikipedia.org/wiki/Memory_barrier">memory barrier</a> comes into play. This is a cpu instruction that tells the processor to execute the instructions sequentially: don't reorder anything.  In most languages when you create a lock you also create a memory barrier which forces things to execute in order and be as up to date as possible.</p>

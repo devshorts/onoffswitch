@@ -1,0 +1,45 @@
+---
+layout: post
+title: Quickly associate file types with a default program
+date: 2015-01-05 22:45:19.000000000 -08:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Snippets
+tags: []
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560873800;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4737;}i:1;a:1:{s:2:"id";i:3608;}i:2;a:1:{s:2:"id";i:2985;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2015/01/05/quickly-associate-file-types-default-program/"
+---
+<p>I use JuJuEdit to open all my log files since it starts up fast, is pretty bare bones, but better than notepad.  The way my log4net appender is set up is that log files are kept for 10 days and get a <code>.N</code> appended to them for each backup. I.e.</p>
+<p>[code]<br />
+FooLog.log<br />
+FooLog.log.1<br />
+FooLog.log.2<br />
+[/code]</p>
+<p>Etc. </p>
+<p>I hate having to go through each one and set the default program to open since its slow and annoying.  A faster way is to use cmd (not powershell!) and use the assoc and ftype commands.</p>
+<p>You can associate an extension (like <code>.2</code>) with a "file type" (which doesn't really mean anything) and then map the file type to a program to open.</p>
+<p>For example:</p>
+<p>[code]<br />
+&gt;ftype logfile=&quot;C:\Program Files (x86)\Jujusoft\JujuEdit\JujuEdit.exe&quot; %1<br />
+&gt;assoc .3=logfile<br />
+&gt;assoc .4=logfile<br />
+&gt;assoc .5=logfile<br />
+&gt;assoc .6=logfile<br />
+...<br />
+[/code]</p>
+<p>And now they all open with juju edit. If i ever want to change it I just re-run ftype and all my log files will now open with another program</p>

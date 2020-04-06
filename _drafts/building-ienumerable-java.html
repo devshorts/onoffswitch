@@ -1,0 +1,41 @@
+---
+layout: post
+title: Building IEnumerable in Java
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: draft
+categories: []
+tags: []
+meta:
+  _edit_last: '1'
+  _su_rich_snippet_type: none
+  _syntaxhighlighter_encoded: '1'
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/"
+---
+<p>In an effort to be more familiar with Java I decided today to build a clone of the IEnumerable higher order functions that C# gives you. In particular I wanted to implement Select, Where, and SelectMany, except I'll call them by their real names: map, filter, and flatMap.</p>
+<p>The first thing a good engineer does is <del datetime="2013-11-11T18:26:37+00:00">cheat</del> do their research, so I checked out how the .NET enumerable iterators and implementations are put together.  The implementations are extremely succinct and neat, mostly because they can leverage the <code>yield</code> operator.  However, you can mimic the same thing in Java leveraging the Java iterators (which C# is also doing under the hood).</p>
+<p>The goal is to be able to chain operators together onto a List item (that exposes an iterator) and minimize the number of traversals we need to do over the list.  A naive approach would be for each chain to process the list, then yield the entire list to the next element (again processing it), etc etc.  A better way is to try and have each element only process a single item at a time. This way it's more of a pipeline than a sequence of list manipulations. This is exactly how .NET does it and which is why LINQ operations are so effective.  </p>
+<p>First let me show the final goal (and end product)</p>
+<p>[java 1="static" 2="void" 3="main(String[" language="public"] arsg) throws InterruptedException, ExecutionException {<br />
+    List&lt;String&gt; strings = asList(&quot;o&quot;, &quot;ba&quot;, &quot;baz&quot;, &quot;booo&quot;);                             </p>
+<p>    List&lt;String&gt; items = Enumerable.init(strings)<br />
+                            .filter(i -&gt; i.length() &gt; 2)<br />
+                            .flatMap(i -&gt; strings)<br />
+                            .filter(i -&gt; i.length() &gt; 3)<br />
+                            .map(i -&gt; &quot;four!&quot;)<br />
+                            .toList();                                                   </p>
+<p>    for(String x : items){<br />
+        System.out.println(x);<br />
+    }<br />
+}<br />
+[/java]</p>
+<p>I have a list of random words, which I filter out words that are less than 2 characters long, then I just discard that and for each result flatMap the original list (so if two words have a length greater than 2 then I will yield the source list twice), then from the newly yielded list select only words that more than 3 characters ("booo", which was yielded twice by the flatMap), then convert the final strings to a new string. The final result should print out "four!" twice, which it does.  On top of that, I've expressed the enumerable lazily so I decided to cache it as a demonstration of future enumerations.</p>

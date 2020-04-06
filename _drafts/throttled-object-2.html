@@ -1,0 +1,83 @@
+---
+layout: post
+title: Throttled Object
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: draft
+categories: []
+tags: []
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  dsq_thread_id: '852610159'
+  _su_title: ''
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/"
+---
+<p>I wanted to share a little utility class I have been finding use for recently.  All it does is take care of caching an item for a certain period of time and when the time has expired and the item is requested it can either build out a new item for you (using a supplied builder function) or lazily build one out for you (return the last cache and queue into the threadpool the builder to re-create the cache).</p>
+<p>I like using this when I'm requesting data that can block and I don't particularly care if I'm a second or two out of date. Here is an example unit test. </p>
+<p>[csharp]<br />
+public void TestThrottle()<br />
+{<br />
+    var throttle = new ThrottledObject&lt;TestItem&gt;(TimeSpan.FromMilliseconds(2000), Generator);</p>
+<p>    Observable.Interval(TimeSpan.FromMilliseconds(500))<br />
+        .Subscribe(_ =&gt;<br />
+                        Console.WriteLine(&quot;[now: {0}] - Last time generated: {1}&quot;,<br />
+                                                    DateTime.Now,<br />
+                                                    throttle.LazyGetItem.TimeGenerated));</p>
+<p>    Thread.Sleep(TimeSpan.FromSeconds(10));<br />
+}<br />
+[/csharp]</p>
+<p>I create a throttled object and say that we won't re-generate the object (<code>TestItem</code>) any faster than every 2000ms.  If we request it after the last period then we'll re-execute the generator lazily (in a thread pool).  Then we'll use an Rx observable to execute my subscribed function every 500ms and see when was the last time our throttled item was generated.</p>
+<p>The generator function is this:</p>
+<p>[csharp]<br />
+public TestItem Generator()<br />
+{<br />
+    Thread.Sleep(TimeSpan.FromSeconds(1));<br />
+    return new TestItem<br />
+                {<br />
+                    TimeGenerated = DateTime.Now<br />
+                };<br />
+}<br />
+[/csharp]</p>
+<p>And our <code>TestItem</code> class is just a simple stub for the test</p>
+<p>[csharp]<br />
+public class TestItem<br />
+{<br />
+    public DateTime TimeGenerated { get; set; }<br />
+}<br />
+[/csharp]</p>
+<p>This whole thing spits out:<br />
+<code><br />
+[now: 8:09:06 PM] - Last time generated: 8:09:06 PM<br />
+[now: 8:09:07 PM] - Last time generated: 8:09:06 PM<br />
+[now: 8:09:07 PM] - Last time generated: 8:09:06 PM<br />
+[now: 8:09:08 PM] - Last time generated: 8:09:06 PM<br />
+[now: 8:09:08 PM] - Last time generated: 8:09:09 PM<br />
+[now: 8:09:09 PM] - Last time generated: 8:09:09 PM<br />
+[now: 8:09:09 PM] - Last time generated: 8:09:09 PM<br />
+[now: 8:09:10 PM] - Last time generated: 8:09:09 PM<br />
+[now: 8:09:10 PM] - Last time generated: 8:09:09 PM<br />
+[now: 8:09:11 PM] - Last time generated: 8:09:09 PM<br />
+[now: 8:09:11 PM] - Last time generated: 8:09:09 PM<br />
+[now: 8:09:12 PM] - Last time generated: 8:09:12 PM<br />
+[now: 8:09:12 PM] - Last time generated: 8:09:12 PM<br />
+[now: 8:09:13 PM] - Last time generated: 8:09:12 PM<br />
+[now: 8:09:13 PM] - Last time generated: 8:09:12 PM<br />
+[now: 8:09:14 PM] - Last time generated: 8:09:12 PM<br />
+[now: 8:09:14 PM] - Last time generated: 8:09:12 PM<br />
+[now: 8:09:15 PM] - Last time generated: 8:09:12 PM<br />
+[now: 8:09:15 PM] - Last time generated: 8:09:16 PM<br />
+[now: 8:09:16 PM] - Last time generated: 8:09:16 PM<br />
+</code></p>
+<p>An example of where I used this was in an internal application we have at B-Line Medical where we have to make some time intensive initialization calls when a user logs in.  These calls generate an initialization data object that is sent over the wire.  In order to speed this up I used a ThrottledObject to wrap the initialization data generation so when the user first hits our site we lazily initialize the data and keep it in a static cache for about 10-20 seconds. If the user logs in with a cached authentication token or by manually logging in then we can re-use the cached data object (bypassing the database calls).  If after 20 seconds they don't log in we'll just request a non-lazy created initialization object, but the 90% use case is the log in is fast and we can leverage the time loading the page to do backend work.</p>
+<p>It may seem like a micro-optimization but I think its important to get the user up and running in the app as soon as possible given that for our application having some slightly stale initial data is OK.  Making use of "down time" is a cool way to get easy speed up and the throttled object makes it easy for us to do without blocking any other calls.</p>
+<p>Full source available on our <a href="https://github.com/blinemedical/Throttled-Object">github</a>.</p>

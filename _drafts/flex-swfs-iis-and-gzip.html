@@ -1,0 +1,156 @@
+---
+layout: post
+title: Flex, SWF's, IIS and GZip
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: draft
+categories: []
+tags: []
+meta:
+  _edit_last: '1'
+  dsq_thread_id: '864641255'
+  _syntaxhighlighter_encoded: '1'
+  _su_title: ''
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/"
+---
+<p>I was recently investigating an issue with a swf preloader not completing properly.  The symptom was that the preloader never thought it loaded all of the data and so sat infinitely trying to complete. </p>
+<p>Oddly only some people were noticing the issue.  I had never seen it, but <a href="http://tech.blinemedical.com/author/dj-larkin/" target="_blank" rel="noopener noreferrer">DJ</a> (our QA manager) kept seeing the problem.  The first thing I do in these situations is to as closely mimic the environment of the user if possible. I was using chrome and DJ was using firefox. I switched over to firefox, cleared my local cache and loaded up the swf. It worked just fine. I reloaded the page and then suddenly I saw the problem.  I kept refreshing and was able to consistently reproduce this issue even though others using firefox never saw the problem and I was never able to see it in chrome or internet explorer.</p>
+<p>Since I never saw this when loading the swf off my local machine, I built a debug version of the swf by adding a <code>-debug=true</code> to the swf <a href="http://livedocs.adobe.com/flex/3/html/help.html?content=compilers_14.html">compiler options</a> and tossed this onto the target machine. This way I was able to remotely attach to swf and step through the code.  </p>
+<p>I saw that the preloader had downloaded 2,465,651 bytes but was expecting 2,468,887. Strangely enough the swf on disk was the size that the preloader had downloaded so where did these extra bytes come from?  Thankfully when I am debugging these issues I religiously run <a href="http://www.charlesproxy.com/" target="_blank" rel="noopener noreferrer">Charles</a> in the background.  I compared the http request/response of the first working request vs the subsequent failed requests. </p>
+<h1>Successful response</h1>
+<p>[csharp]<br />
+HTTP/1.1 200 OK<br />
+Transfer-Encoding: chunked<br />
+Content-Type: application/x-shockwave-flash<br />
+Content-Encoding: gzip<br />
+Last-Modified: Wed, 26 Sep 2012 20:02:39 GMT<br />
+Accept-Ranges: bytes<br />
+ETag: &quot;84e548e1219ccd1:0&quot;<br />
+Vary: Accept-Encoding<br />
+Server: Microsoft-IIS/7.5<br />
+X-Powered-By: ASP.NET<br />
+Date: Wed, 26 Sep 2012 20:11:05 GMT<br />
+[/csharp]</p>
+<h1>Failed response</h1>
+<p>[csharp]<br />
+HTTP/1.1 200 OK<br />
+Content-Type: application/x-shockwave-flash<br />
+Content-Encoding: gzip<br />
+Last-Modified: Wed, 26 Sep 2012 20:02:39 GMT<br />
+Accept-Ranges: bytes<br />
+ETag: &quot;80d937e1219ccd1:0&quot;<br />
+Vary: Accept-Encoding<br />
+Server: Microsoft-IIS/7.5<br />
+X-Powered-By: ASP.NET<br />
+Date: Wed, 26 Sep 2012 20:11:12 GMT<br />
+Content-Length: 2468887<br />
+[/csharp]</p>
+<p>After looking at the two responses I noticed that one had <code>Transfer-Encoding: chunked</code> field and the other had the <code>Content-Length</code> set.</p>
+<ul>
+<li><a href="http://en.wikipedia.org/wiki/Chunked_transfer_encoding" target="_blank" rel="noopener noreferrer"><code>Transfer-Encoding: chunked</code></a> is a mechanism of downloading content from a server in chunks without knowing how much data is being sent.  The response continues until a final zero length chunk is sent.</li>
+<li><a href="http://en.wikipedia.org/wiki/List_of_HTTP_header_fields#content-length-response-header" target="_blank" rel="noopener noreferrer"><code>Content-Length</code></a> tells the client how large the response will be.</li>
+</ul>
+<p>So when we didn't have the content length everything worked. Interestingly enough, the content length was also the same size that the flex preloader was expecting.  It wasn't until another co-worker noticed that the content length (2,468,887) was larger than the actual file (2,465,651) that we noticed that the response's <a href="http://www.gzip.org/#intro">gzip</a> encoding had actually inflated the file size.  For this swf the inflation amount was around 0.1%. </p>
+<p><a href="http://onoffswitch.net/wp-content/uploads/2013/02/swfIncreaseByGzip.png"><img src="http://onoffswitch.net/wp-content/uploads/2013/02/swfIncreaseByGzip-300x248.png" alt="" class="alignnone size-medium wp-image-938" /></a></p>
+<p>Apparently if the http response headers have a content length field then the flex preloader will expect the content length even though though the decompressed file is LESS than the content length and the request had finished.  This particular swf was encoded using the <a href="http://stackoverflow.com/questions/7887660/how-to-enable-lzma-compression-in-flash-player-11">new</a> swf <a href="http://en.wikipedia.org/wiki/Lempel%E2%80%93Ziv%E2%80%93Markov_chain_algorithm">lzma</a> compression and so for fun we tried a regular swf and found that gzip inflated the swf by almost 50%!  A 3MB swf would be 4.5MB if sent over the wire with gzip compression enabled.</p>
+<p>The preloader worked the first time because the preloader didn't know how much it wanted, and assumed that once the request was finished that that was how much it should get.  The subsequent times it was relying on the content headers thinking that was how much it was going to get, even though the decompressed response content was less.</p>
+<p>Once we realized that it was <a href="http://www.microsoft.com/technet/prodtechnol/WindowsServer2003/Library/IIS/25d2170b-09c0-45fd-8da4-898cf9a7d568.mspx?mfr=true">IIS's gzip</a> messing with flex the fix was easy.  We removed the <code>application/x-shockwave-flash</code> <a href="http://en.wikipedia.org/wiki/Internet_media_type">MIME type</a> in the machine's <code>application.config</code> under the compression settings to prevent swf's from getting compressed over the wire</p>
+<p>[xml]<br />
+&lt;httpCompression directory=&quot;%SystemDrive%inetpubtempIIS Temporary Compressed Files&quot;&gt;<br />
+        &lt;scheme name=&quot;gzip&quot; dll=&quot;%Windir%system32inetsrvgzip.dll&quot; /&gt;<br />
+        &lt;dynamicTypes&gt;<br />
+                &lt;clear /&gt;<br />
+                &lt;add mimeType=&quot;text/*&quot; enabled=&quot;true&quot; /&gt;<br />
+                &lt;add mimeType=&quot;message/*&quot; enabled=&quot;true&quot; /&gt;<br />
+                &lt;add mimeType=&quot;application/x-javascript&quot; enabled=&quot;true&quot; /&gt;<br />
+                &lt;add mimeType=&quot;application/x-amf&quot; enabled=&quot;true&quot; /&gt;<br />
+                &lt;add mimeType=&quot;application/json&quot; enabled=&quot;true&quot; /&gt;<br />
+                &lt;add mimeType=&quot;application/json; charset=utf-8&quot; enabled=&quot;true&quot; /&gt;</p>
+<p>                &lt;!-- notice the swf mime type --&gt;<br />
+                &lt;add mimeType=&quot;application/x-shockwave-flash&quot; enabled=&quot;false&quot; /&gt; </p>
+<p>                &lt;add mimeType=&quot;*/*&quot; enabled=&quot;false&quot; /&gt;<br />
+        &lt;/dynamicTypes&gt;<br />
+        &lt;staticTypes&gt;<br />
+                &lt;clear /&gt;<br />
+                &lt;add mimeType=&quot;text/*&quot; enabled=&quot;true&quot; /&gt;<br />
+                &lt;add mimeType=&quot;message/*&quot; enabled=&quot;true&quot; /&gt;<br />
+                &lt;add mimeType=&quot;application/x-javascript&quot; enabled=&quot;true&quot; /&gt;<br />
+                &lt;add mimeType=&quot;application/atom+xml&quot; enabled=&quot;true&quot; /&gt;<br />
+                &lt;add mimeType=&quot;application/xaml+xml&quot; enabled=&quot;true&quot; /&gt;</p>
+<p>                &lt;!-- notice the swf mime type --&gt;<br />
+                &lt;add mimeType=&quot;application/x-shockwave-flash&quot; enabled=&quot;false&quot; /&gt; </p>
+<p>                &lt;add mimeType=&quot;*/*&quot; enabled=&quot;false&quot; /&gt;<br />
+        &lt;/staticTypes&gt;<br />
+    &lt;/httpCompression&gt;<br />
+[/xml]</p>
+<p>To do this in code is also pretty easy:</p>
+<p>For IIS6 or machines with the IIS6 Managment Compatability enabled run the command only with the MIME extensions you want. Any extensions that were there previously would be removed</p>
+<p>[csharp]%windir%system32cscript.exe adsutil.vbs set W3SVC/Filters/Compression/gzip/HcFileExtensions 'js' 'css' 'doc' 'docx'[/csharp]</p>
+<p>To query it you can do </p>
+<p>[csharp]%windir%system32cscript.exe adsutil.vbs get W3SVC/Filters/Compression/gzip/HcFileExtensions[/csharp]</p>
+<p>For IIS7:</p>
+<p>[csharp]<br />
+using (var server = new ServerManager())<br />
+{<br />
+    var applicationHostConfiguration = server.GetApplicationHostConfiguration();</p>
+<p>    var urlCompressionSection = applicationHostConfiguration.GetSection(&quot;system.webServer/urlCompression&quot;);<br />
+    urlCompressionSection.SetAttributeValue(&quot;doDynamicCompression&quot;, &quot;true&quot;);<br />
+    urlCompressionSection.SetAttributeValue(&quot;doStaticCompression&quot;, &quot;true&quot;);</p>
+<p>    var httpCompressionSection = applicationHostConfiguration.GetSection(&quot;system.webServer/httpCompression&quot;);<br />
+    httpCompressionSection.OverrideMode = OverrideMode.Allow;</p>
+<p>    var dynamicTypesCollection = httpCompressionSection.GetCollection(&quot;dynamicTypes&quot;);<br />
+    var staticTypesCollection = httpCompressionSection.GetCollection(&quot;staticTypes&quot;);</p>
+<p>    // Remove all previous so we dont have duplicates.<br />
+    dynamicTypesCollection.Clear();<br />
+    staticTypesCollection.Clear();</p>
+<p>    AddMimeType(dynamicTypesCollection, @&quot;text/*&quot;, true);<br />
+    AddMimeType(dynamicTypesCollection, @&quot;message/*&quot;, true);<br />
+    AddMimeType(dynamicTypesCollection, @&quot;application/x-javascript&quot;, true);<br />
+    AddMimeType(dynamicTypesCollection, @&quot;application/x-amf&quot;, true);<br />
+    AddMimeType(dynamicTypesCollection, @&quot;application/json&quot;, true);<br />
+    AddMimeType(dynamicTypesCollection, @&quot;application/json; charset=utf-8&quot;, true);<br />
+    AddMimeType(dynamicTypesCollection, @&quot;application/x-shockwave-flash&quot;, false);<br />
+    AddMimeType(dynamicTypesCollection, @&quot;*/*&quot;, false);</p>
+<p>    AddMimeType(staticTypesCollection, @&quot;text/*&quot;, true);<br />
+    AddMimeType(staticTypesCollection, @&quot;message/*&quot;, true);<br />
+    AddMimeType(staticTypesCollection, @&quot;application/x-javascript&quot;, true);<br />
+    AddMimeType(staticTypesCollection, @&quot;application/atom+xml&quot;, true);<br />
+    AddMimeType(staticTypesCollection, @&quot;application/xaml+xml&quot;, true);<br />
+    AddMimeType(staticTypesCollection, @&quot;application/x-shockwave-flash&quot;, false);<br />
+    AddMimeType(staticTypesCollection, @&quot;*/*&quot;, false);</p>
+<p>    server.CommitChanges();<br />
+}</p>
+<p>private static void AddMimeType(ConfigurationElementCollection collection, String mimeType , bool enabled )<br />
+{<br />
+    if (collection == null)<br />
+    {<br />
+        return;<br />
+    }</p>
+<p>    var mimeTypeElement = collection.CreateElement();<br />
+    mimeTypeElement.Attributes[&quot;mimeType&quot;].Value = mimeType;<br />
+    mimeTypeElement.Attributes[&quot;enabled&quot;].Value = enabled ;<br />
+    collection.Add(mimeTypeElement);<br />
+}<br />
+[/csharp]</p>
+<p>Now, without gzip, when the content length header was sent everything was worked.</p>
+<p>But why was the server sometimes sending transfer chunked vs content length? It may be that the compressed swf was cached server side and at that point it knew the compressed content length.  Here are two articles that talk about when IIS 7.5 sends  <a href="http://stackoverflow.com/questions/8582637/why-is-asp-net-replacing-a-content-length-header-with-a-transfer-encoding-header" target="_blank" rel="noopener noreferrer">transfer chunked</a> vs <a href="http://geekswithblogs.net/GruffCode/archive/2012/01/02/lsquocontent-lengthrsquo-header-replaced-with-lsquotransfer-encoding-chunkedrsquo-in-asp-.net.aspx" target="_blank" rel="noopener noreferrer">content length</a>.</p>
+<p>While I never figured out why I only ever saw this in firefox, I did notice that we got different response codes from the server when loading in chrome and IE.  In chrome and IE we properly got <a href="http://stackoverflow.com/questions/1665082/http-status-code-200-cache-vs-status-code-304" target="_blank" rel="noopener noreferrer">304</a> (content not modified) code when loading the swf.  This means that it had cached the swf client side in the browser, made a request to see if it had changed, and the server replied back saying it hadn't changed. This way the browser just used the cached swf and bypassed all the content header issues which explains why we never saw this there.</p>
+<p>On top of that, Chrome sometimes never even made a request to the server and just loaded up the cached swf but IE consistently made a request and received a not modified 304, which is what I would have expected</p>
+<p>[csharp]<br />
+Response	HTTP/1.1 304 Not Modified<br />
+Content-Type	application/x-shockwave-flash<br />
+ETag	&quot;4767cb0f79dcd1:0&quot;<br />
+X-Powered-By	ASP.NET<br />
+Content-Length	3241105<br />
+Last-Modified	Sat, 29 Sep 2012 04:00:45 GMT<br />
+[/csharp]</p>
+<p>In general the point of the exercise was that you should be cognizant of what is getting compressed over the wire.  Not everything should be compressed, and sometimes compression can actually make your response sizes larger!</p>

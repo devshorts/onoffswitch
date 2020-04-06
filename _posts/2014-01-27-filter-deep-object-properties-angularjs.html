@@ -1,0 +1,73 @@
+---
+layout: post
+title: Filter on deep object properties in angularjs
+date: 2014-01-27 08:00:25.000000000 -08:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- angularjs
+- JavaScript
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561519402;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4028;}i:1;a:1:{s:2:"id";i:3710;}i:2;a:1:{s:2:"id";i:265;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2014/01/27/filter-deep-object-properties-angularjs/"
+---
+<p>AngularJS provides a neat way of filtering arrays in an <code>ng-repeat</code> tag by piping elements to a built in <code>filter</code> filter which will filter based on a predicate.  Doing it this way you can filter items based on a function, or an expression (evaluated to a literal), or by an object. </p>
+<p>When filtering by an object you can pass in a javascript object that represents key value items that should match whats in the backing data element.  For example:</p>
+<p>[js]<br />
+$scope.elements = [{ foo: &quot;bar&quot; }, { foo: &quot;biz&quot; }]</p>
+<p>--</p>
+<p>&lt;div ng-repeat=&quot;foos in elements | filter: { foo: &quot;bar&quot; }&quot;&gt;<br />
+  {{ foos.foo }} matches &quot;bar&quot;<br />
+&lt;/div&gt;<br />
+[/js]</p>
+<p>Here I filtered all the objects whose foo property matches the value "bar". But what if I have a non-trivial object?  Something with lots of nested objects?  I found that passing in the object to the filter was both unweidly, and error prone. I wanted something simple where I could write out how to dereference it, like <code>obj.property.otherItem.target</code>.</p>
+<p>Thankfully this is pretty easy to write:</p>
+<p>[js]<br />
+function initFilters(app){<br />
+    app.filter('property', property);<br />
+}</p>
+<p>function property(){<br />
+    function parseString(input){<br />
+        return input.split(&quot;.&quot;);<br />
+    }</p>
+<p>    function getValue(element, propertyArray){<br />
+        var value = element;</p>
+<p>        _.forEach(propertyArray, function(property){<br />
+            value = value[property];<br />
+        });</p>
+<p>        return value;<br />
+    }</p>
+<p>    return function (array, propertyString, target){<br />
+        var properties = parseString(propertyString);</p>
+<p>        return _.filter(array, function(item){<br />
+            return getValue(item, properties) == target;<br />
+        });<br />
+    }<br />
+}<br />
+[/js]</p>
+<p>And can be used in your html like this:</p>
+<p>[js]<br />
+&lt;ul&gt;<br />
+    only failed: &lt;input type=&quot;checkbox&quot;<br />
+                      ng-model=&quot;onlyFailed&quot;<br />
+                      ng-init=&quot;onlyFailed=false&quot;/&gt;</p>
+<p>    &lt;li ng-repeat=&quot;entry in data.entries | property:'test.status.pass':!onlyFailed&quot;&gt;<br />
+        &lt;test-entry test=&quot;entry.test&quot;&gt;&lt;/test-entry&gt;<br />
+    &lt;/li&gt;<br />
+&lt;/ul&gt;<br />
+[/js]</p>

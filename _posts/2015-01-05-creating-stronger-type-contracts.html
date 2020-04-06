@@ -1,0 +1,319 @@
+---
+layout: post
+title: Creating stronger value type contracts
+date: 2015-01-05 19:35:56.000000000 -08:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- c#
+- dapper
+- types
+- wcf
+- webapi
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561600152;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2735;}i:1;a:1:{s:2:"id";i:4411;}i:2;a:1:{s:2:"id";i:3899;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2015/01/05/creating-stronger-type-contracts/"
+---
+<p>I've long been annoyed that value types don't have strong semantic information attached to them such that the compiler would barf if I try and pass an value type that isn't semantically the same as what the function wanted.  For example, what does the following signature mean other than than taking in 2 ints and returning a bool?</p>
+<p>[code]<br />
+IsLoggedIn :: int -&gt; int -&gt; bool<br />
+[/code]</p>
+<p>What I'd really like the signature to look like is</p>
+<p>[code]<br />
+IsLoggedIn :: UserId -&gt; SessionId -&gt; bool<br />
+[/code]</p>
+<p>In F# you can do this sort of with type aliases and augmenting the signature with the type information. However, its just editor magic, it doesn't actually compile to anything that would stop you from accidentally calling a function with the arguments reversed. An int is an int is an int, right? </p>
+<p>[code]<br />
+var userId = 1<br />
+var sessionId = 2</p>
+<p>IsLoggedIn(sessionId, userId)<br />
+[/code]</p>
+<p>This is perfectly valid to the compiler and means you won't catch it until its unit tested, peer reviewed (if everyone is paying attention), or found during runtime. I'd like to have this caught at compile time.</p>
+<h2>A solution</h2>
+<p>Instead, what if we wrapped important value types into their own structs?  Something like this:</p>
+<p>[csharp]<br />
+public struct UserId<br />
+{<br />
+    private readonly Int32 _int;</p>
+<p>    private UserId(int @int)<br />
+    {<br />
+        _int = @int;<br />
+    }</p>
+<p>    public static explicit operator UserId(int value)<br />
+    {<br />
+        return new UserId(value);<br />
+    }</p>
+<p>    public static implicit operator int(UserId value)<br />
+    {<br />
+        return value._int;<br />
+    }<br />
+}</p>
+<p>public struct SessionId<br />
+{<br />
+    private readonly Int32 _int;</p>
+<p>    private SessionId(int @int)<br />
+    {<br />
+        _int = @int;<br />
+    }</p>
+<p>    public static explicit operator SessionId(int value)<br />
+    {<br />
+        return new SessionId(value);<br />
+    }</p>
+<p>    public static implicit operator int(SessionId value)<br />
+    {<br />
+        return value._int;<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>Structurally its exactly the same as an int, and it doesn't cost you anything to use it. But, now the compiler will fail if you try and pass this </p>
+<p><img src="http://onoffswitch.net/wp-content/uploads/2015/01/strongtypes.png" alt="strongtypes" width="554" height="204" class="aligncenter size-full wp-image-4557" /></p>
+<h2>Adding some meta data</h2>
+<p>Now there is a problem though of project boundaries. What I mean is when your data types go over the wire, either through webapi or wcf or to a DB or some other form.  To make this actually useful we have to introduce a few more things to make it easy to be transparent through these edge cases.</p>
+<p>First, lets augment the strong inheritance heirarchy. I have interfaces that look like:</p>
+<p>[csharp]<br />
+public interface IStrongType&lt;out T&gt; : IAcceptStrongTypeVisitor<br />
+{<br />
+    T UnderlyingValue();<br />
+}<br />
+[/csharp]</p>
+<p>[csharp]<br />
+public interface IInt32 : IStrongType&lt;int&gt;<br />
+{<br />
+    string ToString(string format);</p>
+<p>    string ToString(string format, IFormatProvider provider);</p>
+<p>    string ToString(IFormatProvider provider);<br />
+}<br />
+[/csharp]</p>
+<p>[csharp]<br />
+public interface IStrongTypeVistor&lt;out TResult&gt;<br />
+{<br />
+    TResult Visit(IGuid data);<br />
+    TResult Visit(IInt32 data);<br />
+    TResult Visit(IInt64 data);<br />
+    TResult Visit(IFloat data);<br />
+    TResult Visit(IDouble data);<br />
+}<br />
+[/csharp]</p>
+<p>Now I can have strong types implement their corresponding value type interfaces (I want a strong int to have the same methods as a regular int) as well as visit on top of them. </p>
+<h2>Serializing JSON</h2>
+<p>The first order of business is serializing to and from JSON.  To do that I've created a json converter that knows how to cast and get the underlying value of a strong type</p>
+<p>[csharp]<br />
+public class PrimitiveJsonConverter&lt;T&gt; : JsonConverter<br />
+    where T : struct<br />
+{<br />
+    public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)<br />
+    {<br />
+        var underlying = (IStrongType&lt;T&gt;)(value);</p>
+<p>        writer.WriteValue(underlying.UnderlyingValue());<br />
+    }</p>
+<p>    public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)<br />
+    {<br />
+        var data = serializer.Deserialize&lt;T&gt;(reader);</p>
+<p>        return data.ExplicitCastTo(objectType);<br />
+    }</p>
+<p>    public override bool CanConvert(Type objectType)<br />
+    {<br />
+        return typeof(T).IsAssignableFrom(objectType);<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>And a utility extension method to reflectively invoke the explicit cast operator on a type<br />
+[csharp]<br />
+public static object ExplicitCastTo(this object obj, Type type)<br />
+{<br />
+    var castOperator = type.GetMethod(&quot;op_Explicit&quot;, new[] { obj.GetType() });</p>
+<p>    if (castOperator == null)<br />
+    {<br />
+        throw new InvalidCastException(&quot;Can't cast to &quot; + type.Name);<br />
+    }</p>
+<p>    return castOperator.Invoke(null, new[] { obj });<br />
+}<br />
+[/csharp]</p>
+<p>Now a strong type will actually look like this:</p>
+<p>[csharp]<br />
+[Serializable]<br />
+[JsonConverter(typeof(IntCaster))]<br />
+public struct SessionId : IInt32<br />
+{<br />
+    private readonly Int32 _int;</p>
+<p>    private SessionId(int @int)<br />
+    {<br />
+        _int = @int;<br />
+    }</p>
+<p>    public static explicit operator SessionId(int value)<br />
+    {<br />
+        return new SessionId(value);<br />
+    }</p>
+<p>    public static implicit operator int(SessionId value)<br />
+    {<br />
+        return value._int;<br />
+    }</p>
+<p>    public int UnderlyingValue()<br />
+    {<br />
+        return _int;<br />
+    }</p>
+<p>    public TResult Accept&lt;TResult&gt;(IStrongTypeVistor&lt;TResult&gt; visitor)<br />
+    {<br />
+        return visitor.Visit(this);<br />
+    }</p>
+<p>    public override string ToString()<br />
+    {<br />
+        return _int.ToString();<br />
+    }</p>
+<p>    public string ToString(string format)<br />
+    {<br />
+        return _int.ToString(format);<br />
+    }</p>
+<p>    public string ToString(string format, IFormatProvider provider)<br />
+    {<br />
+        return _int.ToString(format, provider);<br />
+    }</p>
+<p>    public string ToString(IFormatProvider provider)<br />
+    {<br />
+        return _int.ToString(provider);<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<h2>Handling WCF</h2>
+<p>For WCF I took a lazier approach. For my use case we can distribute an assembly that contains all the strong types and ask consumers to re-use the types when generating proxies.  If they don't, WCF will auto generate a type that boxes the result and send it to you anyways. It makes it more annoying for a consumer, but not impossible to use.  </p>
+<h2>WebAPI parameter parsing</h2>
+<p>Web Api exposes a way to hook into the parameter/object binding as things come in over the wire.  You just need to implement the <code>HttpParameterBinding</code> abstract class.  Then you register the binder either as an attribute on your data object, or as an attribute on the parameter in the web api method, or via registration at startup.</p>
+<p>First I'll show the parameter binder base class. </p>
+<p>[csharp]<br />
+public class PrimitiveBinder&lt;T&gt; : HttpParameterBinding where T : struct<br />
+{<br />
+    public PrimitiveBinder(HttpParameterDescriptor descriptor)<br />
+        : base(descriptor)<br />
+    {<br />
+    }</p>
+<p>    public override Task ExecuteBindingAsync(ModelMetadataProvider metadataProvider, HttpActionContext actionContext, CancellationToken cancellationToken)<br />
+    {<br />
+        var value = actionContext.RequestContext.RouteData.Values[Descriptor.ParameterName];</p>
+<p>        var @struct = TypeDescriptor.GetConverter(typeof(T)).ConvertFromString(value.ToString());</p>
+<p>        actionContext.ActionArguments[Descriptor.ParameterName] = @struct.ExplicitCastTo(Descriptor.ParameterType);</p>
+<p>        var tsc = new TaskCompletionSource&lt;object&gt;();<br />
+        tsc.SetResult(null);<br />
+        return tsc.Task;<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>You can see that it converts the string representation into the raw value type (which is T), then it casts the raw value type into the type of the parameter</p>
+<p>Each strong type wrapper will have its own implementation of the binder where it passes in the underlying value type of T. As an example, here is int:</p>
+<p>[csharp]<br />
+public class IntBinder : PrimitiveBinder&lt;int&gt;<br />
+{<br />
+    public IntBinder(HttpParameterDescriptor descriptor)<br />
+        : base(descriptor)<br />
+    {<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>When the application boots up it calls the registration on the http config</p>
+<p>[csharp]<br />
+public static void RegisterStrongTypes(HttpConfiguration config)<br />
+{<br />
+    config.ParameterBindingRules.Add(FindDescriptor);<br />
+}</p>
+<p>private static HttpParameterBinding FindDescriptor(HttpParameterDescriptor descriptor)<br />
+{<br />
+    if (typeof(IGuid).IsAssignableFrom(descriptor.ParameterType))<br />
+    {<br />
+        return new GuidBinder(descriptor);<br />
+    }</p>
+<p>    if (typeof(IInt32).IsAssignableFrom(descriptor.ParameterType))<br />
+    {<br />
+        return new IntBinder(descriptor);<br />
+    }</p>
+<p>    if (typeof(IFloat).IsAssignableFrom(descriptor.ParameterType))<br />
+    {<br />
+        return new FloatBinder(descriptor);<br />
+    }</p>
+<p>    return null;<br />
+}<br />
+[/csharp]</p>
+<p>Now web api knows what to do based on the tagged interface of the strong type (in the int example, they are all of IInt32 interfaces).</p>
+<p>As an example, if this is our method on the controller</p>
+<p>[csharp]<br />
+[Route(&quot;int/{test}&quot;), HttpGet]<br />
+public IntExample Test(IntExample test)<br />
+{<br />
+    return test;<br />
+}<br />
+[/csharp]</p>
+<p>We can pass in an int </p>
+<p>[code]<br />
+localhost/api/int/1<br />
+[/code]</p>
+<p>And get the same value echoed back out to us without having to add any annotations to either the controller, the method, or the parameters.</p>
+<h2>Dapper</h2>
+<p>For the project I work on, we also use dapper as our micro ORM.  This is great since it lets us pass in anonymous objects representing stored procedure parameters and it can auto map into objects and primitives for us.  However, dapper has no idea what to do with our strong types so we have to augment its type serializer.</p>
+<p>This is where the visitor interface comes into play. On application load, we can leverage a registration function that tells dapper what to do for the specific types.  The one thorn here is that dapper can't map an interface type to a type handler, it needs to be for each type explicity. Thats OK since we can reflectively find all types that implement the root IStrongType<t> interface and register them automatically</p>
+<p>[csharp]<br />
+internal class StrongTypeMapper : SqlMapper.ITypeHandler<br />
+{<br />
+    public void SetValue(IDbDataParameter parameter, object value)<br />
+    {<br />
+        parameter.DbType = new DbTypeStrongVisitor().Visit(value as IAcceptStrongTypeVisitor);</p>
+<p>        parameter.Value = new UnderlyingStrongTypeVisitor().Visit(value as IAcceptStrongTypeVisitor);<br />
+    }</p>
+<p>    public object Parse(Type destinationType, object value)<br />
+    {<br />
+        return value.ExplicitCastTo(destinationType);<br />
+    }<br />
+}</p>
+<p>internal class DbTypeStrongVisitor : IStrongTypeVistor&lt;DbType&gt;<br />
+{</p>
+<p>    public DbType Visit(IGuid guid)<br />
+    {<br />
+        return DbType.Guid;<br />
+    }</p>
+<p>    public DbType Visit(IInt32 data)<br />
+    {<br />
+        return DbType.Int32;<br />
+    }</p>
+<p>    public DbType Visit(IInt64 data)<br />
+    {<br />
+        return DbType.Int64;<br />
+    }</p>
+<p>    public DbType Visit(IFloat data)<br />
+    {<br />
+        return DbType.Double;<br />
+    }</p>
+<p>    public DbType Visit(IDouble data)<br />
+    {<br />
+        return DbType.Decimal;<br />
+    }</p>
+<p>    public DbType Visit(IAcceptStrongTypeVisitor visitor)<br />
+    {<br />
+        return visitor.Accept(this);<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>And the initializer call:</p>
+<p>[csharp]<br />
+public static void InitTypeMappings()<br />
+{<br />
+    Assembly.GetExecutingAssembly()<br />
+            .FindStrongTypes()<br />
+            .ForEach(i =&gt; SqlMapper.AddTypeHandler(i, new StrongTypeMapper()));<br />
+}<br />
+[/csharp]</p>
+<p>Where <code>FindStrongTypes</code> finds all the types that implement the generic interface of IStrongType<t>.</p>
+<h2>But the boilerplate!</h2>
+<p>This is great and all, but kind of annoying to manage by hand. It's a lot of boilerplate to write for what used to just be an int or float or guid.  To combat this, my team is using a custom code generator that auto generates strong types along with the visitor information, and a bunch of other auto-gend data for our codebase.  It'd be easy to write your own, since the template is pretty much exactly the same.<br />
+</t></t></p>

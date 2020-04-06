@@ -1,0 +1,121 @@
+---
+layout: post
+title: Converting akka scala futures to java futures
+date: 2015-05-07 01:13:48.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- akka
+- async
+- futures
+- java
+- scala
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1559708751;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4456;}i:1;a:1:{s:2:"id";i:4627;}i:2;a:1:{s:2:"id";i:4394;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2015/05/07/converting-akka-scala-futures-java-futures/"
+---
+<p>Back in akka land!  I'm using the ask pattern to get results back from actors since I have a requirement to block and get a result (I can't wait for an actor to push at a later date).  Thats fine, but converting from scala futures to java completable futures is a pain.  I also, (like mentioned in another post) want to make sure that my async responses capture and set the MDC for proper logging.</p>
+<p>My final usage should look something like:</p>
+<p>[java]<br />
+private &lt;Response, Request&gt; Future&lt;Response&gt; askActorForResponseAsync(Request source) {<br />
+    final FiniteDuration askTimeout = new FiniteDuration(config.getAskForResultTimeout().toMillis(), TimeUnit.MILLISECONDS);</p>
+<p>    final Timeout timeout = new Timeout(askTimeout);</p>
+<p>    final scala.concurrent.Future&lt;Object&gt; ask = Patterns.ask(master.getActor(), new PersistableMessageContext(source), timeout);</p>
+<p>    return FutureConverter.fromScalaFuture(ask)<br />
+                          .executeOn(actorSystem.dispatcher())<br />
+                          .thenApply(i -&gt; (Response) i);<br />
+}<br />
+[/java]</p>
+<p>The idea is that I'm going to translate a scala future with a callback into a completable future java promise.  </p>
+<p>Next up, the future converter:</p>
+<p>[java]<br />
+public class FutureConverter {<br />
+    public static &lt;T&gt; FromScalaFuture&lt;T&gt; fromScalaFuture(scala.concurrent.Future&lt;T&gt; future) {<br />
+        return new FromScalaFuture&lt;&gt;(future);<br />
+    }<br />
+}<br />
+[/java]</p>
+<p>This is just an entrypoint into a new class that can give you a nice fluent interface to provide the execution context.</p>
+<p>Next, a class whose job is to create an akka callback and convert it into a completable future.</p>
+<p>[java]<br />
+import scala.concurrent.ExecutionContext;<br />
+import scala.concurrent.Future;</p>
+<p>import java.util.concurrent.CompletableFuture;</p>
+<p>public class FromScalaFuture&lt;T&gt; {</p>
+<p>    private final Future&lt;T&gt; future;</p>
+<p>    public FromScalaFuture(Future&lt;T&gt; future) {<br />
+        this.future = future;<br />
+    }</p>
+<p>    public CompletableFuture&lt;T&gt; executeOn(ExecutionContext context) {<br />
+        final CompletableFuture&lt;T&gt; completableFuture = new CompletableFuture&lt;&gt;();</p>
+<p>        final AkkaOnCompleteCallback&lt;T&gt; completer = AkkaCompletionConverter.&lt;T&gt;createCompleter((failure, success) -&gt; {<br />
+            if (failure != null) {<br />
+                completableFuture.completeExceptionally(failure);<br />
+            }<br />
+            else {<br />
+                completableFuture.complete(success);<br />
+            }<br />
+        });</p>
+<p>        future.onComplete(completer.toScalaCallback(), context);</p>
+<p>        return completableFuture;<br />
+    }<br />
+}<br />
+[/java]</p>
+<p>And finally another guy whose job it is to translate java functions into akka callbacks:</p>
+<p>[java]<br />
+import akka.dispatch.OnComplete;</p>
+<p>@FunctionalInterface<br />
+public interface AkkaOnCompleteCallback&lt;T&gt; {<br />
+    OnComplete&lt;T&gt; toScalaCallback();<br />
+}<br />
+[/java]</p>
+<p>[java]<br />
+import akka.dispatch.OnComplete;<br />
+import org.slf4j.MDC;</p>
+<p>import java.util.Map;<br />
+import java.util.function.BiConsumer;</p>
+<p>public class AkkaCompletionConverter {<br />
+    /**<br />
+     * Handles closing over the mdc context map and setting the responding future thread with the<br />
+     * previous context<br />
+     *<br />
+     * @param callback<br />
+     * @return<br />
+     */<br />
+    public static &lt;T&gt; AkkaOnCompleteCallback&lt;T&gt; createCompleter(BiConsumer&lt;Throwable, T&gt; callback) {<br />
+        return () -&gt; {</p>
+<p>            final Map&lt;String, String&gt; oldContextMap = MDC.getCopyOfContextMap();</p>
+<p>            return new OnComplete&lt;T&gt;() {<br />
+                @Override public void onComplete(final Throwable failure, final T success) throws Throwable {<br />
+                    // capture the current threads context map<br />
+                    final Map&lt;String, String&gt; currentThreadsContext = MDC.getCopyOfContextMap();</p>
+<p>                    // set the closed over context map<br />
+                    if(oldContextMap != null) {<br />
+                        MDC.setContextMap(oldContextMap);<br />
+                    }</p>
+<p>                    callback.accept(failure, success);</p>
+<p>                    // return the current threads previous context map<br />
+                    if(currentThreadsContext != null) {<br />
+                        MDC.setContextMap(currentThreadsContext);<br />
+                    }<br />
+                }<br />
+            };<br />
+        };<br />
+    }<br />
+}<br />
+[/java]</p>

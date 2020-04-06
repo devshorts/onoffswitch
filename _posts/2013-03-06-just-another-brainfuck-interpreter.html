@@ -1,0 +1,210 @@
+---
+layout: post
+title: Just another brainfuck interpreter
+date: 2013-03-06 00:36:30.000000000 -08:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Snippets
+tags:
+- brainfuck
+- interpreter
+- parser
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _wpas_done_all: '1'
+  _wp_old_slug: a-brainfuck-interpreter
+  _su_title: ''
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560277132;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2735;}i:1;a:1:{s:2:"id";i:6;}i:2;a:1:{s:2:"id";i:3016;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/03/06/just-another-brainfuck-interpreter/"
+---
+<h2>Why?</h2>
+<p>Honestly, why not? </p>
+<h2>The entry point</h2>
+<p>Not much to tell:</p>
+<p>[csharp]<br />
+static void Main(string[] args)<br />
+{<br />
+    var parser = new Parser(&quot;++++++++++[&gt;+++++++&gt;++++++++++&gt;+++&gt;+&lt;&lt;&lt;&lt;-]&gt;++.&gt;+.+++++++..+++.&gt;++.&lt;&lt;+++++++++++++++.&gt;.+++.------.--------.&gt;+.&gt;.&quot;);</p>
+<p>    var instructions = parser.Instructions;</p>
+<p>    var interpreter = new Interpreter(instructions);</p>
+<p>    interpreter.Interpret();<br />
+}<br />
+[/csharp]</p>
+<h2>The container classes</h2>
+<p>Some data classes and enums:</p>
+<p>[csharp]<br />
+public enum Tokens<br />
+    {<br />
+        MoveFwd,<br />
+        MoveBack,<br />
+        Incr,<br />
+        Decr,<br />
+        While,<br />
+        Print,<br />
+        Input,<br />
+        WhileEnd,<br />
+        WhileStart,<br />
+        Unknown<br />
+    }</p>
+<p>    public class Instruction<br />
+    {<br />
+        public Tokens Token { get; set; }</p>
+<p>        public override string ToString()<br />
+        {<br />
+            return Token.ToString();<br />
+        }<br />
+    }</p>
+<p>    class While : Instruction<br />
+    {<br />
+        public While()<br />
+        {<br />
+            Token = Tokens.While;<br />
+        }</p>
+<p>        public List&lt;Instruction&gt; Instructions { get; set; }<br />
+    }<br />
+[/csharp]</p>
+<h2>A helper function</h2>
+<p>A function to translate a character token into a known token</p>
+<p>[csharp]<br />
+private Tokens GetToken(char input)<br />
+{<br />
+    switch (input)<br />
+    {<br />
+        case '+':<br />
+            return Tokens.Incr;<br />
+        case '-':<br />
+            return Tokens.Decr;;<br />
+        case '&lt;':<br />
+            return Tokens.MoveBack;<br />
+        case '&gt;':<br />
+            return Tokens.MoveFwd;<br />
+        case '.':<br />
+            return Tokens.Print;<br />
+        case ',':<br />
+            return Tokens.Input;<br />
+        case '[':<br />
+            return Tokens.WhileStart;<br />
+        case ']':<br />
+            return Tokens.WhileEnd;<br />
+    }<br />
+    return Tokens.Unknown;<br />
+}<br />
+[/csharp]</p>
+<h2>The parser</h2>
+<p>And the entire parser:</p>
+<p>[csharp]<br />
+public List&lt;Instruction&gt; Instructions { get; private set; }</p>
+<p>public Parser(string source)<br />
+{<br />
+    Instructions = Tokenize(source.Select(GetToken)<br />
+                                    .Where(token =&gt; token != Tokens.Unknown)<br />
+                                    .ToList()).ToList();<br />
+}</p>
+<p>IEnumerable&lt;Instruction&gt; Tokenize(IEnumerable&lt;Tokens&gt; input)<br />
+{<br />
+    var stack = new Stack&lt;While&gt;();</p>
+<p>    foreach (var t in input)<br />
+    {<br />
+        switch (t)<br />
+        {<br />
+            case Tokens.WhileStart:<br />
+                stack.Push(new While {Instructions = new List&lt;Instruction&gt;()});<br />
+                break;<br />
+            case Tokens.WhileEnd:<br />
+                if (stack.Count == 0)<br />
+                {<br />
+                    throw new Exception(&quot;Found a ] without a matching [&quot;);<br />
+                }<br />
+                if (stack.Count &gt; 1)<br />
+                {<br />
+                    var top = stack.Pop();<br />
+                    stack.Peek().Instructions.Add(top);<br />
+                }<br />
+                else<br />
+                {<br />
+                    yield return stack.Pop();<br />
+                }<br />
+                break;<br />
+            default:<br />
+                var instruction = new Instruction {Token = t};<br />
+                if (stack.Count &gt; 0)<br />
+                {<br />
+                    stack.Peek().Instructions.Add(instruction);<br />
+                }<br />
+                else<br />
+                {<br />
+                    yield return instruction;<br />
+                }<br />
+                break;<br />
+        }<br />
+    }</p>
+<p>    if (stack.Count &gt; 0)<br />
+    {<br />
+        throw new Exception(&quot;Unmatched [ found. Expecting ]&quot;);<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>I took a different approach to parsing this time than usual. I didn't feel like having to deal with a consumable stream, so I linearly went through the token source. Each time I encountered a while loop start I pushed it onto the while loop stack.  Anytime I had instructions, if I had stuff in the stack, I added it to the instruction list at the top of stack. As I hit while loop end tokens (]), I popped off the stack and yielded the aggregate instruction.  </p>
+<h2>The interpreter</h2>
+<p>The interpreter is dirt simple too.  We have a 30,000 byte array of memory (per spec from wikipedia).  The rest I think is self explanatory:</p>
+<p>[csharp]<br />
+public class Interpreter<br />
+{<br />
+    private readonly byte[] _space = new byte[30000];</p>
+<p>    private int _dataPointer;</p>
+<p>    private List&lt;Instruction&gt; Instructions { get; set; }</p>
+<p>    public Interpreter (List&lt;Instruction&gt; instructions)<br />
+    {<br />
+        Instructions = instructions;<br />
+    }</p>
+<p>    public void Interpret()<br />
+    {<br />
+        InterpretImpl(Instructions);<br />
+    }</p>
+<p>    private void InterpretImpl(IEnumerable&lt;Instruction&gt; instructions)<br />
+    {<br />
+        foreach(var instruction in instructions){<br />
+            switch (instruction.Token)<br />
+            {<br />
+                case Tokens.Input:<br />
+                    _space[_dataPointer] = Convert.ToByte(Console.Read());<br />
+                    break;<br />
+                case Tokens.Incr:<br />
+                    _space[_dataPointer]++;<br />
+                    break;<br />
+                case Tokens.Decr:<br />
+                    _space[_dataPointer]--;<br />
+                    break;<br />
+                case Tokens.Print:<br />
+                    Console.Write(Encoding.ASCII.GetString(new[] { _space[_dataPointer] }));<br />
+                    break;<br />
+                case Tokens.MoveFwd:<br />
+                    _dataPointer++;<br />
+                    break;<br />
+                case Tokens.MoveBack:<br />
+                    _dataPointer--;<br />
+                    break;<br />
+                case Tokens.While:<br />
+                    while (_space[_dataPointer] != 0)<br />
+                    {<br />
+                        InterpretImpl((instruction as While).Instructions);<br />
+                    }<br />
+                    break;<br />
+            }<br />
+        }<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<h2>The source</h2>
+<p>Read the <a href="https://github.com/devshorts/BrainFuckSharp" target="_blank" rel="noopener noreferrer">source</a>, Luke</p>

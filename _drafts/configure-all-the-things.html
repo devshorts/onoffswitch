@@ -1,0 +1,62 @@
+---
+layout: post
+title: Configure all the things
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: epending-review
+categories: []
+tags:
+- Best Practices
+- configuration
+meta:
+  _edit_last: '1'
+  dsq_thread_id: '878706677'
+  _syntaxhighlighter_encoded: '1'
+  _su_title: ''
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/02/11/configure-all-the-things/"
+---
+<p>Imagine a world where there was only ever one form factor for a tool. One size Philips head. One size hammer. One size car. One EQ setting. It would be a pretty rigid world. Instead, thankfully, we live in a world where there are lots of options, choices, and variations. This lets us pick the specific tools we need to help us do our job, as well as tailor them to the workflow we like. In software, we're always writing tools to help people solve problems. Configuration is one of the ways that makes software flexible.</p>
+<p>Configuration doesn't just imply things that are public to users, like the background color or autosave frequency, but it can expose non-compile time settings that help you tune your application to unknown environments. Most software can't possibly be tested in every environment that it will be used. However, if you make your code flexible and configurable, you can minimize damage and buy yourself some time when things go bad. You can possibly even find a configuration that works around the problem. Configuration can improve someone's experience by modifying assumptions you made while developing with a toggle or tweak of a configuration value.</p>
+<p>I personally think that just about everything should be configurable, unless it's absolutely never going to change. Even then, make it configurable, because it may change in the future. Think about your favorite command line tools, and the extensibility they have. They're powerful because they are dynamic. They can be configured for a myriad of options and scenarios.</p>
+<p>Some examples of things that should be configurable:</p>
+<ul>
+<li><strong>Timeouts</strong>. Any time you are setting timeouts for something, you should make this configurable. Maybe that 5-minute timeout you thought was impossible is actually happening, and you need to make it 6 minutes.</li>
+<li><strong>Retries</strong>. If you are going to retry something a certain number of times, you should make this value configurable. You should also make the interval of the retry configurable.</li>
+<li><strong>Thresholds</strong>. If something has a threshold, it should be configurable. You should be able to tighten the threshold or loosen it</li>
+<li><strong>Max and mins</strong>. Anything that has an upper or lower limit should be configurable.</li>
+<li><strong>Optional UI items</strong>. Some parts of an application aren't used by everyone. Even if you never plan on doing it, make it toggleable. You can toggle a widget or piece of the application that isn't useful to a certain user set on or off. Some clients may not like item XYZ always showing up, even if you think its a core part of the application. If you can just disable it with ease, then that makes them happy not to see it. It makes you happy because you don't have to make any custom changes.</li>
+<li><strong>Things that start at runtime</strong>. Code internals should be able to be toggled. If you have a thread that spins up on startup, and is suddenly <a href="http://tech.blinemedical.com/wp-content/uploads/2012/09/swedishchef.jpg" target="_blank" rel="noopener noreferrer">borking</a> everything, then you can have a way to temporarily turn it off. This can save you, your support team, and the client a big headache while you find out why its not working. More than once I've run across something unexpected that happened, resulting in a runaway thread or thrashing disk. Wrapping everything in a configuration toggle lets you turn it off, and safely bypass an entire swath of the application. Defensive programming can go a long way, but sometimes you need to immediately turn off an entire section and not let it hit your code.</li>
+<li><strong>Execution of 3rd party libraries/programs</strong>. Imagine you do a netstat on startup, to see who is connected to what. However, netstat is choking on the network, and delaying your startup by 30 seconds. You should make sure to wrap this kind of execution in a configuration, so that you can turn it on or off, depending on the scenario.</li>
+<li><strong>Optional features</strong>. Sometimes we have pet projects, and we love working on them, but nobody asked for it. If it works, the client may think this is the best thing ever. If it doesn't work, they really don't want it screwing up core requirements. These kinds of things should all be configurable, so you can turn them off if desired.</li>
+<li><strong>Paths</strong>. If you can configure where things go you should. A client has an F: drive? No problem. Don't hard-code values anywhere.</li>
+</ul>
+<p>While taking configuration via the command line is a simple and flexible thing to do, it doesn't scale well and can be difficult to maintain. I find that a known xml file is a great way to store a config. You don't need to expose default values, or any public options if you don't want to, but the fact that they are there is what matters. In C#, use the <a href="http://www.distribucon.com/blog/MarkingDefaultValuesToControlXMLSerialization.aspx" target="_blank" rel="noopener noreferrer"><code>DefaultValue</code></a> attribute on a serializable class to only write values if the property is anything other than the default. This way, you can load and save your configs without exposing the internals of your configuration class. The upside of this is that your configs stay clean, and you can easily see what has changed from the default. The downside is that if you plan on exposing these options, then they won't show up by default. If you go this route, it would be worth keeping a master list of configuration options, where they are located (which config file, xml block, etc), what the default value is, what the option does, and why it exists.</p>
+<p>You should also handle the situation where configs can't be found. I like to make sure that my config loading code is reasonably robust. It will look in a set of known folders, and move up the local hierarchy until it can find something. Depending on your application architecture, this can be a reasonable solution. If you have a multi-process application, you can design it so that there is only one config for everyone. This makes maintaining configuration options easier, since it's all in one file. If you still can't find the configs, log an exception or a warning and then resort to the default values. Don't create a hard dependency on configuration, if you can avoid it. This makes re-using code that relies on configurations easier, since you don't need to have a configuration file to use it.</p>
+<p>It's also pretty easy to live-load your configurations, instead of just once on startup. If you create a file-watcher on your config class, and re-load it when it's changed, then you can have live up-to-date configurations. If your config file is live-editable, you can even throttle reloading the config at some regular intervals using Rx, so you don't spam your system with configuration reloading. Just make sure to reference all your configuration options directly from the config class, and don't make local copies of config values (or <a href="http://en.wikipedia.org/wiki/Closure_(computer_science)" target="_blank" rel="noopener noreferrer">close</a> on them). Below is a simple example that will call a reload config function in 2 second intervals, while a file is being edited.</p>
+<p>[csharp]<br />
+private void InitFileWatcher()<br />
+{<br />
+    _watcher = new FileSystemWatcher(Path.GetDirectoryName(Path.GetFullPath(Config.Path)), Path.GetFileName(Config.Path));<br />
+    Observable.FromEventPattern&lt;FileSystemEventHandler, FileSystemEventArgs&gt;(<br />
+        ev =&gt; _watcher.Changed += ev,<br />
+        ev =&gt; _watcher.Changed -= ev)<br />
+        .Sample(TimeSpan.FromSeconds(Config.Instance.ConfigReloadTime)).Subscribe(ReloadConfig);</p>
+<p>    _watcher.NotifyFilter = NotifyFilters.LastWrite;<br />
+    _watcher.EnableRaisingEvents = true;<br />
+}</p>
+<p>private void ReloadLogConfig(EventPattern&lt;FileSystemEventArgs&gt; obj)<br />
+{<br />
+    Log.Debug(this, &quot;{0} path was changed ({1}), reloading config&quot;, obj.EventArgs.FullPath, obj.EventArgs.ChangeType);<br />
+}<br />
+[/csharp]</p>
+<p>I think configuration is just one part of defensive and flexible programming. Not all configurable items are about turning something on or off or avoiding bugs. They should also be about performance-tuning and optimization. In the end, if you aren't sure, make it configurable. You'll find that the worst that happens when you do is that you don't ever use that configuration value.</p>
+<p><a href="http://tech.blinemedical.com/wp-content/uploads/2012/09/configureAllThethings..png"><img class="alignnone size-full wp-image-1009" alt="" src="http://tech.blinemedical.com/wp-content/uploads/2012/09/configureAllThethings..png" width="319" height="241" /></a></p>

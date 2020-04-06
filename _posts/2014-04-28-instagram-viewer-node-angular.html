@@ -1,0 +1,274 @@
+---
+layout: post
+title: Instagram viewer with node and angular
+date: 2014-04-28 08:00:51.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- angular
+- instagram
+- node
+meta:
+  _edit_last: '1'
+  _su_rich_snippet_type: none
+  _syntaxhighlighter_encoded: '1'
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560156459;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:1587;}i:1;a:1:{s:2:"id";i:4783;}i:2;a:1:{s:2:"id";i:4699;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2014/04/28/instagram-viewer-node-angular/"
+---
+<p>I have an artist <a href="http://www.jeremyjams.com/" target="_blank" rel="noopener noreferrer">buddy</a> who is working on an art installation and asked me if there was a way to display a realtime view of an instagram hashtag feed on a projector. </p>
+<p>Unfortunately there isn't anything right out of the box available, but I offered to write him a quick app that he could fire up that would give him what he wanted.</p>
+<p><em>For the impatient, full source is available at my <a href="https://github.com/devshorts/Playground/tree/master/Gecker" target="_blank" rel="noopener noreferrer">github</a>.<br />
+</em></p>
+<p>One way to do this would be to hook into the instagram <a href="http://instagram.com/developer/realtime/" target="_blank" rel="noopener noreferrer">realtime API</a>. Using the realtime API you subscribe to tags or users via their API and supply a url callback. Instagram will then callback to your endpoint with an HTTP GET, validate that you actually did request (via a handshake response), and then post to your endpoint whenever something on that subscription has changed.  What it won't do is actually give you the information you need to display, it's only a notification that something changed (and gives you information to pull back what changed).</p>
+<p>On the one hand this would work great, but the downside is that it requires a publicly exposed endpoint to work.  Given that I'm distributing this to a buddy who may not have access to the router at the art installation to set up port forwarding, I went with a more low-tech solution: rss tag polling.</p>
+<p>My first idea was to just have this be a UI only page that pulled from the instagram RSS by tag feed periodically, but I ran into cross site origin failures.  In order to get over that I wrote a small node app that does the rss tag query on a timer, xml parsing, xml data translation (into a more useful DTO), and uses socket.io to push the new information to a simple angular app.</p>
+<h2>The server</h2>
+<p>First I abstracted the concept of a server into its own class where we could inject callbacks if we wanted to externally.  I exposed the routing as an injection function so any other consumers can add routes to the expression app (so if I wanted to build the realtime API I could) without the server caring at all what's going on.</p>
+<p>[js]<br />
+var express = require('express');<br />
+var http = require('http');<br />
+var app = express();<br />
+exports.Server = function(){<br />
+    var hostRoot = __dirname + '/../ui';</p>
+<p>    console.log(hostRoot);</p>
+<p>    app.use(express.bodyParser());<br />
+    app.use(express.methodOverride());<br />
+    app.use(app.router);<br />
+    app.use(express.static(hostRoot));<br />
+    app.use(express.errorHandler());</p>
+<p>    this.start = function(){<br />
+        var server = http.createServer(app);</p>
+<p>        var port = process.env.PORT || 3000;<br />
+        server.listen(port);</p>
+<p>        console.log(&quot;listneing on &quot; + port);</p>
+<p>        return server;<br />
+    };</p>
+<p>    this.addRoutes = function(callback){<br />
+        callback(app);<br />
+    };<br />
+};<br />
+[/js]</p>
+<p>I also added a class that abstracts socket.IO and lets us issue an action on connect, as well as external invoking an action. The idea here is that the moment someone connects we want to make sure to send the most to date data. Given that the client load will realistically be only 1, maybe 2 people, there isn't an issue of server spam here.</p>
+<p>[js]<br />
+var io = require('socket.io');</p>
+<p>exports.RealTime = function(server){</p>
+<p>    var socketIO = io.listen(server);</p>
+<p>    socketIO.set('log level', 1);</p>
+<p>    var root = this;</p>
+<p>    this.onLogin = function(pushTo){<br />
+        root.loginFunction = pushTo;</p>
+<p>        return root;<br />
+    };</p>
+<p>    this.run = function(){<br />
+        socketIO.sockets.on('connection', function(socket){<br />
+            console.log(&quot;connected&quot;);</p>
+<p>            socket.on(&quot;disconnect&quot;, function(){<br />
+                console.log(&quot;disconnect&quot;);<br />
+            });</p>
+<p>            root.loginFunction(root.push);<br />
+        });</p>
+<p>        return this;<br />
+    };</p>
+<p>    this.push = function(data) {<br />
+        socketIO.sockets.json.emit(&quot;data&quot;, data);<br />
+    }<br />
+};<br />
+[/js]</p>
+<p>I also have a class that encapsulates pulling data from the instagram RSS feed by tag and transforms the result into a simpler object</p>
+<p>[js]<br />
+var request = require('request');<br />
+var _ = require('underscore')._;<br />
+var xml2js = require(&quot;xml2js&quot;);<br />
+var Instagram = require(&quot;instagram-node-lib&quot;);</p>
+<p>exports.InstagramRss = function(tag, takeAmount){<br />
+    var options = {<br />
+        host: &quot;http://instagram.com/tags/&quot; + tag + &quot;/feed/recent.rss&quot;,<br />
+        method: 'GET'<br />
+    };</p>
+<p>    this.query = function(callback){<br />
+        function extractor(body){<br />
+            var parser = xml2js.Parser();</p>
+<p>            return parser.parseString(body, function(err, r){<br />
+                var items =<br />
+                    _.chain(r.rss.channel[0].item)<br />
+                        .map(function(element){<br />
+                            return {<br />
+                                link : element.link[0],<br />
+                                title: element.title[0]<br />
+                            }<br />
+                        })<br />
+                        .take(takeAmount)<br />
+                        .value();</p>
+<p>                callback(items);<br />
+            });<br />
+        }</p>
+<p>        request(options.host, function (error, response, body) {<br />
+            if (!error &amp;&amp; response.statusCode == 200) {<br />
+                extractor(body);<br />
+            }<br />
+        })<br />
+    };<br />
+};<br />
+[/js]</p>
+<p>Now finally the node entrypoint</p>
+<p>[js]<br />
+var openurl = require(&quot;openurl&quot;);</p>
+<p>var Server = require(&quot;./src/server&quot;).Server,<br />
+    RealTime = require(&quot;./src/realtime&quot;).RealTime,<br />
+    InstagramRss = require(&quot;./src/instagramRss&quot;).InstagramRss;</p>
+<p>var App = function(){</p>
+<p>    var config = require('./config.json');</p>
+<p>    var rss = new InstagramRss(config.tag, config.take);</p>
+<p>    var server = new Server();</p>
+<p>    var realtime = {};</p>
+<p>    this.run = function(){<br />
+        runOnTimer(config.interval);</p>
+<p>        realtime = new RealTime(server.start()).onLogin(rss.query).run();<br />
+    };</p>
+<p>    function runOnTimer(interval){<br />
+        setInterval(function(){<br />
+            rss.query(realtime.push)<br />
+        }, interval * 1000);<br />
+    }<br />
+};</p>
+<p>new App().run();</p>
+<p>openurl.open('http://localhost:3000');<br />
+[/js]</p>
+<p>The idea now is that anyone who connects to the websocket will immediately get an rss query pushed to them.  From then on at an interval configured by config.json we'll just send any new stuff to them.</p>
+<h2>The UI</h2>
+<p>The ui is dirt simple. It's just a single angularJS page that registers a service and callback representing the realtime push, as well as a controller and a directive to manage displaying new instagram elements.  </p>
+<p>The main angular app, below, takes care of registering services and directives, as well as the initial routing (using ui-router)</p>
+<p>[js]<br />
+function App(){<br />
+    this.run = function(app){<br />
+        new ServiceInitializer().initServices(app);<br />
+        new Directives().initDirectives(app);</p>
+<p>        applyConfigs(app);<br />
+    };</p>
+<p>    function applyConfigs(app){<br />
+        app.config(function($stateProvider, $urlRouterProvider){</p>
+<p>            $urlRouterProvider.otherwise(&quot;/&quot;);</p>
+<p>            $stateProvider.state('main', {<br />
+                url:&quot;/&quot;,<br />
+                templateUrl: &quot;partials/feed.html&quot;,<br />
+                controller: feedController<br />
+            })<br />
+        });<br />
+    }<br />
+}<br />
+[/js]</p>
+<p>The service initializer and services are just wrappers on the realtime subscription</p>
+<p>[js]<br />
+function ServiceInitializer(){<br />
+    this.initServices = function (app){<br />
+        app.service('realtime', realtime);<br />
+    };</p>
+<p>    function realtime(){<br />
+        function basePath(){<br />
+            var pathArray = window.location.href.split( '/' );<br />
+            var protocol = pathArray[0];<br />
+            var host = pathArray[2];<br />
+            return protocol + '//' + host;<br />
+        }</p>
+<p>        var socket = io.connect(basePath());</p>
+<p>        var rssQueryClients = [];</p>
+<p>        socket.on('data', function(data){<br />
+            _.forEach(rssQueryClients, function(client){<br />
+                client(data);<br />
+            });<br />
+        });</p>
+<p>        this.registerRssPush = function (client){<br />
+            rssQueryClients.push(client);<br />
+        };<br />
+    }<br />
+}<br />
+[/js]</p>
+<p>And the directive that drives the single image display. I set it up so that the image and tagged text fade in together when the image has completed loading.</p>
+<p>[js]<br />
+function Directives(){<br />
+    this.initDirectives = function(app){<br />
+        app.directive('instagram', instagram)<br />
+    };</p>
+<p>    function instagram(){<br />
+        return {<br />
+            restrict: 'E',<br />
+            scope: {<br />
+                data:&quot;=&quot;<br />
+            },<br />
+            templateUrl: 'partials/directives/instagram-directive.html',<br />
+            link: function (scope, element, attrs){<br />
+                var img = $(element).find(&quot;img&quot;)[0];<br />
+                var txt = $(element).find(&quot;.image-text&quot;)[0];</p>
+<p>                $(img).bind(&quot;load&quot;, function(event){<br />
+                    $(img).css(&quot;opacity&quot;, 1);<br />
+                    $(txt).css(&quot;opacity&quot;, 1);<br />
+                });<br />
+            }<br />
+        };<br />
+    }<br />
+}<br />
+[/js]</p>
+<p>The only controller we need is to handle the realtime socket and filtering of the new input data</p>
+<p>[js]<br />
+function feedController($scope, realtime, $http){<br />
+    $scope.feed = [];</p>
+<p>    realtime.registerRssPush(function (data) {<br />
+        console.log(&quot;got data&quot;);</p>
+<p>        var map = {};</p>
+<p>        _.forEach($scope.feed, function (item){<br />
+            map[item.link] = true;<br />
+        });</p>
+<p>        _.forEach(data, function (item) {<br />
+            if(!map.hasOwnProperty(item.link)){<br />
+                $scope.feed.unshift(item);<br />
+            }<br />
+        });</p>
+<p>        $scope.$apply();<br />
+    });<br />
+}<br />
+[/js]</p>
+<p>Since the data comes in via a websocket and not in the scope of a wrapped angular service we need to do a $scope.apply to make sure the page redraws.</p>
+<p>The view directive represents one single instagram image</p>
+<p>[html]<br />
+&lt;img src=&quot;{{data.link}}&quot;/&gt;</p>
+<p>&lt;div class=&quot;image-text&quot;&gt;<br />
+    {{ data.title }}<br />
+&lt;/div&gt;<br />
+[/html]</p>
+<p>And the main view is just a repeater of the directives (controlled by the main controller)</p>
+<p>[html]<br />
+&lt;div class=&quot;repeat-body&quot;&gt;<br />
+    &lt;div class=&quot;instagram-element&quot; ng-repeat=&quot;item in feed&quot;&gt;<br />
+        &lt;instagram data=&quot;item&quot;&gt;&lt;/instagram&gt;<br />
+    &lt;/div&gt;<br />
+&lt;/div&gt;<br />
+[/html]</p>
+<p>To drive the whole thing the relevant index page blocks look like</p>
+<p>[html]<br />
+///.. js includes etc... </p>
+<p>         &lt;script&gt;<br />
+            var app = angular.module(&quot;app&quot;,  [&quot;ui.router&quot;]);</p>
+<p>            new App().run(app);<br />
+        &lt;/script&gt;<br />
+    &lt;/head&gt;<br />
+    &lt;body &gt;<br />
+        &lt;!-- Add your site or application content here --&gt;<br />
+        &lt;div ui-view&gt;</p>
+<p>        &lt;/div&gt;<br />
+    &lt;/body&gt;<br />
+[/html]</p>
+<h2>Conclusion</h2>
+<p>Apps like this I think node.js really excels at.  It's os agnostic, and I can package the whole thing up and send it to my buddy to run. With libraries like underscore js I can even leverage higher order functions and keep things nice and clean.</p>
+<p>If I was going to make this a production thing, instead of just a weekend project, I would've used typescript to give myself strong typing.</p>

@@ -1,0 +1,64 @@
+---
+layout: post
+title: Cassandra DB migrations
+date: 2016-01-23 23:03:20.000000000 -08:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- cassandra
+- migration
+- paradoxical
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1554980380;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4750;}i:1;a:1:{s:2:"id";i:4784;}i:2;a:1:{s:2:"id";i:3452;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2016/01/23/cassandra-db-migrations/"
+---
+<p>When doing any application that involves a persistent data storage you usually need a way to upgrade and change your database using a set of scripts.  Working with patterns like ActiveRecord you get easy up/down by version migrations. But with cassandra, which traditionally was schemaless, there aren't that many tools out there to do this.</p>
+<p>One thing we have been using at my work and at paradoxical is a simple java based <a href="https://github.com/paradoxical-io/cassandra-loader">cassandra loader tool</a> that does "up" migrations based on db version scripts.  </p>
+<p>Assuming you have a folder in your application that stores db scripts like</p>
+<p>[code]<br />
+db/scripts/01_init.cql<br />
+db/scripts/02_add_thing.cql<br />
+..<br />
+db/sripts/10_migrate_users.cql<br />
+..<br />
+[/code]</p>
+<p>Then each script corresponds to a particular db version state. It's current state depends on all previous states. Our cassandra loader tracks db versions in a <code>db_version</code> table and lets you apply runners against a keyspace to move your schema (and data) to the target version. If your db is already at a version it does nothing, or if your db is a few versions back the runner will only run the required versions to get you to latest (or to the version number you want).</p>
+<p>Taking this one step further, when working at least in Java we have the luxury of using <a href="https://github.com/jsevellec/cassandra-unit">cassandra-unit</a> to actually run an embedded cassandra instance available for unit or integration tests.  This way you don't need to mock out your database, you actually run all your db calls through the embedded cassandra. We use this heavily in <a href="https://github.com/paradoxical-io/cassieq">cassieq</a> (a distributed queue based on cassandra).</p>
+<p>One thing our cassandra loader can do is be run in library mode, where you give it the same set of db scripts and you can build a fresh db for your integration tests:</p>
+<p>[java]<br />
+public static Session create() throws Exception {<br />
+    return CqlUnitDb.create(&quot;../db/scripts&quot;);<br />
+}<br />
+[/java]</p>
+<p>Running the loader in standalone mode (by downloading the <code>runner</code> <a href="https://repo1.maven.org/maven2/io/paradoxical/cassandra.loader/1.1" target="_blank" rel="noopener noreferrer">maven classifier</a>) lets you run the migration runner in your console:</p>
+<p>[code]<br />
+&gt; java -jar cassandra.loader-runner.jar</p>
+<p>Unexpected exception:Missing required options: ip, u, pw, k<br />
+usage: Main<br />
+ -f,--file-path &lt;arg&gt;         CQL File Path (default =<br />
+                              ../db/src/main/resources)<br />
+ -ip &lt;arg&gt;                    Cassandra IP Address<br />
+ -k,--keyspace &lt;arg&gt;          Cassandra Keyspace<br />
+ -p,--port &lt;arg&gt;              Cassandra Port (default = 9042)<br />
+ -pw,--password &lt;arg&gt;         Cassandra Password<br />
+ -recreateDatabase            Deletes all tables. WARNING all<br />
+                              data will be deleted!<br />
+ -u,--username &lt;arg&gt;          Cassandra Username<br />
+ -v,--upgrade-version &lt;arg&gt;   Upgrade to Version<br />
+[/code]</p>
+<p>The advantage to unifying all of this is that you can test your db scripts in isolation and be confident that they work!</p>

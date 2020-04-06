@@ -1,0 +1,229 @@
+---
+layout: post
+title: Users by connections in SignalR
+date: 2013-05-13 08:00:09.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- ".NET"
+- SignalR
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561793453;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3392;}i:1;a:1:{s:2:"id";i:4116;}i:2;a:1:{s:2:"id";i:155;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/05/13/users-by-connections-in-signalr/"
+---
+<p>SignalR gives you events when users connect, disconnect, and reconnect, however the only identifying piece of information you have at this point is their connection ID. Unfortunately it's not very practical to identify all your connected users strictly off their connectionIDs - usually you have some other identifier in your application (userID, email, etc).  </p>
+<p>If you are using ASP.NET MVC3, you can access this information from the hub context via <a href="http://stackoverflow.com/questions/7289724/how-can-i-access-the-logged-in-user-from-outside-of-a-controller" target="_blank" rel="noopener noreferrer"><code>Context.User</code></a>, but if you aren't using mvc3 (like a .net to .net client) a good workflow is to have your client identify themselves on connect.  They can call a known <code>Register</code> method on the hub and give you the identifying information of who they are. </p>
+<p>At this point you have your unique identifier along with their connectionID, but you have to manage all their disconnections, reconnections, and multiple connections of the same client yourself.  This post will go through an easy way to manage this client information yourself.</p>
+<h2>The Hub</h2>
+<p>I like to keep the hub code simple and use it only as an incoming facade. I hand off every request to an internal singleton that I can then leverage and put all the business logic in. This keeps the hub clean.  </p>
+<p>[csharp]<br />
+[HubName(&quot;hub&quot;)]<br />
+public class ServerHub : Hub, IConnected, IDisconnect<br />
+{<br />
+    private HubProcessor Instance<br />
+    {<br />
+        get { return HubProcessor.Instance; }<br />
+    }</p>
+<p>    public ServerHub()<br />
+    {<br />
+        Instance.Initialize();<br />
+    }</p>
+<p>    public void Register(HubClientPayload payload)<br />
+    {<br />
+        Instance.Register(payload, Context.ConnectionId);<br />
+    }</p>
+<p>    public Task Connect()<br />
+    {<br />
+        return Instance.Connect(Context.ConnectionId);<br />
+    }</p>
+<p>    public Task Reconnect(IEnumerable&lt;string&gt; groups)<br />
+    {<br />
+        return Instance.Reconnect(Context.ConnectionId);<br />
+    }</p>
+<p>    public Task Disconnect()<br />
+    {<br />
+        return Instance.Disconnect(Context.ConnectionId);<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<h2>Hub Processor</h2>
+<p>I've put all the business logic of the hub processing into a hub processor singleton that all instances of the hub can access.  When a hub is initialized it calls an Initialize function on the singleton which is only used to force lazy creation on the singleton:</p>
+<p>[csharp]<br />
+public class HubProcessor : HubProcessorBase&lt;AusUpdaterHub&gt;<br />
+{<br />
+    #region Data</p>
+<p>    private static object _lock = new object();</p>
+<p>    #endregion</p>
+<p>    #region Singleton and Constructor</p>
+<p>    private static readonly Lazy&lt;HubProcessor&gt; _instance = new Lazy&lt;HubProcessor&gt;();</p>
+<p>    public static HubProcessor Instance<br />
+    {<br />
+        get { return _instance.Value; }<br />
+    }</p>
+<p>    public void Initialize()<br />
+    {<br />
+        // force creation of lazy constructor<br />
+    }</p>
+<p>    #endregion</p>
+<p>    // ... business logic handed off from the hub<br />
+}<br />
+[/csharp]</p>
+<p>The HubProcessor inherits from a base class which only exposes a helper method to get the context for a current hub. This is so we can re-use the base class elsewhere, or if we want to create our own <a href="https://github.com/blinemedical/SignalRToAs3" target="_blank" rel="noopener noreferrer">hub context wrappers</a> we can do that in the base class without affecting how the hub treats a client.</p>
+<p>[csharp]<br />
+public class HubProcessorBase&lt;T&gt; : IDisposable where T: Hub<br />
+{<br />
+    protected IHubContext Context<br />
+    {<br />
+        get<br />
+        {<br />
+            return GlobalHost.ConnectionManager.GetHubContext&lt;T&gt;();<br />
+        }<br />
+    }</p>
+<p>    protected override void Dispose()<br />
+    {<br />
+        // for inheritance<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<h2>Connect</h2>
+<p>When a client connects, we don't know anything about them other than their connection ID.  If we're not using MVC3 then we'll need the client to tell us who they are and give us some meaningful information.  The expectation is that they will register themselves when they successfully connect (which they can know about client side).  </p>
+<p>[csharp]<br />
+/// &lt;summary&gt;<br />
+/// Called by a client when they connect and register<br />
+/// &lt;/summary&gt;<br />
+/// &lt;param name=&quot;payload&quot;&gt;&lt;/param&gt;<br />
+/// &lt;param name=&quot;connectionId&quot;&gt;&lt;/param&gt;<br />
+public void Register(HubClientPayload payload, string connectionId)<br />
+{<br />
+    try<br />
+    {<br />
+        lock (_lock)<br />
+        {<br />
+            List&lt;String&gt; connections;<br />
+            if (_registeredClients.TryGetValue(payload.UniqueID, out connections))<br />
+            {<br />
+                if (!connections.Any(connection =&gt; connectionID == connection))<br />
+                {<br />
+                    connections.Add(connectionId);<br />
+                }<br />
+            }<br />
+            else<br />
+            {<br />
+                _registeredClients[payload.UniqueID] = new List&lt;string&gt; { connectionId };<br />
+            }<br />
+        }<br />
+    }<br />
+    catch(Exception ex)<br />
+    {<br />
+        Log.Error(this, &quot;Error registering on hub&quot;, ex);<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>When a client registers on the hub, the hub passes the input argument (the client payload, which contains unique identifying information) as well as the connectionID to the hub processor.  Now we have a thread safe dictionary that tracks the users unique identifier along with all associated connectionIDs.  This way if the same user is open in multiple tabs, or across multiple .net clients, we can have a central list of connectionIDs to act on.</p>
+<h2>Disconnect</h2>
+<p>When a client disconnects we'll execute the disconnect function on the singleton which will remove the connection from the connected client list </p>
+<p>[csharp]<br />
+/// &lt;summary&gt;<br />
+/// Invoked by SignalR when a disconnection is detected<br />
+/// &lt;/summary&gt;<br />
+/// &lt;param name=&quot;connectionId&quot;&gt;&lt;/param&gt;<br />
+public Task Disconnect(string connectionId)<br />
+{<br />
+    try<br />
+    {<br />
+        lock (_lock)<br />
+        {<br />
+            var connections = _registeredClients.Where(c =&gt; c.Value.Any(connection =&gt; connection == connectionId)).FirstOrDefault();</p>
+<p>            // if we are tracking a client with this connection<br />
+            // remove it<br />
+            if (!CollectionUtil.IsNullOrEmpty(connections.Value))<br />
+            {<br />
+                connections.Value.Remove(connectionId);</p>
+<p>                // if there are no connections for the client, remove the client from the tracking dictionary<br />
+                if (CollectionUtil.IsNullOrEmpty(connections.Value))<br />
+                {<br />
+                    _registeredClients.Remove(connections.Key);<br />
+                }<br />
+            }<br />
+        }<br />
+    }<br />
+    catch(Exception ex)<br />
+    {<br />
+        Log.Error(this, &quot;Error on disconnect in hub&quot;, ex);<br />
+    }</p>
+<p>    return null;<br />
+}<br />
+[/csharp]</p>
+<h2>Reconnections</h2>
+<p>Now, what happens if our server goes down but clients are still up? When they come online they'll do a reconnect, not an initial connect.  When clients reconnect we should just invoke back to them to re-register themselves. This way we can quickly rebuild our tracker dictionary of who is out there.  You might want to persist the dictionary and validate who is still connected by the reconnection message, but what happens if a client is slow to reconnect? At what point do we invalidate disconnected clients? I think it's safer to have everyone re-register. You can obviously throttle this by having the re-registration synchronized or batched off if you have a huge number of connected clients.</p>
+<p>[csharp]<br />
+/// &lt;summary&gt;<br />
+/// Invoked by SignalR when a client reconnects to the server<br />
+/// &lt;/summary&gt;<br />
+/// &lt;param name=&quot;connectionId&quot;&gt;&lt;/param&gt;<br />
+public Task Reconnect(string connectionId)<br />
+{<br />
+    try<br />
+    {<br />
+        Context.Clients[connectionId].reRegister();<br />
+    }<br />
+    catch(Exception ex)<br />
+    {<br />
+        Log.Error(this, &quot;Error re-connecting on hub&quot;, ex);<br />
+    }</p>
+<p>    return null;<br />
+}<br />
+[/csharp]</p>
+<h2>Invoking</h2>
+<p>At this point we have a dictionary keyed off our internal user unique identifier. To do any work all we have to do is lock the registeredClients dictionary, get the list of connectionID's associated to who we want, and execute them on the context. For example:</p>
+<p>[csharp]<br />
+private void SendTextToUser(string uniqueID, string text)<br />
+{<br />
+    DispatchToClient(connection =&gt; connection.sendText(text), uniqueID);<br />
+}</p>
+<p>/// &lt;summary&gt;<br />
+/// Execute lambda for each connection associated to a client's unique ID<br />
+/// &lt;/summary&gt;<br />
+/// &lt;param name=&quot;action&quot;&gt;&lt;/param&gt;<br />
+/// &lt;param name=&quot;uniqueID&quot;&gt;&lt;/param&gt;<br />
+private void DispatchToClient(Action&lt;dynamic&gt; action, string uniqueID)<br />
+{<br />
+    foreach (dynamic connection in GetConnections(uniqueID))<br />
+    {<br />
+        action(connection);<br />
+    }<br />
+}</p>
+<p>private List&lt;dynamic&gt; GetConnections(string uniqueID)<br />
+{<br />
+    var connections = new List&lt;dynamic&gt;();<br />
+    lock (_lock)<br />
+    {<br />
+        connections = (from client in _registeredClients<br />
+                       let clientID = client.Key<br />
+                       let clientConnections = client.Value<br />
+                       where clientID == uniqueID<br />
+                       from connection in clientConnections<br />
+                       select Context.Clients[connection]).ToList();<br />
+    }<br />
+    return connections;<br />
+}<br />
+[/csharp]</p>
+<h2>Conclusion</h2>
+<p>The nice thing about having things set up this way is that as long as there are some connections associated to a user we know that that user is active.  </p>
+<p>Disconnects, depending on what long polling transport mechanism SignalR chooses for the client, can sometimes come after a short timeout.  This means that a user can disconnect, and then create a new connection. Maybe they closed the browser window, then opened it back up again. In this scenario for a short time we'll have two connections, but only one is an actual valid connection for the client.  We won't know that the first one disconnected until the timeout expires. But, that's ok, since the dictionary guarantees you can get to at least one connection for the active client. After a short period of time the disconnect message will happen and we can do a cleanup.  </p>
+<p>While SignalR does great job of letting broadcast info based on connectionID, we sometimes want to have our own collections pairing connectionIDs to other client identifying information.  With some simple client to server invocations and a threadsafe dictionary we can keep track of all the relevant information stored in an easy to use fashion.</p>

@@ -1,0 +1,101 @@
+---
+layout: post
+title: Mocking nested objects with mockito
+date: 2016-09-21 22:55:16.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- mockito
+- scala
+- testing
+meta:
+  _su_rich_snippet_type: none
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560218483;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4844;}i:1;a:1:{s:2:"id";i:4961;}i:2;a:1:{s:2:"id";i:4862;}}}}
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _wpas_done_all: '1'
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2016/09/21/mocking-nested-objects-mockito/"
+---
+<p>Yes, I know its a code smell. But I live in the real world, and sometimes you need to mock nested objects.  This is a scenario like: </p>
+<p>[code]<br />
+when(a.b.c.d).thenReturn(e)<br />
+[/code]</p>
+<p>The usual pattern here is to create a mock for each object and return the previous mock:</p>
+<p>[code]<br />
+val a = mock[A]<br />
+val b = mock[B]<br />
+val c = mock[C]<br />
+val d = mock[D]</p>
+<p>when(a.b).thenReturn(b)<br />
+when(b.c).thenReturn(c)<br />
+when(c.d).thenReturn(d)<br />
+[/code]</p>
+<p>But again, in the real world the signatures are longer, the types are nastier, and its never quite so clean.  I figured I'd sit down and solve this for myself once and for all and came up with:</p>
+<p>[scala]<br />
+import org.junit.runner.RunWith<br />
+import org.mockito.Mockito<br />
+import org.scalatest.junit.JUnitRunner<br />
+import org.scalatest.{FlatSpec, Matchers}</p>
+<p>@RunWith(classOf[JUnitRunner])<br />
+class Tests extends FlatSpec with Matchers {<br />
+  &quot;Mockito&quot; should &quot;proxy nested objects&quot; in {<br />
+    val parent = Mocks.mock[Parent]</p>
+<p>    Mockito.when(<br />
+      parent.<br />
+        mock(_.getChild1).<br />
+        mock(_.getChild2).<br />
+        mock(_.getChild3).<br />
+        value.doWork()<br />
+    ).thenReturn(3)</p>
+<p>    parent.value.getChild1.getChild2.getChild3.doWork() shouldEqual 3<br />
+  }<br />
+}</p>
+<p>class Child3 {<br />
+  def doWork(): Int = 0<br />
+}</p>
+<p>class Child2 {<br />
+  def getChild3: Child3 = new Child3<br />
+}</p>
+<p>class Child1 {<br />
+  def getChild2: Child2 = new Child2<br />
+}</p>
+<p>class Parent {<br />
+  def getChild1: Child1 = new Child1<br />
+}<br />
+[/scala]</p>
+<p>As you can see in the full test we can create some mocks object, and reference the call chain via extractor methods.</p>
+<p>The actual mocker is really pretty simple, it just looks nasty cause of all the lambdas/manifests. All thats going on here is a way to pass the next object to a chain and extract it with a method. Then we can create a mock using the manifest and assign that mock to the source object via the lambda.</p>
+<p>[scala]<br />
+import org.mockito.Mockito</p>
+<p>object Mocks {<br />
+  implicit def mock[T](implicit manifest: Manifest[T]) = new RichMockRoot[T]</p>
+<p>  class RichMockRoot[T](implicit manifest: Manifest[T]) {<br />
+    val value = Mockito.mock[T](manifest.runtimeClass.asInstanceOf[Class[T]])</p>
+<p>    def mock[Y](extractor: T =&gt; Y)(implicit manifest: Manifest[Y]): RichMock[Y] = {<br />
+      new RichMock[T](value, List(value)).mock(extractor)<br />
+    }<br />
+  }</p>
+<p>  class RichMock[T](c: T, prevMocks: List[_]) {<br />
+    def mock[Y](extractor: T =&gt; Y)(implicit manifest: Manifest[Y]): RichMock[Y] = {<br />
+      val m = Mockito.mock[Y](manifest.runtimeClass.asInstanceOf[Class[Y]])</p>
+<p>      Mockito.when(extractor(c)).thenReturn(m)</p>
+<p>      new RichMock(m, prevMocks ++ List(m))<br />
+    }</p>
+<p>    def value: T = c</p>
+<p>    def mockChain[Y](idx: Int) = prevMocks(idx).asInstanceOf[Y]</p>
+<p>    def head[Y] = mockChain[Y](0)<br />
+  }<br />
+}<br />
+[/scala]</p>
+<p>The main idea here is just to hide away the whole "make b and have it return c" for you.  You can even capture all the intermediate mocks in a list (I called it a mock chain), and expose the first element of the list with <code>head</code>. With a little bit of scala manifest magic you can even get around needing to pass class files around and can leverage the generic parameter (boy, feels almost like .NET!). </p>

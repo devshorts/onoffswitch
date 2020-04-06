@@ -1,0 +1,197 @@
+---
+layout: post
+title: 8 months of go
+date: 2019-04-01 19:34:55.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- go
+- golang
+- review
+meta:
+  _edit_last: '1'
+  _wpcom_is_markdown: '1'
+  _su_rich_snippet_type: none
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561943019;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3615;}i:1;a:1:{s:2:"id";i:2020;}i:2;a:1:{s:2:"id";i:3295;}}}}
+  _wpas_done_all: '1'
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2019/04/01/8-months/"
+---
+<p>For the past 8 months I've primarily been writing in go.  I was hesitant to take a job that used go as its primary language for a lot of reasons, but I decided to give it a try because a lot of companies these days are using it, and it doesn't hurt to broaden my skillset.  In this post I'll describe the pros and cons of using go from my own experience.</p>
+<p>First, I came at go with a skeptical and kind of disdainful eye which is probably not a good way to start.  But having just spent the last two and a half years writing scala the thought of leaving behind <code>[T]</code> (and even more so <code>T[Y]</code>) hurt.  That said, the experience after eight months has been relatively positive.   In this post I outline some of the things I like and don't like about go.</p>
+<h2>Let's start with the good things.</h2>
+<p><b>Single binary</b></p>
+<p>Distributing a single binary in the JVM world is a surprisingly difficult task.  You can do fat jars, but you still need to shade things, rewrite embedded manifest files, etc. It's totally non trivial. On top of that, the fat jar isn't executable. To create an actual executable you need to bundle more manifest stuff, and then do even more magic to make it runnable.</p>
+<p>In contrast, go builds are native binaries that are statically linked and are easy to distribute. Cross building is as easy as providing the target arch as a flag to the compiler with <code>GOARCH=&lt;foo&gt;</code> and you're done.  I really like this because it makes distributing these binaries super easy. You can load them into containers, or just drop them onto remote boxes.  They're also quite small, most of my applications are 10MB or less. Contrast with a lot of my JVM apps which fully shaded and packaged up were hundreds of MB in size.</p>
+<p><b>Built in testing</b></p>
+<p>The built in testing support for go is pretty good. It's not the <em>best</em> but it's more than enough to satisfy just about all your needs.  It's nice that there is just "one way" to do it, and all the tooling supports this way. There are better assertion libraries (like testify) but for the most part it's batteries included.  Extra bonus points for having property checking built into the main library, though I prefer another library (gopter) but the fact that it's even in the standard lib means that it has been given thought and value.</p>
+<p><b>Fast and low resource usage</b></p>
+<p>Go is just fast.  Because it compiles to native there isn't any runtime startup cost, it's garbage collected, and in general uses very low resources.  We recently did some comparisons of a simple CRUD app that read from mongo at my work of a version written in ruby (yes we know it will already be slow) compared to go, and the numbers are just hilarious. A single go app supported 100x the throughput at 1/10 the resources.</p>
+<p>This can be a really big deal (low heap, low cpu, etc) when you are moving to serverless or containerized systems. A big issue we had at my last place with ECS was that each container needed at least a GB of RAM to satisfy the JVM heap requirements. This meant that even though many services used very low cpu (they didn't do a whole lot) we couldn't pack that many onto a single box. Had we written them in go however, we could have probably hosted our entire QA environment on 3 <code>c4.large</code>'s.  That actually boils down to cost savings for a company.</p>
+<p><b>Good IDE integration</b></p>
+<p>I'm a huge fan of tooling. I am way too lazy and way too stupid to muck with VIM or EMACS or any other pseudo-IDE in order to get autocomplete, semantic refactoring/nav, debugging, etc.  The go ecosystem comes with language servers, formatting tools, lots of built in stuff that nearly all IDE's can easily integrate with to get a really good developer experience.</p>
+<p>While I don't like console based "IDE"s, many of my coworkers do, so it's nice to have the flexibility for everyone on a team to write in what they want to write in, but still get all the same consistent baseline tooling. This means everything looks and feels and writes the same with minimal fuss.</p>
+<p><b>Easy concurrency</b></p>
+<p>I like concurrency a lot, and I have no problems with JVM/CLR style concurrency models. I don't find threads daunting like many do. However, having built in concurrency via channels is pretty nice.  It reminds me a lot of f#'s mailbox processor model (aka a super simple akka).  Channels can be buffered, unbuffered, multi consume, multi publish, and it's all threadsafe.</p>
+<p>There are still a ton of weird gotcha's with channels, but overall it does make it really easy to fire things off into an async goroutine.</p>
+<p>On top of that, the concurrent primitives such as semaphores, mutexes, etc, are all really use to consume.  It's simple to create a critical section and then release it at the end of a method (with a defer) or to create a counting waitgroup to synchronize a known set of items.  Overall this is really an improvement over some other languages lock support.</p>
+<p><b>NewType support</b></p>
+<p>Finally, something for the functional person.  Scala supports type aliases but it's not compile time checked.  To do newtype's in scala you had to jump through a lot of hoops wrapping case classes for primitive values, and even then it didn't really work for complex types. On top of that serialization became a real hassle in scala when using newtypes (or as I call it in previous blog posts "tiny types").</p>
+<p>Go supports compile time checked newtype support out of the box. It's fantastic.</p>
+<p>[code lang=text]<br />
+type Name string</p>
+<p>func UsesName(n Name) {}</p>
+<p>func PassesName(raw string) {<br />
+   UsesName(Name(raw))<br />
+}</p>
+<p>func UnboxesName(n Name) string {<br />
+   return string(n)<br />
+}<br />
+[/code]</p>
+<p>Pretty nice! You can use it to alias even complex types to create simpler type signatures. I like it a lot for aliasing functional signatures like</p>
+<p>[code lang=text]<br />
+type X struct{}<br />
+type Configuration func(X)<br />
+[/code]</p>
+<p><b>Explicit error contracts</b></p>
+<p>Go takes a lot of flack for how it handles errors</p>
+<p>[code lang=text]<br />
+func ReturnsError() error {}</p>
+<p>func ConsumesError() {<br />
+   err := ReturnsError()<br />
+   if err != nil {<br />
+     // now what<br />
+   }<br />
+}<br />
+[/code]</p>
+<p>On the one hand, your code is absolutely <em>littered</em> with <code>if err != nil</code> checks, and that affects readability.  However, I really do like being able to check for errors explicitly (or ignoring them!) and being forced to propagate them back to the root caller.  The error contract is explicit without being obnoxious like in Java (I hated checked exceptions).</p>
+<p><b>First class functions</b></p>
+<p>Being able to do first class functions is super nice.  Not much to say here given that nearly every language supports this, but it's good to have.</p>
+<h2>And now the bad things</h2>
+<p><b>Statics and package visibility</b></p>
+<p>In go the package visibility is defined by the capitalization of a method/variable. For example <code>Foo</code> is public but <code>foo</code> is private.  But, all values within a package (i.e any folder) are visible to each other. Which means that you can have different structs, interfaces, methods, whatever and they can reach into every private method or value anywhere within a package.</p>
+<p>This leads to a really weak level of isolation and encourages less discipled developers to reach into privates willy nilly.</p>
+<p>On top of that, because go encourages package level compartmentalization it's deemed "OK" to expose many static methods on a package. However, this often times encourages people to use global mutable variables as state and closes off extension and testability.  Statics, in my mind, are only acceptable if they are purely immutable.</p>
+<p><b>Sometimes inheritance can be good</b></p>
+<p>"Composition over inheritance" is something the engineering community has been beating down for years and go finally just made it the default. While in general I totally agree that composition is better than inheritance, sometimes inheritance <em>can</em> be incredibly useful.  It's not always possible to create the abstractions you want strictly with composition.  Because of this you can see that people circumvent this limitation by either creating mutable function variables on classes (so they can "override" methods) or they copy and paste entire swaths of code with needless duplication because they can't find a way to abstract the commonalities.</p>
+<p>I understand the reasoning for the hard line of no inheritance, especially when it comes to variance, diamond problems, deep inheritance hierarchy smells, etc, but it's frustrating to lose this extremely powerful and valid tool in the toolbox.</p>
+<p><b>No generics</b></p>
+<p>No surprises here, no generics == sadness.  Without the capacity for true generics you can't create typechecked container classes. You can't do <code>Set[T]</code> you can't do <code>Stack[T]</code> you can't do <code>Publisher[T]</code>.  So many real world scenarios require generics it's a little unfathomable that they were omitted.</p>
+<p>The common workaround is to just do untyped <code>interface{}</code> (aka <code>Object</code> in the JVM) and then do runtime casting.  While that does work, it's incredibly hard to reason about, and introduces weird edge errors at runtime which is exactly the reason you use a statically typed language to avoid!</p>
+<p>The most infuriating thing about this is that generics <em>do</em> exist, but only in some standard library special methods like <code>append</code> and <code>map[T]Y</code>. Clearly the authors know that generics are useful, but chose not to expose that to the user.  I might have been less offended with generics if the data structure support was more robust.  For example, I want things like sets, stacks, trees, circular buffers, etc.  Having to write those yourself using untyped generics is a nightmare.</p>
+<p>One of the workarounds is to use auto generated code to created typed versions of these generic collections and while it does work but the whole idea of that is just insanely jankey.</p>
+<p><b>Poor data transformation support</b></p>
+<p>If you want to get carpal tunnel, use go and try to map one data structure to another.  In scala you can do</p>
+<p>[code lang=text]<br />
+val x = List(1, 2, 3) // List[Int]<br />
+val strings = x.map(_.toString) // List[String]<br />
+[/code]</p>
+<p>Great, I've mapped a list of integers to a list of strings.</p>
+<p>In go I can do this:</p>
+<p>[code lang=text]<br />
+x := []int { 1, 2, 3 }<br />
+var strings []string<br />
+for _, i := range x {<br />
+   strings = append(string, strconv.Itoa(i))<br />
+}<br />
+[/code]</p>
+<p>To me that's way less readable, full of noise, is mutable, uses magic extra functions and is 4x the length.  This is just a trivial example at that. Imagine you have a list of structs with fields within them that need extraction.</p>
+<p>Any kind of data transformation in go is done with a for loop.  It's certainly a hammer and it does work. But it's inelegant, verbose, and frankly hard on the hands. As an engineer I type for a living and I'm well aware that sometimes verbosity is better, but in this scenario it adds nothing and frankly just pisses me off.</p>
+<p>If we had generics we could write map functions outside of the stdlib but we can't, so we're forced to write things the go way.</p>
+<p><b>Godoc by convention</b></p>
+<p>I kind of hate the godoc convention of <code>MethodName &lt;doc&gt;</code>, for example</p>
+<p>[code lang=text]<br />
+// Foo is a bar<br />
+func Foo<br />
+[/code]</p>
+<p>In theory it's elegant and simple. But in practice it lacks support for properly documenting arguments, and not all items easily fit into that kind of grammatical verbiage. On top of that relying on the magic string instead without any extra structured annotations or formatting wreaks havoc on IDE refactoring support.</p>
+<p>It's a minor gripe, but it grates on me.</p>
+<p><b>Duck typing</b></p>
+<p>Duck typing could have been in the good things, but I put it in the bad things if only because it causes refactoring and analysis to be painful.</p>
+<p>What exactly is the duck typing in go? Well you can never actually declare that a struct adheres to an interface contract. If a struct has the same signatures of an interface it implicitly adheres to the contract. For example:</p>
+<p>[code lang=text]<br />
+type Person interface {<br />
+   Name() string<br />
+}</p>
+<p>type Dog struct {}<br />
+func (Dog) Name string {<br />
+   return &quot;fido&quot;<br />
+}</p>
+<p>type Human struct{}<br />
+func Human Name string {<br />
+   return &quot;Bob&quot;<br />
+}<br />
+[/code]</p>
+<p>Both dog and human adhere to the <code>Person</code> interface because they both satisfy the interfaces method signatures: <code>Name() string</code>.</p>
+<p>Ok, that can be cool. That means that I can have types decoupled from the contracts in different packages.</p>
+<p>But, in practice I hardly ever do this.  I more often do explicitly want to say that a Human is a Person and that when I rename <code>Name</code> on the <code>Person</code> interface I want <code>Name</code> renamed on the <code>Human</code> struct. Seems easy right? But semantically most tooling <em>cannot do this for you</em> because it can't <em>know</em> that the intention is to maintain the <code>Human : Person</code> relationship.</p>
+<p>Often times I end up writing things like</p>
+<p>[code lang=text]<br />
+var _ Human = Person {}<br />
+[/code]</p>
+<p>Which forces the compiler to do a type check that a person always satisfies the human relationship. This way if I make any mistakes (especially when writing a library that may not have direct usages of every struct!) that my objects are still constrained by the contracts I've defined.</p>
+<p><b>No anonymous interfaces</b></p>
+<p>Not being able to create anonymous interfaces makes testing hard.  In the JVM you can do things like</p>
+<p>[code lang=text]<br />
+interface Foo {<br />
+   Name() String<br />
+}</p>
+<p>class TestFoo {<br />
+   @Test<br />
+   def MocksFoo() = {<br />
+      val fakeFoo = new Foo {<br />
+         override Name string {<br />
+              &quot;yay tests!&quot;<br />
+         }<br />
+      }<br />
+   }<br />
+}<br />
+[/code]</p>
+<p>So you can create instances that close over test data, capture data, etc, and pass it downstream. It's a poor mans mock.</p>
+<p>Which is super useful especially when in go there isn't a good mocking story.</p>
+<p>So the question is how do you mock things in go? The answer common is to create test objects that take mock data in their constructors, etc. So you end up writing even <em>more</em> verbose noisy garbage just to test things.  I really dislike this as I don't want to spend a majority of my time maintaining test objects.</p>
+<p><b>Explicit error contracts</b></p>
+<p>While this is in the good section there are also bad things about it.  There are two things I particularly dislike about the explicit error handling in go.</p>
+<p>First is that the error handling is repetition and verbose.  Like I mentioned above your code is littered with <code>if err != nil</code> everywhere.  This is a common source of discussion for go2 proposals and I'm curious to see where it goes.</p>
+<p>The second is that its impossible to discriminate against different errors. If I have a database that fails to connect I may want to know if it failed because the connection couldn't have been established OR if the credentials are bad. In one scenario I want to retry, and in the other I don't. In go, when you are just given a single <code>error</code> object you can either type cast it (a gross pattern used in some libraries) or check the error text (an even grosser pattern used in some places).</p>
+<p>I'd like for there to be a way to distinguish varying error cases or to just say "well there was an error :shrug:" and handle the generic case.</p>
+<p><b>Mutability everywhere</b></p>
+<p>Go prefers mutability.  It is encouraged.  And while this makes sense in a performance aspect, it's unfortunate that there isn't any way to <em>not</em> be immutable. For example, in scala most things are immutable, but you can opt into mutability if you want. I feel like go should have had something similiar, where things are mutable by default but you can opt into immutable.</p>
+<p>Things get extra spicy when passing pointers around (which is also encouraged).  While the claim is that concurrency is threadsafe, passing shared data through concurrent channels is <em>not</em> threadsafe.</p>
+<p><b>No covariance</b></p>
+<p>Similar to generics, it's impossible to do covariance with go.  Imagine this scenario:</p>
+<p>[code lang=text]<br />
+type Item interface{<br />
+  //...<br />
+}<br />
+type ItemA struct { // implements Item }</p>
+<p>func TakesArrayOfItem(items []Item)<br />
+[/code]</p>
+<p>You can't pass an array of ItemA to the method or an array of ItemB to the method. Instead you have to loop through the source array, cast it to the interface, THEN pass it. For example, you can't do this</p>
+<p>[code lang=text]<br />
+itemA := []ItemA { ... }</p>
+<p>TakesArrayOfItem(itemA) // fail</p>
+<p>var items []Item<br />
+for _, item := itemA {<br />
+   items = append(items, item.(Item)) // cast each item to its interface<br />
+}</p>
+<p>TakesArrayOfItem(items) // works<br />
+[/code]</p>
+<p>That's stupid and requires extra processing for no gain.  I understand the reason they don't support this kind of variance at a language design level, but it's still frustrating to have to do these kinds of silly data mutations to work around it.  Maybe if mapping on data wasn't such a pain I wouldn't mind it so much, but having to do the same 4 lines of boilerplate each time I want to do this is a nightmare.</p>
+<p><b>Dependency management</b></p>
+<p>In general the libraries are pretty good and well fleshed out in go.  However, the primary way to use libraries is to get them from github.  Their source is pulled into either your <code>$GOPATH</code> or you vendor all your sources using an external tool called <code>dep</code>. I like vendoring, however, because there's no concept of versioning a library (you just get the HEAD of master at any period of time) it makes it really hard for library writers to make breaking changes and to pivot.  There are tools to create github proxies such that library writers can make major version changes in a branch (which is great) but the fact that the go language maintainers didn't really have a good story to this shows. There is now multiple ways to manage dependencies and none of them that ideal.</p>
+<p>With vendoring and dep, there is also an unspoken rule that libraries should not vendor their code.  If you do, things get all sorts of crazy. Trying to vendor a library that has stuff vendored breaks the world.  Given how opinionated go is, it's surprising they let people do the wrong thing here.</p>
+<p>I really miss a unified dependency system like maven central honestly.</p>
+<h2>Conclusion</h2>
+<p>Overall I like go. I don't hate it as much as I thought I would and I'd certainly use it for some projects (lambda's, cli tooling, simple web services).  I like a boring language frankly. And I really like that there is "just one way" to do stuff.  If generics, data transformation, and basic immutability were solved, I'd probably use go for everything.</p>
+<p>But I don't think that the language is set up well to scale for larger projects. I find it clunky and overall limiting such that I am often times finding ways to work around the pain points.  Nothing is perfect though, and I'm still writing in go, so I guess thats <code>go 1, anton 0</code>.</p>

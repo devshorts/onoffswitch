@@ -1,0 +1,136 @@
+---
+layout: post
+title: F# class getter fun
+date: 2013-08-14 16:21:49.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Snippets
+tags:
+- c#
+- classes
+- F#
+- initialization
+- neo4j
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558960558;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4463;}i:1;a:1:{s:2:"id";i:4244;}i:2;a:1:{s:2:"id";i:4028;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/08/14/f-class-getter-fun/"
+---
+<p>I was playing with Neo4J (following a recent post I stumbled upon by <a href="http://sergeytihon.wordpress.com/2013/03/27/using-neo4j-graph-db-with-f/" target="_blank" rel="noopener noreferrer">Sergey Tihon</a>), and had everything wired up and ready to test out, but when I tried running my code I kept getting errors saying that I hadn't connected to the neo4j database. This puzzled me because I had clearly called connect, but every time I tried to access my connection object I got an error.</p>
+<p>The issue was that I didn't realize that f# class members are always deferred. It makes sense that they are after I traced through it, but I couldn't spot the bug for the life of me at first.</p>
+<p>My code looked like this:</p>
+<p>[fsharp]<br />
+module Connection =<br />
+    type Connection (dbUrl) = </p>
+<p>        member x.client = new GraphClient(new Uri(dbUrl))</p>
+<p>        member x.create item = x.client.Create item</p>
+<p>        member x.connect() =<br />
+            x.client.Connect()<br />
+            x<br />
+[/fsharp]</p>
+<p>If I had more experience with F# I probably would have spotted this right away, but it took me a while to figure out what was going on. The issue here is </p>
+<p>[fsharp highlight="4"]<br />
+module Connection =<br />
+    type Connection (dbUrl) = </p>
+<p>        member x.client = new GraphClient(new Uri(dbUrl))</p>
+<p>        member x.create item = x.client.Create item</p>
+<p>        member x.connect() =<br />
+            x.client.Connect()<br />
+            x<br />
+[/fsharp]</p>
+<p>Which compiles into</p>
+<p>[csharp highlight="15"]<br />
+  [AutoOpen]<br />
+  [CompilationMapping(SourceConstructFlags.Module)]<br />
+  public static class Connection<br />
+  {<br />
+    [CompilationMapping(SourceConstructFlags.ObjectType)]<br />
+    [Serializable]<br />
+    public class Connection<br />
+    {<br />
+      internal string dbUrl;</p>
+<p>      public GraphClient client<br />
+      {<br />
+        get<br />
+        {<br />
+          return new GraphClient(new Uri(this.dbUrl));<br />
+        }<br />
+      }</p>
+<p>      public Connection(string dbUrl)<br />
+      {<br />
+        Connection.Connection connection = this;<br />
+        this.dbUrl = dbUrl;<br />
+      }</p>
+<p>      public NodeReference&lt;a&gt; create&lt;a&gt;(a item) where a : class<br />
+      {<br />
+        return GraphClientExtensions.Create&lt;a&gt;((IGraphClient) this.client, item, new IRelationshipAllowingParticipantNode&lt;a&gt;[0]);<br />
+      }</p>
+<p>      public Connection.Connection connect()<br />
+      {<br />
+        this.client.Connect();<br />
+        return this;<br />
+      }<br />
+    }<br />
+  }<br />
+[/csharp]</p>
+<p>Clear as day now. Each time you call the property it returns a new instance. I had assumed that since the member wasn't a function that it would be a property, not an auto wrapped getter.  </p>
+<p>The fix was easy:</p>
+<p>[fsharp]<br />
+module Connection =<br />
+    type Connection (dbUrl) = </p>
+<p>        let graphConnection = new GraphClient(new Uri(dbUrl))</p>
+<p>        member x.client = graphConnection</p>
+<p>        member x.create item = x.client.Create item</p>
+<p>        member x.connect() =<br />
+            x.client.Connect()<br />
+            x<br />
+[/fsharp]</p>
+<p>Which now generates</p>
+<p>[csharp]<br />
+  [AutoOpen]<br />
+  [CompilationMapping(SourceConstructFlags.Module)]<br />
+  public static class Connection<br />
+  {<br />
+    [CompilationMapping(SourceConstructFlags.ObjectType)]<br />
+    [Serializable]<br />
+    public class Connection<br />
+    {<br />
+      internal GraphClient graphConnection;</p>
+<p>      public GraphClient client<br />
+      {<br />
+        get<br />
+        {<br />
+          return this.graphConnection;<br />
+        }<br />
+      }</p>
+<p>      public Connection(string dbUrl)<br />
+      {<br />
+        Connection.Connection connection = this;<br />
+        this.graphConnection = new GraphClient(new Uri(dbUrl));<br />
+      }</p>
+<p>      public NodeReference&lt;a&gt; create&lt;a&gt;(a item) where a : class<br />
+      {<br />
+        return GraphClientExtensions.Create&lt;a&gt;((IGraphClient) this.client, item, new IRelationshipAllowingParticipantNode&lt;a&gt;[0]);<br />
+      }</p>
+<p>      public Connection.Connection connect()<br />
+      {<br />
+        this.client.Connect();<br />
+        return this;<br />
+      }<br />
+    }<br />
+  }<br />
+[/csharp]</p>
+<p>That's more like it</p>

@@ -1,0 +1,113 @@
+---
+layout: post
+title: Reading socket commands
+date: 2013-10-29 17:00:43.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- active patterns
+- F#
+- Sockets
+- TCP
+meta:
+  _wpas_done_all: '1'
+  _su_rich_snippet_type: none
+  _syntaxhighlighter_encoded: '1'
+  _edit_last: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561407950;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:1268;}i:1;a:1:{s:2:"id";i:1587;}i:2;a:1:{s:2:"id";i:4737;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/10/29/reading-socket-commands/"
+---
+<p>A few weeks ago I was working on a sample application that would simulate a complex state machine. The idea is that there is one control room, and many slave rooms, where each slave room has its own state.  The control room can dispatch a state advance or state reverse to any room or collection of rooms, as well as query room states, and other room metadata.</p>
+<p>But to do this I need a way to get commands from the control room in order to know what to do.  In my application clients were connected via tcp sockets and I wanted commands to be newline seperated. This made it easy to test out via a local telnet (I didn't need to design any binary protocol). </p>
+<h2>The socket</h2>
+<p>You can never assume you've read what you want off a socket, since you're only ever guaranteed 1 or more bytes when a read succeeds.  This means you need to continue to read until you've read however much you expected.</p>
+<p>[fsharp]<br />
+/// Listens on a tcp client and returns a seq&lt;byte[]&gt; of all<br />
+/// found data<br />
+let rec private listenOnClient (client:TcpClient) =<br />
+    seq {<br />
+        let stream = client.GetStream()</p>
+<p>        let bytes = Array.create 4096 (byte 0)<br />
+        let read = stream.Read(bytes, 0, 4096)<br />
+        if read &gt; 0 then<br />
+            yield bytes.[0..read - 1]<br />
+        yield! listenOnClient client<br />
+    }</p>
+<p>[/fsharp]</p>
+<p>This function yields a seq of byte arrays each time the socket succeeds in a read.  I'm reading only up to a 4096 buffer and leveraging F# array slicing to return the bytes that were actually read.  After a read, the function calls itself and continues to yield byte arrays forever.</p>
+<h2>Converting byte arrays to strings</h2>
+<p>The next step is taking those byte arrays and creating statements out of them. This means piecing them together and determining where newlines are. For example, if you read packets like </p>
+<p>[code]<br />
+Th<br />
+is is a comm<br />
+an<br />
+d\n<br />
+[/code]</p>
+<p>It should really be handled like</p>
+<p>[code]<br />
+This is a command\n<br />
+[/code]</p>
+<p>To do this, I first map the bytes to utf8 strings, and use a string builder to aggregate lines.  By using the string split function, I can tell (by empty entries) where newlines appeared, and whether or not a final terminating newline exists.  For any statements that are terminated by a newline I can yield the entire command.</p>
+<p>[fsharp]<br />
+/// Reads off the client socket and aggregates commands that are seperated by newlines<br />
+let packets (client:TcpClient) : seq&lt;string&gt; =<br />
+    let filterEmpty =  Seq.filter ((&lt;&gt;) String.Empty)<br />
+    seq {<br />
+            let builder = new StringBuilder()<br />
+            for str in client |&gt; listenOnClient |&gt; Seq.map System.Text.ASCIIEncoding.UTF8.GetString do</p>
+<p>                let wordsWithBlanks = (builder.ToString() + str).Split([|'\r'; '\n'|]) </p>
+<p>                builder.Clear() |&gt; ignore</p>
+<p>                // this means we got a newline following the last string so we have a<br />
+                // group of totally valid commands<br />
+                if Seq.last wordsWithBlanks = String.Empty then<br />
+                    for entry in wordsWithBlanks |&gt; filterEmpty do yield entry<br />
+                else<br />
+                    // we didn't get a complete final command, so process all the other ones<br />
+                    let nonEmpties = wordsWithBlanks |&gt; filterEmpty</p>
+<p>                    builder.Append (Seq.last nonEmpties) |&gt; ignore</p>
+<p>                    for entry in (Seq.take (Seq.length nonEmpties - 1) nonEmpties) do<br />
+                        yield entry<br />
+    }<br />
+[/fsharp]</p>
+<h2>Listening for commands</h2>
+<p>Now it's easy to leverage this function</p>
+<p>[fsharp highlight="8"]<br />
+let rec private listenForControlCommands (agentRepo:AgentRepo) client =<br />
+    async {<br />
+        let postFlip mailbox msg = post msg mailbox<br />
+        let postToControl = postFlip agentRepo.Control</p>
+<p>        do! Async.SwitchToNewThread()<br />
+        try<br />
+            for message in client |&gt; packets do<br />
+                match message with<br />
+                    | AdvanceCmd roomNum        -&gt; postToControl &lt;| ControlInterfaceMsg.Advance roomNum<br />
+                    | ReverseCmd roomNum        -&gt; postToControl &lt;| ControlInterfaceMsg.Reverse roomNum<br />
+                    | StartPreview roomNum      -&gt; postToControl &lt;| ControlInterfaceMsg.StartPreview roomNum<br />
+                    | StartStreaming roomNum    -&gt; postToControl &lt;| ControlInterfaceMsg.StartStreaming roomNum<br />
+                    | Record roomNum            -&gt; postToControl &lt;| ControlInterfaceMsg.Record roomNum<br />
+                    | ResetRoom roomNum         -&gt; postToControl &lt;| ControlInterfaceMsg.Reset roomNum<br />
+                    | QueryRoom roomNum         -&gt; do! agentRepo |&gt; queryRoom roomNum client<br />
+                    | _                         -&gt; postToControl &lt;| ControlInterfaceMsg.Broadcast (&quot;Unknown control sequence &quot; + message)<br />
+        with<br />
+            | exn -&gt; postToControl (ControlInterfaceMsg.Disconnect client)<br />
+    }<br />
+[/fsharp]</p>
+<p>Where the messages are matched with active patterns that parse the strings such as</p>
+<p>[fsharp]<br />
+let (|AdvanceCmd|_|) (str:string) =<br />
+    if str.StartsWith(&quot;advance &quot;) then<br />
+        str.Replace(&quot;advance &quot;,&quot;&quot;).Trim() |&gt; Convert.ToInt32 |&gt; Some<br />
+    else None<br />
+[/fsharp]</p>
+<p>The great thing about this is you hide all the string handling and deal only with strongly typed, high level patterns.  Adding new commands is just a matter of creating a new active pattern and updating the message match in the <code>listenForControlCommands</code> function.</p>

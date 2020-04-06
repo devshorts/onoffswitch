@@ -1,0 +1,244 @@
+---
+layout: post
+title: 'Adding static typing and scope references, part 3: solving forward references'
+date: 2013-03-07 08:00:45.000000000 -08:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- c#
+- language implementation
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _wpas_done_all: '1'
+  _su_rich_snippet_type: none
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561171017;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3016;}i:1;a:1:{s:2:"id";i:3164;}i:2;a:1:{s:2:"id";i:3161;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/03/07/adding-static-typing-and-scope-references-part-3-solving-forward-references/"
+---
+<p>In an <a href="http://onoffswitch.net/adding-static-typing-and-scope-validation-into-the-language-part-1/" target="_blank" rel="noopener noreferrer">earlier post</a> I gave a brief overview of the scope builder and its jobs. There I mentioned that supporting forward references required some extra work. In this post I'll talk more about how I solved forward references. </p>
+<p>Here is what I mean by forward references.  <code>func</code> is declared after it's being referenced</p>
+<p>[csharp]<br />
+string item = func();</p>
+<p>string func(){<br />
+    return &quot;yes&quot;;<br />
+}</p>
+<p>print item;<br />
+[/csharp]</p>
+<p>If we iterate over the program only once from the top down using our visitor pattern based scope builder, when we try and resolve the <code>func</code> method invocation symbol we'll get an error (it hasn't been defined yet). </p>
+<p>Remember that when things are declared (such as methods, classes, or variables) we create a symbol (with a type) in the current scope tree. Later, when we are referencing them, we need to resolve that symbol. Resolution both validates that we can properly see the symbol and gives us information about that symbol (such as its type, which we can use for static typing).  This is important because without forward reference support, we can't tell what the return type of the <code>func()</code> call is, so we can't validate that that it needs to be a string (or something that can be promoted to a string).  </p>
+<h2>Maintaining scope references</h2>
+<p>But what if instead of iterating over the tree once, we iterate over it twice? The idea is that the first pass defines all your types, and the second pass can now resolve all the types.  </p>
+<p>Since I'm going to iterate over the tree twice, I need a way to persist scopes across each iteration regardless of the context of the scope builder.  For that, I added a property on the syntax tree base class to track what its current scope is. Every syntax tree will contain a reference to the scope it came from.  </p>
+<p>[csharp]<br />
+public abstract class Ast : IAcceptVisitor<br />
+{<br />
+    // ...</p>
+<p>    public Scope CurrentScope { get; set; }</p>
+<p>    // ...<br />
+}<br />
+[/csharp]</p>
+<p>The trick here is that I'm leveraging the fact that, in C#, classes are reference types.  For those more familiar with C++ this would be like sharing a pointer across multiple syntax trees all pointing to the same scope object. This means that when one syntax tree defines symbols to the current scope, any other syntax elements that have already been processed, and share the same pointer, will also see the newly added elements. Because of this, when the scope builder is all done, each node in the tree knows what else it can see.  </p>
+<h2>The first pass </h2>
+<p>Going with the example above</p>
+<p>[csharp]<br />
+string item = func();<br />
+[/csharp]</p>
+<p>In the first pass we'll do something like this</p>
+<ul>
+<li>Create user defined symbol <code>item</code> with type <code>string</code> (a built in type)</li>
+<li>Visit the variable declaration value (a function invoke)</li>
+<li>In the function invoke visit method, resolve the symbol <code>func</code>. But, this resolving fails and returns null.  We can't resolve <code>func</code> yet because we don't know who or what it is. We can't really do any type validation here yet because the symbol is null</li>
+<li>Define <code>func</code> as a method symbol in the same scope (global) that has a return type of type <code>string</code>. Creating symbols was covered in the previous post</li>
+<li>Set the variable declaration asts scope to the current so it can see other symbols in its scope</li>
+</ul>
+<p>Now the scope definitions table looks like this, with all fields defined </p>
+<p>[code]<br />
+item  - string<br />
+func  - method (returns string)<br />
+[/code]</p>
+<h2>Persist the scope on the syntax tree</h2>
+<p>Let's look at how to set the scope on an ast </p>
+<p>[csharp]<br />
+private void SetScope(Ast ast)<br />
+{<br />
+    if (ast.CurrentScope == null)<br />
+    {<br />
+        ast.CurrentScope = Current;</p>
+<p>        ast.Global = Global;<br />
+    }</p>
+<p>    if (ast.CurrentScope != null &amp;&amp; ast.CurrentScope.Symbols.Count &lt; Current.Symbols.Count)<br />
+    {<br />
+        ast.CurrentScope = Current;<br />
+    }</p>
+<p>    if (ast.Global != null &amp;&amp; ast.Global.Symbols.Count &lt; Global.Symbols.Count)<br />
+    {<br />
+        ast.Global = Global;<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>There are a couple conditions here.  First, if the current scope object is null, set it. This should happen on the first pass. Also attach the global scope so that each syntax tree (even if it comes from a class) can look into the global scope.  I mentioned in an earlier post that the syntax tree is the master repo of program related metadata and we're starting to see that here.  The two other if statements are safety checks to make sure that if the current scope has more symbols defined than what the syntax tree sees, make sure to update the syntax trees internal scope blocks. This way we always make sure to have the most up to date symbol defintions.</p>
+<p>Once we have the scope set, we can do the second pass on the syntax tree.  This will create a new scope builder and we'll run the tree back through it. It'll do basically the same thing as the first pass, except this time, it's going to look in the previously persisted scope for the variable declaration tree. </p>
+<h2>The second pass and resolving symbols</h2>
+<p>First let's look at how the first and second passes are invoked. I invoke them as part of the <code>Start</code> method of the interpreter, so this happens automatically anytime I interpret a program:</p>
+<p>[csharp]<br />
+var scopeBuilder = new ScopeBuilderVisitor();</p>
+<p>var resolver = new ScopeBuilderVisitor(true);</p>
+<p>scopeBuilder.Start(ast);</p>
+<p>resolver.Start(ast);<br />
+[/csharp]</p>
+<p>The <code>true</code> passed to the visitor's constructor tells the second pass resolver to resolve types. With regards to our example that I showed above</p>
+<p>[csharp]<br />
+string item = func();</p>
+<p>string func(){<br />
+    return &quot;yes&quot;;<br />
+}</p>
+<p>print item;<br />
+[/csharp]</p>
+<p>The first time when we hit the variable declaration we'll go through the variable declaration part of the visitor:</p>
+<p>[csharp]<br />
+public void Visit(VarDeclrAst ast)<br />
+{<br />
+    // ...</p>
+<p>    if (ast.VariableValue != null)<br />
+    {<br />
+        ast.VariableValue.Visit(this);<br />
+    }</p>
+<p>    SetScope(ast);</p>
+<p>    // ...<br />
+}<br />
+[/csharp]</p>
+<p>Where the variable value is a syntax tree representing a method invocation (<code>func</code>). When the variable value is visited, the function invoke visitor method will do this:</p>
+<p>[csharp]<br />
+public void Visit(FuncInvoke ast)<br />
+{<br />
+    // ...</p>
+<p>    if(ResolvingTypes)<br />
+    {<br />
+        ast.AstSymbolType = ResolveType(ast.FunctionName, ast.CurrentScope);<br />
+    }</p>
+<p>    SetScope(ast);</p>
+<p>    // ...<br />
+}<br />
+[/csharp]</p>
+<p>Notice that second parameter, the <code>ast.CurrentScope</code>, which is the trees persisted scope. This is the scope reference from the FIRST pass, and we only ever set it on the first pass, meaning that at this point the variables are all declared.  </p>
+<p><code>ResolveType</code> then looks like this. </p>
+<p>[csharp]<br />
+/// &lt;summary&gt;<br />
+/// Resolve the target ast type from the current scope, OR give it a scope to use.<br />
+/// Since things can be resolved in two passes (initial scope and forward reference scope)<br />
+/// we want to be able to pass in a scope override.  The second value is usually only ever used<br />
+/// on the second pass when determining forward references<br />
+/// &lt;/summary&gt;<br />
+/// &lt;param name=&quot;ast&quot;&gt;&lt;/param&gt;<br />
+/// &lt;param name=&quot;currentScope&quot;&gt;&lt;/param&gt;<br />
+/// &lt;returns&gt;&lt;/returns&gt;<br />
+private IType ResolveType(Ast ast, Scope currentScope = null)<br />
+{<br />
+    var scopeTrys = new List&lt;Scope&gt; { currentScope, ast.CurrentScope };</p>
+<p>    try<br />
+    {<br />
+        return Current.Resolve(ast).Type;<br />
+    }<br />
+    catch (Exception ex)<br />
+    {<br />
+        try<br />
+        {<br />
+            return ast.CallingScope.Resolve(ast).Type;<br />
+        }<br />
+        catch<br />
+        {<br />
+            foreach (var scopeTry in scopeTrys)<br />
+            {<br />
+                try<br />
+                {<br />
+                    if (scopeTry == null)<br />
+                    {<br />
+                        continue;<br />
+                    }</p>
+<p>                    var resolvedType = scopeTry.Resolve(ast);</p>
+<p>                    var allowedFwdReferences = scopeTry.AllowedForwardReferences(ast);</p>
+<p>                    if (allowedFwdReferences ||<br />
+                        scopeTry.AllowAllForwardReferences ||<br />
+                        resolvedType is ClassSymbol ||<br />
+                        resolvedType is MethodSymbol)<br />
+                    {<br />
+                        return resolvedType.Type;<br />
+                    }<br />
+                }<br />
+                catch<br />
+                {</p>
+<p>                }<br />
+            }<br />
+        }<br />
+    }</p>
+<p>    if (ResolvingTypes)<br />
+    {<br />
+        if (ast.IsPureDynamic)<br />
+        {<br />
+            return new BuiltInType(ExpressionTypes.Inferred);<br />
+        }</p>
+<p>        throw new UndefinedElementException(String.Format(&quot;Undefined element {0}&quot;,<br />
+                                                                    ast.Token.TokenValue));<br />
+    }</p>
+<p>    return null;<br />
+}<br />
+[/csharp]</p>
+<p>The basic gist is first try to resolve the type from the current scope (which gets reset every time the scope builder runs over the tree. So even on the second pass, the first line will fail, and thats what we want).  </p>
+<p><code>Current</code> contains the following:</p>
+<p>[code]<br />
+item  - string<br />
+[/code]</p>
+<p><code>func</code> isn't defined yet. <code>Current</code> gets reset each time the scope builder is instantiated, so even though this is the second pass this scope reference still fails. That's OK.  If we are resolving types (i.e. the second pass), we can try an alternate scope.  We can either pass in an alternate scope, or also use the syntax trees previous scope.   For each alternate scope we try and find the symbol we want.  If we use the previously constructed ast scope, which contains</p>
+<p>[code]<br />
+item  - string<br />
+func  - method - string<br />
+[/code]</p>
+<p>it would have the <code>func</code> symbol defined as a method with return string.  Other alternate scopes can be like the global scope, which we would try if we are within the context of a class. This makes sense because if you are doing this:</p>
+<p>[csharp]<br />
+class first{<br />
+  var secondInstance = new second();<br />
+}</p>
+<p>class second{<br />
+   int x = 0;<br />
+}<br />
+[/csharp]</p>
+<p>When you are inside of the <code>first</code> class and vising the variable declaration, the <code>second</code> class is defined in the global scope, NOT the current class scope. This means resolving the class name from the classes scope will fail, but if we give it an alternate (the global scope) then it will succeed.</p>
+<p>Anyways, if we resolve as a forward reference, then we need to determine if we're <em>allowed</em> to see it as a forward reference.  Everything at this point is resolvable (since we've populated the persisted scope reference from the first pass). Method symbols and class symbols are always allowed, and scopes can optionally define forward reference allowance if they need to.  But regular statements aren't allowed to be forward references. We still want this to fail:</p>
+<p>[csharp]<br />
+int x = y;<br />
+int y = 0;<br />
+[/csharp]</p>
+<p>After all of the resolving, if we still don't have the type, or we weren't allowed to see it as a forward reference, then we've encountered an error and we have to bail.</p>
+<p><em>[Note: I mentioned that I implemented runtime dynamic typing and you can see part of that at the end of the resolve types function. If the syntax tree is deemed to be "purely dynamic" then it will never fail when resolving a type. The type will then be figured out at runtime, which means you get no static analysis on the type ahead of time]</em></p>
+<h2>Updating the AST scope reference</h2>
+<p>If we did manage to resolve the type, the next step is to go back and update the type reference in the asts scope declaration:</p>
+<p>[csharp]<br />
+private void DefineToScope(Ast ast, Symbol symbol)<br />
+{<br />
+    if (ast.CurrentScope != null &amp;&amp; ast.CurrentScope.Symbols.ContainsKey(symbol.Name))<br />
+    {<br />
+        Symbol old = ast.CurrentScope.Resolve(symbol.Name);<br />
+        if (old.Type == null)<br />
+        {<br />
+            ast.CurrentScope.Define(symbol);<br />
+        }<br />
+    }</p>
+<p>    Current.Define(symbol);<br />
+}<br />
+[/csharp]</p>
+<p>Notice that first if statement.  What this is saying is that if we have some defined symbol in the scope, but that defined symbol does NOT have a type, then redefine the symbol. All this is doing is filling in the gaps in the <code>ast.CurrentScope</code> so we can use that as the master scope repository later in the interpreter.</p>
+<h2>Up next</h2>
+<p>Coming up next I'll discuss how I added in partial functions into the scope builder.  After that it'll be time to jump into the interpreter.</p>
+<h2>Disclaimer</h2>
+<p>As with the other posts, I haven't formally studied language implementation or compiler design. This series is just documenting how I solved problems I encountered while trying to make a working <a href="https://github.com/devshorts/LanguageCreator" target="_blank" rel="noopener noreferrer">toy language</a> using <a href="http://www.cs.usfca.edu/~parrt/" target="_blank" rel="noopener noreferrer">Terence Parr</a>'s <a href="http://www.amazon.com/Language-Implementation-Patterns-Domain-Specific-Programming/dp/193435645X" target="_blank" rel="noopener noreferrer">Language Implementation Patterns</a> book. If there are things you'd like to share (or correct) leave a comment and let me know!</p>

@@ -1,0 +1,141 @@
+---
+layout: post
+title: Consistent hashing for fun
+date: 2016-03-23 23:01:20.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- distributed
+- scala
+- toy
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1554617742;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4805;}i:1;a:1:{s:2:"id";i:4783;}i:2;a:1:{s:2:"id";i:4699;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2016/03/23/consistent-hashing-fun/"
+---
+<p>I think <a href="https://en.wikipedia.org/wiki/Consistent_hashing">consistent hashing</a> is pretty fascinating. It lets you define a ring of machines that shard out data by a hash value. Imagine that your hash space is 0 -> Int.Max, and you have 2 machines. Well one machine gets all values hashed from 0 -> Int.Max/2 and the other from Int.Max/2 -> Int.Max.  Clever.  This is one of the major algorithms of distributed systems like cassandra and dynamoDB.</p>
+<p>For a good visualization, check out this <a href="http://www.paperplanes.de/2011/12/9/the-magic-of-consistent-hashing.html/">blog post</a>.</p>
+<p>The fun stuff happens when you want to add replication and fault tolerance to your hashing. Now you need to have replicants and manage when machines join and add.  When someone joins, you need to re-partition the space evenly and re-distribute the values that were previously held. </p>
+<p>Something similar when you have a node leave, you need to make sure that whatever it was responsible for in its primray space AND the things it was responsible for as a secondary replicant, are re-redistributed amongst the remaining nodes.  </p>
+<p>But the beauty of consistent hashing is that the replication basically happens for free! And so does redistribution!</p>
+<p>Since my new feature is in all in Scala, I figured I'd write something up to see how this might play out in scala.</p>
+<p>For the impatient, the full source is<a href="https://github.com/devshorts/consistent-hasher/blob/better/src/main/scala/com/example"> here</a>.</p>
+<p>First I started with some data types</p>
+<p>[scala]<br />
+case class HashValue(value: String) extends AnyRef</p>
+<p>case class HashKey(key: Int) extends AnyRef with Ordered[HashKey] {<br />
+  override def compare(that: HashKey): Int = key.compare(that.key)<br />
+}</p>
+<p>object HashKey {<br />
+  def safe(key: Int) = new HashKey(Math.abs(key))<br />
+}</p>
+<p>case class HashRange(minHash: HashKey, maxHash: HashKey) extends Ordered[HashRange] {<br />
+  override def compare(that: HashRange): Int = minHash.compare(that.minHash)<br />
+}<br />
+[/scala]</p>
+<p>I chose to wrap the key in a positive space since it made things slightly easier. In reality you want to use md5 or some actual hashing function, but I relied on the hash code here.</p>
+<p>And then a machine to hold values:</p>
+<p>[scala]<br />
+import scala.collection.immutable.TreeMap</p>
+<p>class Machine[TValue](val id: String) {<br />
+  private var map: TreeMap[HashKey, TValue] = new TreeMap[HashKey, TValue]()</p>
+<p>  def add(key: HashKey, value: TValue): Unit = {<br />
+    map = map + (key -&gt; value)<br />
+  }</p>
+<p>  def get(hashKey: HashKey): Option[TValue] = {<br />
+    map.get(hashKey)<br />
+  }</p>
+<p>  def getValuesInHashRange(hashRange: HashRange): Seq[(HashKey, TValue)] ={<br />
+    map.range(hashRange.minHash, hashRange.maxHash).toSeq<br />
+  }</p>
+<p>  def keepOnly(hashRanges: Seq[HashRange]): Seq[(HashKey, TValue)] = {<br />
+    val keepOnly: TreeMap[HashKey, TValue] =<br />
+      hashRanges<br />
+      .map(range =&gt; map.range(range.minHash, range.maxHash))<br />
+      .fold(map.empty) { (tree1, tree2) =&gt; tree1 ++ tree2 }</p>
+<p>    val dropped = map.filter { case (k, v) =&gt; !keepOnly.contains(k) }</p>
+<p>    map = keepOnly</p>
+<p>    dropped.toSeq<br />
+  }<br />
+}<br />
+[/scala]</p>
+<p>A machine keeps a sorted tree map of hash values. This lets me really quickly get things within ranges.  For example, when we re-partition a machine, it's no longer responsible for the entire range set that it was before. But it may still be responsible for parts of it.  So we want to be able to tell a machine <em>hey, keep ranges 0-5, 12-20, but drop everything else</em>. The tree map lets me do this really nicely.</p>
+<p>Now for the fun part, the actual consistent hashing stuff. </p>
+<p>Given a set of machines, we need to define how the circular partitions is defined</p>
+<p>[scala]<br />
+private def getPartitions(machines: Seq[Machine[TValue]]): Seq[(HashRange, Machine[TValue])] = {<br />
+  val replicatedRanges: Seq[HashRange] = Stream.continually(defineRanges(machines.size)).flatten</p>
+<p>  val infiteMachines: Stream[Machine[TValue]] =<br />
+       Stream.continually(machines.flatMap(List.fill(replicas)(_))).flatten</p>
+<p>  replicatedRanges<br />
+  .zip(infiteMachines)<br />
+  .take(machines.size * replicas)<br />
+  .toList<br />
+}<br />
+[/scala]</p>
+<p>What we want to make sure is that each node sits on multiple ranges, this gives us the replication factor. To do that I've duplicated the machines in the list by the replication factor, and made sure all the lists cycle around indefinteily, so while they are not evenly distributed around the ring (they are clustered) they do provide fault tolerance</p>
+<p>Lets look at what it takes to put a value into the ring:</p>
+<p>[scala]<br />
+private def put(hashkey: HashKey, value: TValue): Unit = {<br />
+  getReplicas(hashkey).foreach(_.add(hashkey, value))<br />
+}</p>
+<p>private def getReplicas(hashKey: HashKey): Seq[Machine[TValue]] = {<br />
+  partitions<br />
+  .filter { case (range, machine) =&gt; hashKey &gt;= range.minHash &amp;&amp; hashKey &lt; range.maxHash }<br />
+  .map(_._2)<br />
+}<br />
+[/scala]</p>
+<p>We need to make sure that for each replica in the ring that sits on a hash range, that we insert it into that machine.  Thats pretty easy, though we can improve this later with better lookups</p>
+<p>Lets look at a get</p>
+<p>[scala]<br />
+def get(hashKey: TKey): Option[TValue] = {<br />
+  val key = HashKey.safe(hashKey.hashCode())</p>
+<p>  getReplicas(key)<br />
+  .map(_.get(key))<br />
+  .collectFirst { case Some(x) =&gt; x }<br />
+}<br />
+[/scala]</p>
+<p>Also similar.  Go through all the replicas, and find the first one to return a value</p>
+<p>Now lets look how to add a machine into the ring</p>
+<p>[scala]<br />
+def addMachine(): Machine[TValue] = {<br />
+  id += 1</p>
+<p>  val newMachine = new Machine[TValue](&quot;machine-&quot; + id)</p>
+<p>  val oldMachines = partitions.map(_._2).distinct</p>
+<p>  partitions = getPartitions(Seq(newMachine) ++ oldMachines)</p>
+<p>  redistribute(partitions)</p>
+<p>  newMachine<br />
+}<br />
+[/scala]</p>
+<p>So we first create a new list of machines, and then ask how to re-partition the ring. Then the keys in the ring need to redistribute themselves so that only the nodes who are responsible for certain ranges contain those keys</p>
+<p>[scala]<br />
+def redistribute(newPartitions: Seq[(HashRange, Machine[TValue])]) = {<br />
+  newPartitions.groupBy { case (range, machine) =&gt; machine }<br />
+  .flatMap { case (machine, ranges) =&gt; machine.keepOnly(ranges.map(_._1)) }<br />
+  .foreach { case (k, v) =&gt; put(k, v) }<br />
+}<br />
+[/scala]</p>
+<p>Redistributing isn't that complicated either.  We group all the nodes in the ring by the machine they are on, then for each machine we tell it to only keep values that are in its replicas.  The machine <code>keepOnly</code> function takes a list of ranges and will remove and <em>return</em> anything not in those ranges.  We can now aggregate all the things that are "emitted" by the machines and re insert them into the right location</p>
+<p>Removing a machine is really similiar</p>
+<p>[scala]<br />
+def removeMachine(machine: Machine[TValue]): Unit = {<br />
+  val remainingMachines = partitions.filter { case (r, m) =&gt; !m.eq(machine) }.map(_._2)</p>
+<p>  partitions = getPartitions(remainingMachines.distinct)</p>
+<p>  redistribute(partitions)<br />
+}<br />
+[/scala]</p>
+<p>And thats all there is to it! Now we have a fast, simple consistent hasher.</p>

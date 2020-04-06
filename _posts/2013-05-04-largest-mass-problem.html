@@ -1,0 +1,330 @@
+---
+layout: post
+title: The largest mass problem
+date: 2013-05-04 18:05:45.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- algorithms
+- F#
+- flood fill
+- tail recursion
+meta:
+  _syntaxhighlighter_encoded: '1'
+  _edit_last: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1559119788;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4411;}i:1;a:1:{s:2:"id";i:3899;}i:2;a:1:{s:2:"id";i:1043;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/05/04/largest-mass-problem/"
+---
+<p>I was recently asked to write some code to find the largest contiguous group of synonymous elements in a two dimensional array. The idea is that you want to find the largest "land mass" in a problem where you have a game board that looks something like</p>
+<p>[code]<br />
+L L L W<br />
+W L L W<br />
+L W W W<br />
+W L L W<br />
+[/code]</p>
+<p>Where <code>L</code> stands for land, and <code>W</code> stands for water.  In this example, the largest land mass would be of size 5. But there are also 2 other land masses, one of size one, and another of size two.  Elements can be contiguous only if their direct adjacent neighbor is the same type, so diagonals don't count.</p>
+<p>In general, you can think of the largest mass problem as almost exactly the same as the <a href="http://en.wikipedia.org/wiki/Flood_fill" target="_blank" rel="noopener noreferrer">flood fill problem</a> in image graphics. Except with flood fill, you are given a location and you want to find all the contiguous areas to fill.  Here, you don't know where to start, you have to find all the contiguous areas in the board.</p>
+<p>To me, this solution smells of recursion. You need a way to start at a point, and branch in all directions following until you find non land areas.  This way you can go up, down, left and right starting at a point and each direction will return to you what it found.  </p>
+<h2>The board</h2>
+<p>First, lets define our example board:</p>
+<p>[fsharp]<br />
+type Earth =<br />
+    | Land<br />
+    | Water</p>
+<p>let board = array2D [[Land;  Land;  Land;  Water;];<br />
+                     [Water; Land;  Land;  Water;];<br />
+                     [Land;  Water; Water; Water;];<br />
+                     [Water; Land;  Land;  Water;]]<br />
+[/fsharp]</p>
+<h2>Moving around</h2>
+<p>Next, lets define some helper methods. Since I know I'm going to have to branch up, down, left and right.  I also know that I need to cover edge conditions such as when I'm iterating over the board and I am going to step off the board edge (beyond the size of the 2d array).  I'm treating the current position on the board as an integer tuple representing x and y.  </p>
+<p>[fsharp]<br />
+let moveRight position =<br />
+    let (x,y) = position<br />
+    (x + 1, y)</p>
+<p>let moveLeft position =<br />
+    let (x,y) = position<br />
+    (x - 1, y)</p>
+<p>let moveUp position =<br />
+    let (x,y) = position<br />
+    (x, y + 1)</p>
+<p>let moveDown position =<br />
+    let (x,y) = position<br />
+    (x, y - 1)</p>
+<p>let xSize board = Array2D.length1 board</p>
+<p>let ySize board = Array2D.length2 board</p>
+<p>let offBoard position board =<br />
+    let (x,y) = position<br />
+    x &lt; 0 || y &lt; 0 || x &gt;= (xSize board) || y &gt;= (ySize board)<br />
+[/fsharp]</p>
+<h2>Keeping track of where you've been</h2>
+<p>I also know that since I'm going to be branching through this board in different recursive iterations, I need to be able to keep track of cells that I've already worked on. This makes sure that one branch (for example going left) doesn't re-process cells that were processed by another branch (like one that went up).  I have two methods here, one to just cons the current position to the previous positions list, and another to help me find if the current position is in a positions list.</p>
+<p>[fsharp]<br />
+let markPosition position previousSpots = position::previousSpots</p>
+<p>let positionExists position list =<br />
+    List.exists(fun pos -&gt; pos = position) list<br />
+[/fsharp]</p>
+<h2>Did I find one?</h2>
+<p>Also, I can create a helper method that tells me if the current position I'm on matches the target type that I want.  </p>
+<p>[fsharp]<br />
+let positionOnTarget position board target =<br />
+    if offBoard position board then<br />
+        false<br />
+    else<br />
+        let (x, y) = position<br />
+        (Array2D.get board x y) = target<br />
+[/fsharp]</p>
+<p>You may have noticed that a lot of these helper functions are only one line, and sometimes just wrap another one line built in F# functionality. I like to do it that way for readability sake. </p>
+<h2>Finding masses</h2>
+<p>Lets start with what flood fill does. Given a position, find all the contiguous elements. Each time we find a block it returns the block positions it found and the elements it already processed as a tuple</p>
+<p>[fsharp]<br />
+type Board&lt;'T&gt; = 'T[,]</p>
+<p>type X = int</p>
+<p>type Y = int</p>
+<p>type Position = X * Y</p>
+<p>type PositionList = Position list </p>
+<p>type ProcessedPositions = PositionList</p>
+<p>type ContiguousPoints = PositionList</p>
+<p>type MassFinder = ContiguousPoints * ProcessedPositions</p>
+<p>(*<br />
+    Looks for a specified contigoius block<br />
+    and keeps track of processed positions using a<br />
+    reference cell of a list of positions (supplied by the caller)<br />
+*)</p>
+<p>let findMassStartingAt (position:Position) (board:Board&lt;'A&gt;) (target:'A) (positionSeed:ProcessedPositions) : MassFinder =<br />
+    let rec findMassStartingAt' position (currentMass:ContiguousPoints, processedList:ProcessedPositions) = </p>
+<p>        // if you move off the board return<br />
+        if offBoard position board then<br />
+            (currentMass, processedList)</p>
+<p>        // if you already processed this position then don't do anything<br />
+        else if positionExists position processedList then<br />
+            (currentMass, processedList)<br />
+        else  </p>
+<p>            // branch out left, up, right, and down and see what you can find<br />
+            let up = moveUp position<br />
+            let down = moveDown position<br />
+            let left = moveLeft position<br />
+            let right = moveRight position</p>
+<p>            let found = positionOnTarget position board target</p>
+<p>            match found with<br />
+                | true -&gt;<br />
+                    (position::currentMass, position::processedList)<br />
+                        |&gt; findMassStartingAt' up<br />
+                        |&gt; findMassStartingAt' down<br />
+                        |&gt; findMassStartingAt' left<br />
+                        |&gt; findMassStartingAt' right </p>
+<p>                | false -&gt;<br />
+                    // if you didn't find anything return the masses that you<br />
+                    // found prevoiusly<br />
+                    (currentMass, processedList)</p>
+<p>    findMassStartingAt' position ([], positionSeed)<br />
+[/fsharp]</p>
+<p>Each time the mass function is called it returns the masses it found. This is why up, down, left and right are all being piped a new list telling it what's already been found.  By the end of the entire search the recursive calls have returned all available contiguous blocks starting from the original seed position.  Also instead of passing the board to the inner list I'm leveraging the parent closure to reference the board. </p>
+<p>But, this only finds a mass if we told it where to start.  To search for other masses I opted to brute force the problem and iterate over the entire 2d array, re-using the function that knew how to find a single mass.   To iterate over the 2d array I created the following function</p>
+<p>[fsharp]<br />
+(*<br />
+   Iterate over each element in a 2d array, passing the x and y<br />
+   coordinate and the board, to the supplied function<br />
+   which can return an item. The items are all cons together<br />
+   and the function returns a new list<br />
+*)</p>
+<p>let forEachElement (applier:(X -&gt; Y -&gt; Board&lt;'a&gt; -&gt; 'b)) (twoDimArray:Board&lt;'a&gt;) =<br />
+    let mutable items = []<br />
+    for x in 0..(xSize board) do<br />
+        for y in 0..(ySize board) do<br />
+            items &lt;- (applier x y twoDimArray)::items<br />
+    items<br />
+[/fsharp]</p>
+<p>Which lets you apply a function to each element and return a new item.  The other Array2D built in functions always created other 2D arrays, but I basically wanted to create a list based on the indexes and not just the element at those indexes.</p>
+<p>Now our final contiguous searcher looks like this.  Remember that each block we find returns a <code>MassFinder</code> tuple which is <code>ContiguousPoints * ProcessedPositions</code> so I am just picking out the contiguous blocks with the <code>fst</code> map.</p>
+<p>[fsharp]<br />
+(*<br />
+    Finds all contiguous blocks of the specified type<br />
+    and returns a list of lists (each list is the points for a specific<br />
+    block)<br />
+*)</p>
+<p>let getContiguousBlocks board target = </p>
+<p>    // go through each board element and find masses starting at the<br />
+    // the current position<br />
+    // filter out any positions that found no masses<br />
+    let findMass x y board = findMassStartingAt (x, y) board target []</p>
+<p>    forEachElement findMass board<br />
+        |&gt; List.map fst<br />
+        |&gt; List.filter (List.isEmpty &gt;&gt; not)<br />
+[/fsharp]</p>
+<p>Breaking things up like this also lets us solve the correlary problem of flood fill! I'm passing it an empty list as a seed to say we haven't processed any elements</p>
+<p>[fsharp]<br />
+(*<br />
+    Returns a list of points representing a contigious block<br />
+    of the type that the point was at.<br />
+*)</p>
+<p>let floodFillArea (point:Position) (canvas:Board&lt;'T&gt;) =<br />
+    let (x, y) = point<br />
+    let itemAtPoint = Array2D.get canvas x y</p>
+<p>    findMassStartingAt point canvas itemAtPoint [] |&gt; fst</p>
+<p>[/fsharp]</p>
+<h2>The test</h2>
+<p>Well, lets try it:</p>
+<p>[fsharp]<br />
+(*<br />
+    Test functions to run it<br />
+*)</p>
+<p>let masses = getContiguousBlocks board Land</p>
+<p>let largestList = List.maxBy(List.length) masses</p>
+<p>let massAt = floodFillArea (2, 2) boardInt</p>
+<p>let sizeOfMassAt22 = List.length massAt</p>
+<p>System.Console.WriteLine(&quot;Largest mass is &quot; + (List.length largestList).ToString());<br />
+System.Console.WriteLine(&quot;Mass size at (2,2) is &quot; + sizeOfMassAt22.ToString());<br />
+[/fsharp]</p>
+<p>And the answer is... </p>
+<p>[code]<br />
+Largest mass is 5<br />
+Mass size at (2,2) is 6<br />
+[/code]</p>
+<p>Where index (2,2) was the large water block in the middle.</p>
+<p>Looks like it worked</p>
+<h2>But what about stack depth?</h2>
+<p>Now that there is a basic working version, we can make this a bit more advanced.  If we use continuation passing style then we can make our multiple branching recursion tail recursive. Here is a rewritten version of the mass finder function but which uses continuations:</p>
+<p>[fsharp]<br />
+let findMassStartingAt (position:Position) (board:Board&lt;'A&gt;) (target:'A) (positionSeed:ProcessedPositions) : MassFinder =<br />
+    let rec findMassStartingAt' position (currentMass:ContiguousPoints, processedList:ProcessedPositions) cont = </p>
+<p>        // if you move off the board return<br />
+        if offBoard position board then<br />
+            cont((currentMass, processedList))</p>
+<p>        // if you already processed this position then don't do anything<br />
+        else if positionExists position processedList then<br />
+            cont((currentMass, processedList))<br />
+        else  </p>
+<p>            // branch out left, up, right, and down and see what you can find<br />
+            let up = moveUp position<br />
+            let down = moveDown position<br />
+            let left = moveLeft position<br />
+            let right = moveRight position</p>
+<p>            let found = positionOnTarget position board target   </p>
+<p>            // track that we processed this element even if we don't find anything<br />
+            let updatedProcess = position::processedList</p>
+<p>            match found with<br />
+                | true -&gt;<br />
+                           let massState = (position::currentMass, updatedProcess)</p>
+<p>                           findMassStartingAt' up  massState (fun foundMassUp -&gt;<br />
+                           findMassStartingAt' down foundMassUp (fun foundMassDown -&gt;<br />
+                           findMassStartingAt' left foundMassDown (fun foundMassLeft -&gt;<br />
+                           findMassStartingAt' right foundMassLeft cont))) </p>
+<p>                | false -&gt;<br />
+                    // if you didn't find anything return the masses that you<br />
+                    // found previously<br />
+                    cont((currentMass, updatedProcess))</p>
+<p>    findMassStartingAt' position ([], positionSeed) id<br />
+[/fsharp]</p>
+<p>Instead of letting all the recursion bubble and piping that value to the next recursion, now we're capturing what to do when the next recursion is ready to run. By using the closure state we can capture what is the next point to go to, and we know that the next <code>MassFinder</code> that was previously processed will be passed to the continuation at each round. Now there's no worry about stack depth!</p>
+<p>If we look at the IL that was generated for the inner recursive function we can really illustrate the point, that the F# compiler has emitted a <a href="http://stackoverflow.com/questions/15864670/generate-tail-call-opcode" target="_blank" rel="noopener noreferrer">tail call opcode</a>:</p>
+<p>[csharp highlight="33"]<br />
+.method assembly static<br />
+	!!a 'findMassStartingAt\'@176'&lt;A, a&gt; (<br />
+		!!A[0..., 0...] board,<br />
+		!!A target,<br />
+		int32 position_0,<br />
+		int32 position_1,<br />
+		class [FSharp.Core]Microsoft.FSharp.Collections.FSharpList`1&lt;class [mscorlib]System.Tuple`2&lt;int32, int32&gt;&gt; currentMass,<br />
+		class [FSharp.Core]Microsoft.FSharp.Collections.FSharpList`1&lt;class [mscorlib]System.Tuple`2&lt;int32, int32&gt;&gt; processedList,<br />
+		class [FSharp.Core]Microsoft.FSharp.Core.FSharpFunc`2&lt;class [mscorlib]System.Tuple`2&lt;class [FSharp.Core]Microsoft.FSharp.Collections.FSharpList`1&lt;class [mscorlib]System.Tuple`2&lt;int32, int32&gt;&gt;, class [FSharp.Core]Microsoft.FSharp.Collections.FSharpList`1&lt;class [mscorlib]System.Tuple`2&lt;int32, int32&gt;&gt;&gt;, !!a&gt; cont<br />
+	) cil managed<br />
+{<br />
+	// Method begins at RVA 0x2218<br />
+	// Code size 197 (0xc5)<br />
+	.maxstack 16<br />
+	.locals init (<br />
+		[0] class [mscorlib]System.Tuple`2&lt;int32, int32&gt; position,<br />
+		[1] class [mscorlib]System.Tuple`2&lt;int32, int32&gt; up,<br />
+		[2] class [mscorlib]System.Tuple`2&lt;int32, int32&gt; down,<br />
+		[3] class [mscorlib]System.Tuple`2&lt;int32, int32&gt; left,<br />
+		[4] class [mscorlib]System.Tuple`2&lt;int32, int32&gt; right<br />
+	)</p>
+<p>	// loop start<br />
+		IL_0000: ldarg.2<br />
+		// .. removed ...<br />
+		IL_00ad: br IL_0000<br />
+	// end loop</p>
+<p>	IL_00b2: ldarg.s cont<br />
+	IL_00b4: ldarg.s currentMass<br />
+	IL_00b6: ldarg.s processedList<br />
+	IL_00b8: newobj instance void class [mscorlib]System.Tuple`2&lt;class [FSharp.Core]Microsoft.FSharp.Collections.FSharpList`1&lt;class [mscorlib]System.Tuple`2&lt;int32, int32&gt;&gt;, class [FSharp.Core]Microsoft.FSharp.Collections.FSharpList`1&lt;class [mscorlib]System.Tuple`2&lt;int32, int32&gt;&gt;&gt;::.ctor(!0, !1)<br />
+	IL_00bd: tail.<br />
+	IL_00bf: callvirt instance !1 class [FSharp.Core]Microsoft.FSharp.Core.FSharpFunc`2&lt;class [mscorlib]System.Tuple`2&lt;class [FSharp.Core]Microsoft.FSharp.Collections.FSharpList`1&lt;class [mscorlib]System.Tuple`2&lt;int32, int32&gt;&gt;, class [FSharp.Core]Microsoft.FSharp.Collections.FSharpList`1&lt;class [mscorlib]System.Tuple`2&lt;int32, int32&gt;&gt;&gt;, !!a&gt;::Invoke(!0)<br />
+	IL_00c4: ret<br />
+} // end of method Print::'findMassStartingAt\'@176'<br />
+[/csharp]</p>
+<h2>Choose only non processed elements</h2>
+<p>I couldn't help myself so I revisited the code a little.  I didn't want to brute force the entire board, instead I want to selectively choose the first unprocessed position to see if its got a contiguous block of what I want.  </p>
+<p>The basic idea is to generate an array reprenseting all of the boards positions. Then find the intersection of the points you've processed vs the available points. Then find the first point NOT in the intersection. If the resulting list is empty we've processed everything.  If we've never processed anything just start from the top left corner.</p>
+<p>You could cut out even more work if you cached the creation of the board tuple array elsewhere.</p>
+<p>[fsharp]<br />
+(*<br />
+    Finds all items of list2 that are not in list1<br />
+*)</p>
+<p>let except list1 list2 =<br />
+    let listContainsElement item = List.exists (fun i -&gt; i = item) list1<br />
+    List.filter(fun item -&gt; not (listContainsElement item)) list2</p>
+<p>(*<br />
+    Find first non processed position<br />
+*)</p>
+<p>let firstNonProcessedPosition processedList xCount yCount =<br />
+    match processedList with<br />
+        | [] -&gt;<br />
+            Some((0, 0))<br />
+        | _ -&gt;<br />
+            if List.length processedList = (xCount * yCount) then<br />
+                None<br />
+            else</p>
+<p>                // get an array representing (x, y) tuples of the entire board<br />
+                let totalPositions = [0..xCount] |&gt; List.collect (fun x -&gt; [0..yCount] |&gt; List.map (fun y -&gt; (x, y)))</p>
+<p>                // set intersections from the total positions array and the entire board<br />
+                let intersections = Set.intersect (Set.ofList totalPositions) (Set.ofList processedList)<br />
+                                        |&gt; List.ofSeq</p>
+<p>                // exclude the intersections from the total list<br />
+                let excludes = except intersections totalPositions</p>
+<p>                match excludes with<br />
+                    | [] -&gt; None<br />
+                    | _ -&gt; Some(List.head excludes)<br />
+[/fsharp]</p>
+<p>And now we just need to use this new information to feed to the fill function to find our contiguous block of elements. This function is a little more complicated, but not by much. </p>
+<p>[fsharp]<br />
+(*<br />
+    Finds all contiguous blocks of the specified type<br />
+    and returns a list of lists (each list is the points for a specific<br />
+    block)<br />
+*)</p>
+<p>let getContiguousBlocks board target = </p>
+<p>    let xCount = (xSize board) - 1<br />
+    let yCount = (ySize board) - 1</p>
+<p>    let rec findBlocks' (blocks, processed:PositionList) = </p>
+<p>        let findMass x y board = findMassStartingAt (x, y) board target processed</p>
+<p>        // find the first non processed block<br />
+        // and try and find its contigoius area<br />
+        // if it isn't a valid area the block it returns will be<br />
+        // empty and we can exclude it<br />
+        match firstNonProcessedPosition processed xCount yCount with<br />
+            | None -&gt; blocks<br />
+            | Some (x, y) -&gt;<br />
+                let (block, processed) = findMass x y board</p>
+<p>                findBlocks' ((match block with<br />
+                                | [] -&gt; blocks<br />
+                                | _ -&gt; block::blocks), processed)</p>
+<p>    findBlocks' ([],[])<br />
+[/fsharp]</p>
+<p>Now, we keep processing until we've processed everyone. At that point, return what we found!</p>
+<h2>View the full snippet</h2>
+<p>I'm posting the full snippet at <a href="http://fssnip.net/ik" target="_blank" rel="noopener noreferrer">fsharp snippets</a></p>

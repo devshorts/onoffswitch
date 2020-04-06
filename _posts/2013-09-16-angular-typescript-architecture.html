@@ -1,0 +1,399 @@
+---
+layout: post
+title: Angular with typescript architecture
+date: 2013-09-16 08:00:32.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- angularjs
+- architecture
+- typescript
+meta:
+  _edit_last: '1'
+  _su_rich_snippet_type: none
+  _syntaxhighlighter_encoded: '1'
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561704481;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3710;}i:1;a:1:{s:2:"id";i:3295;}i:2;a:1:{s:2:"id";i:3452;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/09/16/angular-typescript-architecture/"
+---
+<p>Bear with me, this is going to be a long post.</p>
+<p>For the past several months I've been working on a production single page application written with AngularJS and TypeScript, and I wanted to share how myself and my team have architected the application.  In case you were wondering, the app was written using typescript 0.8.3 and not 0.9.1 (which is out now with generics).  </p>
+<p>In general, I was really unhappy with a lot of the AngularJS examples I had found on the internet when researching how to structure the application, since they all looked flimsy and poorly constructed.  While the examples found online were easy to read and follow, they clearly wouldn't work with an actual large application.</p>
+<p>I had several goals:</p>
+<ul>
+<li>I didn't want to have to constantly register directives/filters/controllers/etc with Angular everytime I added something</li>
+<li>I didn't want to have to update my main index.html page with any references to new files as I worked on them</li>
+<li>I wanted to avoid string typing as much as possible by centralizing all string references to angular components</li>
+<li>I wanted everything testable</li>
+<li>I didn't want to inline directive html templates, I wanted them in in separate html components</li>
+<li>I wanted one file for each class</li>
+<li>I wanted everything strongly typed</li>
+</ul>
+<p>Anything less than these requirements, I felt, would compromise maintainability and extensibility for the future, especially if the app had more than one developer working on it.</p>
+<h2>Folder structure</h2>
+<p>Starting off, my folder structure looks like this:</p>
+<p>[code]<br />
+app<br />
+├──components<br />
+├──css<br />
+├──img<br />
+├──js<br />
+    ├──common<br />
+    ├──controllers<br />
+    ├──data<br />
+       ├──locale<br />
+    ├──def<br />
+       ├──local<br />
+       ├──vendor<br />
+    ├──directives<br />
+    ├──filters<br />
+    ├──models<br />
+    ├──services<br />
+    ├──app.ts<br />
+    ├──_all.d.ts<br />
+├──locales<br />
+├──partials<br />
+├──tests<br />
+    ├──js<br />
+       ├──unitTests<br />
+          ├──controllres<br />
+          ├──directives<br />
+          ├──filters<br />
+          ├──models<br />
+          ├──services<br />
+       ├──e2e tests<br />
+├──index.html<br />
+[/code]</p>
+<ul>
+<li>components - This is where all the html templates for directives go</li>
+<li>css - All scss files and the final compiled app.css which is what is linked to from index.html</li>
+<li>img - All statically served image files</li>
+<li>js - All typescript files broken down into individually subsections.  Also the definitions folder <code>def</code> will be seperated out from any local custom definitions if necessary, and all vendor definitions (such as angular, rxjs, jquery, etc). Also, <code>app.ts</code> (which will be discussed later) is the main app bootloader. <code>_all.d.ts</code> is an aggregate typescript def file that has all the references to the .ts files in the application</li>
+<li>locales - This is where source .properties files go that can be used to <a href="https://github.com/devshorts/TypescriptLocaleGenerator" target="_blank" rel="noopener noreferrer">auto generate typescript locale data</a></li>
+<li>partials - This is where main angular page entrypoints go.  These are the initial partials that are loaded as part of an <code>ng-view</code> change</li>
+<li> tests - all unit tests, and e2e tests (using angular e2e scenario testing)</li>
+</ul>
+<h2>Wrapping Angular in OO</h2>
+<p>There's no reason you can't wrap the angularJS object initializers that are used to define directives, filters, controllers, etc, into strongly typed local classes.  My team and I built a bunch of templates to use with IntelliJ Idea which made creating new directives/controllers/filters/services/etc extremely easy.  </p>
+<h2>Controllers</h2>
+<p>Let me demonstrate an example controller:</p>
+<p>[ts]<br />
+/// &lt;reference path=&quot;../_all.d.ts&quot; /&gt; </p>
+<p>module devshorts.app.controllers {</p>
+<p>    import sharedModel = common.model;</p>
+<p>    export interface ITest extends ng.IScope{</p>
+<p>    }</p>
+<p>    export class Test extends ControllerBase {</p>
+<p>        public static $inject:string[] = [<br />
+            sharedModel.AngularGlobal.$SCOPE<br />
+        ];</p>
+<p>        constructor(private $scope:ITest) {<br />
+            super(arguments, Test.$inject);<br />
+        }<br />
+    }<br />
+}<br />
+[/ts]</p>
+<p>There are a few things going on here.  First, there is a single aggregate definitions file that is always included.  This means we don't need to pollute each file with definitions.  The <code>_all.d.ts</code> is also auto generated using a dependency builder we wrote (posted on my <a href="https://github.com/devshorts/TypeScript-Dependency-Builder" target="_blank" rel="noopener noreferrer">github</a>). It finds all <code>.d.ts</code> files based on a dependency configuration and auto populates the all.d.ts for you. </p>
+<p>Second, notice that the controller scope is typed with an interface.  By making sure we use an interface we can guarantee we won't try to access a field in the UI that we didn't explicity expose.  </p>
+<p>Third, since for controllers I'm using the <code>$inject</code> annotation, we're making sure to not hardcode any angular strings.  Everything is centralized in an <code>AngularGlobal</code> class:</p>
+<p>[ts]<br />
+export class AngularGlobal {<br />
+        public static $SCOPE = &quot;$scope&quot;;<br />
+        public static $COOKIE_STORE = &quot;$cookieStore&quot;;<br />
+        public static NG_COOKIES = &quot;ngCookies&quot;;<br />
+        ... etc ...<br />
+    }<br />
+[/ts]</p>
+<p>Also, you'll notice that in the constructor of the controller there is a call to the base class with the inject arguments.  The base class is going to validate that the arguments passed to the controller match the items in the $inject array.  This way we can get fail fast runtime errors if we ask to inject something, but didn't wire up the constructor right:</p>
+<p>[ts]<br />
+export class ControllerBase {                                                                                                                          </p>
+<p>    definedArguments(args:any):string[] {<br />
+        var functionText = args.callee.toString();<br />
+        var foundArgs = /\(([^)]+)/.exec(functionText);<br />
+        if (foundArgs[1]) {<br />
+            return foundArgs[1].split(/\s*,\s*/);<br />
+        }                                                                                                                                              </p>
+<p>        return [];<br />
+    };                                                                                                                                                 </p>
+<p>    constructor(args:any, injection:string[]){                                                                                                         </p>
+<p>        var expectedInjections = _.zip(this.definedArguments(args), injection);                                                                        </p>
+<p>        _.each(expectedInjections, val =&gt; {<br />
+            var injectionId = val[0];<br />
+            var argument:string = val[1];<br />
+            if(argument == null){<br />
+                throw &quot;missing injection id.  Argument for &quot; + injectionId + &quot; is undefined. Make sure to add the ID as part of the $inject function&quot;;<br />
+            }<br />
+        })<br />
+    }                                                                                                                                                  </p>
+<p>[/ts]</p>
+<p>So, why does moving the constructor to its own class work? Well, look at what angular wants for a controller:</p>
+<p>[javascript]<br />
+myApp.controller('GreetingCtrl', ['$scope', function($scope) {<br />
+    $scope.greeting = 'Hola!';<br />
+}]);<br />
+[/javascript]</p>
+<p>And look at what typescript will generate for this class:</p>
+<p>[javascript highlight="8,9,10,11,15"]<br />
+var devshorts;<br />
+(function (devshorts) {<br />
+    (function (app) {<br />
+        (function (controllers) {<br />
+            var sharedModel = common.model;<br />
+            var Test = (function (_super) {<br />
+                __extends(Test, _super);<br />
+                function Test($scope) {<br />
+                    _super.call(this, arguments, Test.$inject);<br />
+                    this.$scope = $scope;<br />
+                }<br />
+                Test.$inject = [<br />
+                    sharedModel.AngularGlobal.$SCOPE<br />
+                ];<br />
+                return Test;<br />
+            })(ControllerBase);<br />
+            controllers.Test = Test;<br />
+        })(app.controllers || (app.controllers = {}));<br />
+        var controllers = app.controllers;<br />
+    })(devshorts.app || (devshorts.app = {}));<br />
+    var app = devshorts.app;<br />
+})(devshorts || (devshorts = {}))<br />
+[/javascript]</p>
+<p>Disregarding all the wrapping for namespaces, you can see that the constructor for Test is just a function that takes a $scope. So, it's the exact same thing.  Now you can wire up your routes in such a way to pair partials with controllers like this:</p>
+<p>[ts]<br />
+$routeProvider.when('/test',<br />
+                    this.getRoute(relativePath(&quot;partials/test.html&quot;),<br />
+                    devshorts.app.controllers.Test));<br />
+[/ts]</p>
+<h2>Auto registration of services, directives, filters, and models</h2>
+<p>For our purposes, we did something slightly different with services, models, directives and filters. The reason being that controllers are always "registered" with angular via the routing.  However, services, models, directives, and filters are usually registered with separate angular modules that the main app depends on.  In this scenario, since it's common to create lots of directives, etc, we didn't want to have to manually register anything.</p>
+<p>Let me show the model template we have:</p>
+<p>[ts]<br />
+/// &lt;reference path=&quot;../_all.d.ts&quot; /&gt;</p>
+<p>module devshorts.app.models {<br />
+    'use strict';</p>
+<p>    export interface ITestModel {</p>
+<p>    }</p>
+<p>    export class TestModel implements ITestModel {</p>
+<p>        public static ID:string = &quot;TestModel&quot;;</p>
+<p>        public static injection():any[] {<br />
+            return [ AngularGlobal.HTTP,<br />
+                     httpService =&gt; new TestModel(httpService) ];<br />
+        }<br />
+    }<br />
+}<br />
+[/ts]</p>
+<p>Here there is a static <code>ID</code> which is the name of the model, and a static <code>injection</code> function that returns the array notation for injection.  In the array notation the last line is the function that gets called by angular with the relevant injectable types.  We preferred array notation vs $inject notation since array notation is safe to minimize.  The name <code>httpService</code> at this point doesn't matter, since we asked angular for it using the static <code>AngularGlobal</code> class discussed above.</p>
+<p>The <code>ID</code> and <code>injection</code> functions are important, and I'll show why in a second.</p>
+<p>Below is how we've bootstrapped angular in the index.html page</p>
+<p>[javascript]<br />
+$(document).ready(function(){<br />
+     var main = new devshorts.app.Main(ipadGlobals.available);</p>
+<p>     // when all is done, execute bootstrap angular application<br />
+     angular.bootstrap(document, [NG_GLOBAL.APP_NAME]);<br />
+ });<br />
+[/javascript]</p>
+<p>But what is this main class?  This is a class that handles all the registration, routing, and other AngularJS setup we need. </p>
+<p>[ts]<br />
+export class Main implements IMain {                                                                                                </p>
+<p>    public app:ng.IModule = angular.module(NG_GLOBAL.APP_NAME,<br />
+                                            [<br />
+                                                NG_GLOBAL.APP_DIRECTIVES,<br />
+                                                NG_GLOBAL.APP_SERVICES,<br />
+                                                NG_GLOBAL.APP_MODELS,<br />
+                                                NG_GLOBAL.APP_PROVIDERS,<br />
+                                                NG_GLOBAL.APP_FILTERS,<br />
+                                                'ui.directives',<br />
+                                                'ngMobile'<br />
+                                            ]);                                                                                     </p>
+<p>    public directives:ng.IModule = angular.module(NG_GLOBAL.APP_DIRECTIVES, []);                                                    </p>
+<p>    public services:ng.IModule = angular.module(NG_GLOBAL.APP_SERVICES, []);                                                        </p>
+<p>    public models:ng.IModule = angular.module(NG_GLOBAL.APP_MODELS, [sharedModel.AngularGlobal.NG_COOKIES]);                        </p>
+<p>    public providers:ng.IModule = angular.module(NG_GLOBAL.APP_PROVIDERS,[]);                                                       </p>
+<p>    public filters:ng.IModule = angular.module(NG_GLOBAL.APP_FILTERS, []);                                                          </p>
+<p>    constructor(private isAvailable:bool) {<br />
+        this.route(this.getApp());                                                                                                  </p>
+<p>        this.wireFactories();                                                                                                       </p>
+<p>        this.configureProviders();                                                                                                  </p>
+<p>        this.configureHttpInterceptors(this.getApp());<br />
+    }                                                                                                                               </p>
+<p>    ... other methods ...<br />
+[/ts]</p>
+<p>Again, the app name and other dependency names are all centralized in a static class.  The interesting part here is the <code>wireFactories</code> method which looks like this:</p>
+<p>[ts]<br />
+wireFactories(){<br />
+    this.wireServices();<br />
+    this.wireDirectives();<br />
+    this.wireModels();<br />
+    this.wireFilters();<br />
+}<br />
+[/ts]</p>
+<p>Lets look at <code>wireModels</code></p>
+<p>[ts]<br />
+wireModels(){<br />
+    this.wire(devshorts.app.models, this.models.factory);<br />
+}<br />
+[/ts]</p>
+<p>And finally looking at <code>wire</code></p>
+<p>[ts]<br />
+/***<br />
+ * We are simulating doing something like this:<br />
+ *<br />
+ *      this.directives.directive(directives.DynamicView.ID, directives.DynamicView.injection());<br />
+ *<br />
+ * The &quot;this.directives.directive&quot; is the function we want to call on which is the registration function<br />
+ *<br />
+ * Since the ID and injection function are statically defined in our classes and MUST be defined for<br />
+ * our angular injection to work, we can type them temporarily here in this function<br />
+ *<br />
+ * This way if we add new items to any namespace that have an injection function and an ID we will<br />
+ * automatically register them to the right angular module         *<br />
+ *<br />
+ * @param namespace<br />
+ * @param registrator<br />
+ * @param byPass<br />
+ */<br />
+  wire(namespace:any, registrator:(string, Function) =&gt; ng.IModule , byPass?:(s) =&gt; bool){<br />
+    for(var key in namespace){<br />
+        try{<br />
+            if(byPass != null &amp;&amp; byPass(key)) {<br />
+                continue;<br />
+            }                                                                                                        </p>
+<p>            var injector = &lt;IInjectable&gt;(namespace[key]);                                                            </p>
+<p>            if(injector.ID &amp;&amp; injector.injection){<br />
+                registrator(injector.ID, injector.injection());<br />
+            }<br />
+        }<br />
+        catch(ex){<br />
+            console.log(ex);<br />
+        }<br />
+    }<br />
+}<br />
+[/ts]</p>
+<p>Since namespaces in javascript are just objects with properties, we can make an assumption that anything under the <code>devshorts.app.models</code> namespace is a model if it has a static <code>ID</code> and a static <code>injection</code> function.  If it does, then we can register that class with the correct angular module.  </p>
+<p>Now we never have to worry about wiring up directives, filters, models, or services since at runtime they are auto wired for us.  This gives application development a more native feel, just by adding the file means it exists and is available for injection.</p>
+<h2>Merging the files</h2>
+<p>I've read about people promoting writing everything in javascript into one file, since they don't want to have the overhead of loading hundreds of .js files on load. I vehemently disagree here.  From a development standpoint you should have one class per file. It makes it easier to split up your code, move things around, and to properly organize your application.  However, in a production environment you aboslutely should distribute a single merged file. But that's trivial.  I linked to it earlier on, but the dependency tool I had also populates index.html with the appropriate script references for all .js files it finds (that are configured for it to find). If you are interested, go check out the <a href="https://github.com/devshorts/TypeScript-Dependency-Builder" target="_blank" rel="noopener noreferrer">typescript dependency builder</a> (which I will probably blog about again later).</p>
+<p>Assuming that your index.html page has all the relevant js files in the head, then it's easy to write a simple script to merge all the files into one and serve that up when the application is loaded in production.  In debug mode, you can serve up all the independent files, it's just a matter of toggling your node config or your web.config (in an asp.net application). </p>
+<p>As an example, here is an F#/C# MSBuild task class to do that for you:</p>
+<p>[csharp collapse="true"]<br />
+public class JsMerger : Task<br />
+{<br />
+    public string IndexPage { get; set; }<br />
+    public List&lt;string&gt; JsFiles { get; set; }<br />
+    public String OutputFile { get; set; }</p>
+<p>    public override bool Execute()<br />
+    {<br />
+        try<br />
+        {<br />
+            if (File.Exists(OutputFile))<br />
+            {<br />
+                File.Delete(OutputFile);<br />
+            }</p>
+<p>            var filesToProcess = GetFilesToProcess()<br />
+                                    .Where(NotOutputOrMinFile)<br />
+                                    .Select(f =&gt; new JsData<br />
+                                    {<br />
+                                        FileName = f,<br />
+                                        FileContents = File.ReadAllText(f)<br />
+                                    });</p>
+<p>            using (var output = new StreamWriter(OutputFile))<br />
+            {<br />
+                foreach (var file in filesToProcess)<br />
+                {<br />
+                    output.WriteLine(&quot;/*!&quot; + Path.GetFileName(file.FileName) + &quot;*/&quot;);<br />
+                    output.WriteLine(file.FileContents);<br />
+                    output.WriteLine(Environment.NewLine);<br />
+                }<br />
+            }<br />
+            return true;<br />
+        }<br />
+        catch (Exception ex)<br />
+        {<br />
+            Console.WriteLine(ex);<br />
+            return false;<br />
+        }<br />
+    }</p>
+<p>    private bool NotOutputOrMinFile(string f)<br />
+    {<br />
+        var path = f;</p>
+<p>        var check = OutputFile.Replace(&quot;.js&quot;, &quot;&quot;);</p>
+<p>        return (path != check + &quot;.js&quot;) &amp;&amp; (path != check + &quot;.min.js&quot;);<br />
+    }</p>
+<p>    private IEnumerable&lt;string&gt; GetFilesToProcess()<br />
+    {<br />
+        if (!String.IsNullOrEmpty(IndexPage))<br />
+        {<br />
+            foreach (var jsFile in JsRetriever.getJsFiles(IndexPage))<br />
+            {<br />
+                yield return jsFile;<br />
+            }<br />
+        }</p>
+<p>        if (JsFiles != null &amp;&amp; JsFiles.Count &gt; 0)<br />
+        {<br />
+            foreach (var f in JsFiles)<br />
+            {<br />
+                yield return f;<br />
+            }<br />
+        }<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>Which calls into the following F# script extractor</p>
+<p>[fsharp collapse="true"]<br />
+namespace MergeJsFiles</p>
+<p>open HtmlAgilityPack<br />
+open System.Text.RegularExpressions<br />
+open System.IO<br />
+open System</p>
+<p>module JsRetriever =</p>
+<p>    let stripHtml (text:string) =<br />
+        try<br />
+            let mutable target = text</p>
+<p>            let regex = [<br />
+                &quot;&lt;script\s*&quot;, &quot;&quot;;<br />
+                &quot;\&quot;?\s*type\s*=\s*\&quot;\s*text/javascript\s*\&quot;\s*&quot;, &quot;&quot;;<br />
+                &quot;&lt;/script&gt;&quot;, &quot;&quot;;<br />
+                &quot;src\s*=\s*&quot;, &quot;&quot;<br />
+                &quot;\&quot;&quot;, &quot;&quot;;<br />
+                &quot;&gt;&quot;, &quot;&quot;;<br />
+                &quot;&lt;/&quot;,&quot;&quot;<br />
+                &quot;&lt;&quot;,&quot;&quot;</p>
+<p>            ] </p>
+<p>            for (pattern, replacement) in regex do<br />
+                    target &lt;- Regex.Replace(target,pattern,replacement).Trim()</p>
+<p>            target<br />
+        with<br />
+            | ex -&gt;<br />
+                Console.WriteLine (&quot;Error handling &quot; + text + &quot;, &quot; + ex.ToString())<br />
+                &quot;&quot;          </p>
+<p>    let convertToAbsolute parent path =<br />
+        try<br />
+            Path.Combine(Path.GetDirectoryName(parent), path) |&gt; Path.GetFullPath<br />
+        with<br />
+            | ex -&gt;<br />
+                Console.WriteLine (&quot;Error handling &quot; + path)<br />
+                &quot;&quot;</p>
+<p>    let endsOn ext file =<br />
+        Path.GetExtension(file) = ext</p>
+<p>    let getJsFiles (defaultAspxPath:string) =<br />
+        let doc = new HtmlDocument()</p>
+<p>        doc.Load defaultAspxPath</p>
+<p>        doc.DocumentNode.SelectNodes &quot;/html/head/script/@src&quot;<br />
+            |&gt; Seq.map (fun i -&gt; i.OuterHtml)<br />
+            |&gt; Seq.map stripHtml<br />
+            |&gt; Seq.map (convertToAbsolute defaultAspxPath)<br />
+            |&gt; Seq.filter (endsOn &quot;.js&quot;)</p>
+<p>[/fsharp]</p>
+<h2>Conclusion</h2>
+<p>Organizing an application is hard, and everyone has their own style, but proper application organization and architecture is critical to being able to scale your codebase. Also, sometimes to make the development experience pleasant, you need to invest the time to build tools to automate boring tasks for you. Until we spent the time to create the dependency tools, working with angular and typescript was a real headache, but now it's an absolute joy.</p>
+<p>There are more things I haven't covered, such as how we dealt with filters, localization, model and service aggregation (for easy injection), and http interceptors but I'll save those for another post.</p>

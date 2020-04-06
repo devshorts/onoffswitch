@@ -1,0 +1,120 @@
+---
+layout: post
+title: Dynamic call interceptors
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: draft
+categories: []
+tags: []
+meta:
+  _su_rich_snippet_type: none
+  _edit_last: '1'
+  _wpcom_is_markdown: '1'
+  _syntaxhighlighter_encoded: '1'
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/"
+---
+<p>[code]</p>
+<p>/**<br />
+ * Marker trait to know if we converted a scala future to a java one<br />
+ *<br />
+ * @tparam T<br />
+ */<br />
+trait ScalaConvertedFuture[T] {<br />
+  def originalFuture: Future[T]<br />
+}</p>
+<p>class ScalaToJavaFuture[T](future: Future[T]) {<br />
+  def toJavaFuture: JFuture[T] = {<br />
+    new JFuture[T] with ScalaConvertedFuture[T] {<br />
+      override def isCancelled: Boolean = throw new UnsupportedOperationException</p>
+<p>      override def get(): T = Await.result(future, Duration.Inf)</p>
+<p>      override def get(timeout: Long, unit: TimeUnit): T = Await.result(future, Duration.create(timeout, unit))</p>
+<p>      override def cancel(mayInterruptIfRunning: Boolean): Boolean = throw new UnsupportedOperationException</p>
+<p>      override def isDone: Boolean = future.isCompleted</p>
+<p>      override def originalFuture: Future[T] = future<br />
+    }<br />
+  }<br />
+}</p>
+<p>class JavaToScalaFuture[T](f: JFuture[T]) {<br />
+  def toScalaFuture(): Future[T] = {<br />
+    f match {<br />
+      case lf: ListenableFuture[T] =&gt; {<br />
+        val p = Promise[T]<br />
+        Futures.addCallback(lf, new FutureCallback[T]() {<br />
+          def onSuccess(t: T): Unit = {<br />
+            p.success(t)<br />
+          }</p>
+<p>          def onFailure(t: Throwable): Unit = p.failure(t)<br />
+        })<br />
+        p.future<br />
+      }</p>
+<p>      // if the java future is actually a scala converted future, return the raw future<br />
+      // bypassing the extra thread creation<br />
+      case p: ScalaConvertedFuture[T] =&gt; {<br />
+        p.originalFuture<br />
+      }</p>
+<p>      case p: JFuture[T] =&gt; {<br />
+        val wrappedPromise = Promise[T]()<br />
+        new Thread(new Runnable {<br />
+          override def run(): Unit = {<br />
+            wrappedPromise.complete(Try {<br />
+              p.get<br />
+            })<br />
+          }<br />
+        }).start()</p>
+<p>        wrappedPromise.future<br />
+      }</p>
+<p>      case _ =&gt; throw new IllegalArgumentException(&quot;Only instances of ListenableFuture may be transformed to scala futures.&quot;)<br />
+    }<br />
+  }<br />
+}<br />
+[/code]</p>
+<p>[code]</p>
+<p>object CallInterceptor {<br />
+  /**<br />
+   * An interceptor that does doesn't proxy<br />
+   */<br />
+  def passThrough[T: Manifest]: CallInterceptor[T] = new CallInterceptor[T] {<br />
+    override def createProxy(source: T): T = source</p>
+<p>    override def execute[Response](methodName: String, f: =&gt; Response) = f</p>
+<p>    override def execute[Response](methodName: String, f: =&gt; Future[Response]) = f<br />
+  }<br />
+}</p>
+<p>abstract class CallInterceptor[T: Manifest] {<br />
+  def createProxy(source: T): T = {<br />
+    val clazz = manifest[T].runtimeClass<br />
+    JProxy.newProxyInstance(<br />
+      clazz.getClassLoader,<br />
+      Array(clazz),<br />
+      new InvocationHandler {<br />
+        override def invoke(proxy: scala.Any, method: Method, args: Array[AnyRef]): AnyRef = {<br />
+          try {<br />
+            method.getReturnType match {<br />
+              case m if m == classOf[JFuture[_]] =&gt;<br />
+                val javaFuture = method.invoke(source, args: _*).asInstanceOf[JFuture[_]]</p>
+<p>                execute(method.getName, javaFuture.toScalaFuture()).toJavaFuture<br />
+              case m if m == classOf[Future[_]] =&gt;<br />
+                execute(method.getName, method.invoke(source, args: _*).asInstanceOf[Future[_]])<br />
+              case _ =&gt;<br />
+                execute(method.getName, method.invoke(source, args: _*))<br />
+            }<br />
+          } catch {<br />
+            // Rethrow the original exception<br />
+            case NonFatal(e) if e.getCause != null =&gt; throw e.getCause<br />
+            case NonFatal(e) =&gt; throw e<br />
+          }<br />
+        }<br />
+      }).asInstanceOf[T]<br />
+  }</p>
+<p>  def execute[Response](methodName: String, f: =&gt; Response): Response</p>
+<p>  def execute[Response](methodName: String, f: =&gt; Future[Response]): Future[Response]<br />
+}<br />
+[/code]</p>

@@ -1,0 +1,62 @@
+---
+layout: post
+title: Short and sweet powershell prompt with posh-git
+date: 2014-07-09 18:58:33.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Snippets
+tags:
+- git
+- powershell
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561303870;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4892;}i:1;a:1:{s:2:"id";i:4631;}i:2;a:1:{s:2:"id";i:4699;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2014/07/09/short-sweet-powershell-prompt-posh-git/"
+---
+<p>My company has fully switched to git and it's been great.  Most people at work use SourceTree as a gui to manage their git workflow, some use only command line, and I use a mixture of posh-git in powershell with tortoise git when I need to visualize things.</p>
+<p>Posh-git, if you load the <a href="https://github.com/dahlbyk/posh-git/blob/master/profile.example.ps1" target="_blank" rel="noopener noreferrer">example</a> from your profile, will set the default prompt to be the current path. If you go into a git directory it'll also add the git status.  Awesome. But if you are frequently in directories that are 10+ levels deep, suddenly your prompt is just obscenely long.</p>
+<p>For example, this is pretty useless right?</p>
+<p><img src="http://onoffswitch.net/wp-content/uploads/2014/07/2014-07-09-11_53_20-.png" alt="2014-07-09 11_53_20-" width="947" height="174" class="aligncenter size-full wp-image-4530" /></p>
+<p>Obviously it's a fictitious path, but sometimes you run into them, and it'd be nice to optionally shorten that up.  </p>
+<p>It's easy to define a shortPwd function and expose a global "MAX_PATH" variable that can be reset.</p>
+<p>[code]<br />
+$MAX_PATH = 5</p>
+<p>function ShortPwd<br />
+{<br />
+    $finalPath = $pwd<br />
+    $paths = $finalPath.Path.Split('\')</p>
+<p>    if($paths.Length -gt $MAX_PATH){<br />
+        $start = $paths.Length - $MAX_PATH<br />
+        $finalPath = &quot;..&quot;<br />
+        for($i = $start; $i -le $paths.Length; $i++){<br />
+            $finalPath = $finalPath + &quot;\&quot; + $paths[$i]<br />
+        }<br />
+    }</p>
+<p>    return $finalPath<br />
+}<br />
+[/code]</p>
+<p>In the posh-git example, make sure to load your custom function first, then change </p>
+<p>[code]<br />
+Write-Host($pwd.ProviderPath) -nonewline<br />
+[/code]</p>
+<p>To</p>
+<p>[code]<br />
+Write-Host (ShortPwd) -nonewline -foregroundcolor green<br />
+[/code]</p>
+<p>(I like my prompt green)</p>
+<p>Now you can dynamically toggle the max length. I've set it to 5, but if you change it the prompt will immediately update:</p>
+<p><img src="http://onoffswitch.net/wp-content/uploads/2014/07/2014-07-09-11_57_40-poshgit-powershell_scripts-master-Admin.png" alt="2014-07-09 11_57_40-posh~git ~ powershell_scripts [master] (Admin)" width="526" height="167" class="aligncenter size-full wp-image-4531" /></p>
+<p>For this and other powershell scripts check out my <a href="https://github.com/devshorts/powershell_scripts" target="_blank" rel="noopener noreferrer">github</a>.</p>

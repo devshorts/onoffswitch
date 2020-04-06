@@ -1,0 +1,165 @@
+---
+layout: post
+title: Creating futures
+date: 2014-05-12 08:00:22.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- async
+- c#
+- design patterns
+- futures
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561421346;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4296;}i:1;a:1:{s:2:"id";i:3435;}i:2;a:1:{s:2:"id";i:3565;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2014/05/12/creating-futures/"
+---
+<p>Futures (and promises) are a fun and useful <a href="http://en.wikipedia.org/wiki/Futures_and_promises" target="_blank" rel="noopener noreferrer">design pattern</a> in that they help encapsulate asynchronous work into composable objects. That and they help hide away the actual asynchronous execution implementation.  It doesn't matter if the future is finally resolved on the threadpool, in a new thread, or in an event loop (like nodejs).</p>
+<p>Asynchronous work wrapped in futures has garnered a lot of attention in the javascript world since they alleviate the heavy use of nested callbacks to return a final result.  But futures aren't limited to just javascript, the C# async keyword is a form of a future, Java has a futures class, and a lot of other languages have the ability to use futures.  </p>
+<p>In order to to demystify the concept of Futures lets build own version.  Futures aren't hard to implement, even when you have a language that doesn't have them built in (or if you are on the .NET micro without async or Tasks).  All we need to do is encapsulate a lambda and create an API that lets us chain deferred futures together.  Lets look at a final unit test to demonstrate what we're trying to accomplish. </p>
+<p>[csharp]<br />
+private void TestFutureImpl()<br />
+{<br />
+    int count = 0;</p>
+<p>    Func&lt;int&gt; action = () =&gt;<br />
+    {<br />
+        Console.WriteLine(&quot;Running &quot; + count);<br />
+        Thread.Sleep(TimeSpan.FromMilliseconds(count * 1000));<br />
+        Console.WriteLine(&quot;Resolving &quot; + count);</p>
+<p>        count++;<br />
+        return count;<br />
+    };</p>
+<p>    var future = new NewThreadFuture&lt;int&gt;(action).Then(action).Then(action);</p>
+<p>    Console.WriteLine(&quot;All setup, nonblock but now wait&quot;);</p>
+<p>    Thread.Sleep(TimeSpan.FromSeconds(2));</p>
+<p>    Console.WriteLine(&quot;Requesting result&quot;);</p>
+<p>    var result = future.Resolve();</p>
+<p>    Assert.AreEqual(3, result);<br />
+}<br />
+[/csharp]</p>
+<p>With an output of </p>
+<p>[csharp]<br />
+All setup, nonblock but now wait<br />
+Running 0<br />
+Resolving 0<br />
+Running 1<br />
+Resolving<br />
+Running<br />
+Requesting result<br />
+Resolving 2<br />
+[/csharp]</p>
+<p>You can see the deferred action waits for a certain period of time, so it could take some time to complete.  But, with our future we can encapsulate this work, compose two other futures (that will evaluate after the first is complete), and finally when we <em>ask</em> for the result it will either block until its done, or immediately return the result if it was evaluated.</p>
+<p>For my purposes, I wrote an eager evaluated futures class, this means that once the future is instantiated it immediately starts to try and execute.  The upside to this is that the result is available sooner, the downside is that if nobody requests the result you did work you didn't have to.</p>
+<p>Lets take a look at what's really going on. Here is the basic skeleton of the future.  I wrap the passed in function in another function that is responsible for exception handling, as well as notifying whoever else is listening that the action completed (by setting a manual rest event mutex).  The other function is responsible for either waiting for the mutex to complete, or returning the completed result.  Subclasses can implement the <code>Execute</code> method which would just either run the wrapped method in a new thread, or run it in a thread pool. It honestly doesn't matter how its executed, it can even be run synchronously if you wanted to!</p>
+<p>[csharp]<br />
+public abstract class Future&lt;T&gt;<br />
+{<br />
+    private bool _isComplete;</p>
+<p>    private ManualResetEvent _mutex = new ManualResetEvent(false);</p>
+<p>    private Exception _ex;</p>
+<p>    private readonly object _lock = new object();</p>
+<p>    private T _result;</p>
+<p>    public Future(Func&lt;T&gt; function)<br />
+    {<br />
+        Execute(Wrapped(function));<br />
+    }</p>
+<p>    protected abstract void Execute(Action wrapped);</p>
+<p>    private Action Wrapped(Func&lt;T&gt; function)<br />
+    {<br />
+        return () =&gt;<br />
+        {<br />
+            try<br />
+            {<br />
+                _result = function();</p>
+<p>                lock (_lock)<br />
+                {<br />
+                    _isComplete = true;<br />
+                }<br />
+            }<br />
+            catch (Exception ex)<br />
+            {<br />
+                _ex = ex;<br />
+            }<br />
+            finally<br />
+            {<br />
+                _mutex.Set();<br />
+            }<br />
+        };<br />
+    }</p>
+<p>    public T Resolve()<br />
+    {<br />
+        lock (_lock)<br />
+        {<br />
+            if (_isComplete)<br />
+            {<br />
+                return _result;<br />
+            }<br />
+        }</p>
+<p>        _mutex.WaitOne();</p>
+<p>        if (_ex != null)<br />
+        {<br />
+            throw _ex;<br />
+        }</p>
+<p>        return _result;<br />
+    }</p>
+<p>    // ....<br />
+[/csharp] </p>
+<p>Now lets look at how to compose futures.  The idea is you have one future, and the next future won't run until the first is complete.  You can either pass in the result of the first future, or just run another action (with no input).  From the users perspective you get one future that represents the result of all the composed actions.  All we need to do is to create a new lambda that first resolves the previous one (via the closure), then executes the next one, all wrapped in a new future!</p>
+<p>[csharp]<br />
+public abstract Future&lt;T&gt; Then(Func&lt;T&gt; next);</p>
+<p>protected Func&lt;T&gt; ThenWithoutResult(Func&lt;T&gt; next)<br />
+{<br />
+    return () =&gt;<br />
+    {<br />
+        Resolve();</p>
+<p>        return next();<br />
+    };<br />
+}</p>
+<p>protected Func&lt;Y&gt; ThenWithResult&lt;Y&gt;(Func&lt;T, Y&gt; next)<br />
+{<br />
+    return () =&gt;<br />
+    {<br />
+        var previousResult = Resolve();</p>
+<p>        return next(previousResult);<br />
+    };<br />
+}</p>
+<p>public abstract Future&lt;Y&gt; Then&lt;Y&gt;(Func&lt;T, Y&gt; next);<br />
+[/csharp]</p>
+<p>Look at the implementation of one of the subclasses:</p>
+<p>[csharp]<br />
+public class NewThreadFuture&lt;T&gt; : Future&lt;T&gt;<br />
+{<br />
+    public NewThreadFuture(Func&lt;T&gt; function) : base(function)<br />
+    {<br />
+    }</p>
+<p>    protected override void Execute(Action wrapped)<br />
+    {<br />
+        var runner = new Thread(new ThreadStart(wrapped));</p>
+<p>        runner.Start();<br />
+    }</p>
+<p>    public override Future&lt;T&gt; Then(Func&lt;T&gt; next)<br />
+    {<br />
+        return new NewThreadFuture&lt;T&gt;(ThenWithoutResult(next));<br />
+    }</p>
+<p>    public override Future&lt;Y&gt; Then&lt;Y&gt;(Func&lt;T, Y&gt; next)<br />
+    {<br />
+        return new NewThreadFuture&lt;Y&gt;(ThenWithResult(next));<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>Simple!  Now we can create asynchronous actions (remember that asynchronous just means nonblocking, but they are IN ORDER), and represent the entire workflow with a single future object.  From an implementors perspective we can now also control how we execute the actions, whether on the threadpool or on new threads (or we can add other mechanisms if we want).  This is because the future base class handles all the resolving synchronization making sure everything happens in order (just non-blocking).</p>
+<p>For full source, check out my <a href="https://github.com/devshorts/Playground/tree/master/Futures/Futures" target="_blank" rel="noopener noreferrer">github</a>.</p>

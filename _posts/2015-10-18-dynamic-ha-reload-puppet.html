@@ -1,0 +1,265 @@
+---
+layout: post
+title: Dynamic HAProxy configs with puppet
+date: 2015-10-18 20:48:30.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- haproxy
+- ops
+- puppet
+- ruby
+- salt
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560772678;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4699;}i:1;a:1:{s:2:"id";i:4673;}i:2;a:1:{s:2:"id";i:2985;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2015/10/18/dynamic-ha-reload-puppet/"
+---
+<p>I've posted a little about puppet and our teams ops in the past since my team has pretty heavily invested in the dev portion of the ops role.  Our initial foray into ops included us building a pretty basic puppet role based system which we use to coordinate docker deployments of our java services. </p>
+<p>We use HAProxy as our software load balancer and the v1 of our infrastructure managment had us versioning a hardcoded haproxy.cfg for each environment and pushing out that config when we want to add or remove machines from the load balancer. It works, but it has a few issues</p>
+<ol>
+<li>Cluster swings involve checking into github. This pollutes our version history with a bunch of unnecessary toggling</li>
+<li>Difficult to automate swings since its flat file config driven and requires the config to be pushed out from puppet</li>
+</ol>
+<p>Our team did a little brainstorming and came up with a nice solution which is to data drive it from some sort of json blob.  By abstracting who provides the json blob and just building out our ha proxy config from structured data we can move to an API to serve this up for us.  Step one was to replace our haproxy.conf with some sort of flat file json. The workflow we have isn't changing, but its setting us up for success. Step two is to tie in something like consul to provide the json for us. </p>
+<p>The first thing we need to do to support this is get puppet to know how to load up json from either a file or from an api. To do that we built an extra puppet custom function which we put into our <code>/etc/puppet/modules/custom/lib/puppet/functions</code> folder:</p>
+<p>[ruby]<br />
+require 'json'<br />
+require 'rest-client'</p>
+<p>module Puppet::Parser::Functions<br />
+  newfunction(:json_provider, :type =&gt; :rvalue) do |args|</p>
+<p>    begin<br />
+      url=args[0]</p>
+<p>      info(&quot;Getting json from url #{url}&quot;)</p>
+<p>      if File.exists?(url)<br />
+        raw_json = File.read(url)<br />
+      else<br />
+        raw_json = RestClient.get(url)<br />
+      end</p>
+<p>      data = JSON.parse(raw_json)</p>
+<p>      info(&quot;Got json #{data}&quot;)</p>
+<p>      data<br />
+    rescue Exception =&gt; e<br />
+      warning(&quot;Error accessing url #{url} from args '#{args}' with exception #{e}&quot;)</p>
+<p>      raise Puppet::ParseError, &quot;Error getting value from url #{url} exception #{e}&quot;<br />
+    end<br />
+  end<br />
+end<br />
+[/ruby]</p>
+<p>And we need to make sure the puppetmaster knows where all its gems are so we we've added</p>
+<p>[code]<br />
+ if ! defined(Package['json']) {<br />
+    package { 'json':<br />
+      ensure   =&gt; installed,<br />
+      provider =&gt; 'gem'<br />
+    }<br />
+  }</p>
+<p>  if ! defined(Package['rest-client']) {<br />
+    package { 'rest-client':<br />
+      ensure   =&gt; installed,<br />
+      provider =&gt; 'gem'<br />
+    }<br />
+  }<br />
+[/code]</p>
+<p>To our puppet master role .pp.</p>
+<p>At this point we can define what our ha proxy json file would look like. A sample structure that we've settled on looks like this:</p>
+<p>[code]<br />
+{<br />
+  &quot;frontends&quot;: [<br />
+    {<br />
+      &quot;name&quot;: &quot;main&quot;,<br />
+      &quot;bind&quot;: &quot;*&quot;,<br />
+      &quot;port&quot;: 80,<br />
+      &quot;default_backend&quot;: &quot;app&quot;<br />
+    },<br />
+    {<br />
+      &quot;name&quot;: &quot;legacy&quot;,<br />
+      &quot;bind&quot;: &quot;*&quot;,<br />
+      &quot;port&quot;: 8080,<br />
+      &quot;default_backend&quot;: &quot;app&quot;<br />
+    }<br />
+  ],<br />
+  &quot;backends&quot;: [<br />
+    {<br />
+      &quot;name&quot;: &quot;app&quot;,<br />
+      &quot;options&quot;: [<br />
+        &quot;balance roundrobin&quot;<br />
+      ],<br />
+      &quot;servers&quot;: [<br />
+        {<br />
+          &quot;name&quot;: &quot;api1&quot;,<br />
+          &quot;host&quot;: &quot;api1.cloud.dev:8080&quot;,<br />
+          &quot;option&quot;: &quot;check&quot;<br />
+        },<br />
+        {<br />
+          &quot;name&quot;: &quot;api2&quot;,<br />
+          &quot;host&quot;: &quot;api1.cloud.dev:8080&quot;,<br />
+          &quot;option&quot;: &quot;check&quot;<br />
+        }<br />
+      ]<br />
+    }<br />
+  ]<br />
+}<br />
+[/code]</p>
+<p>Using this structure we can dynamically build out our haproxy.conf using ruby's erb templating that puppet hooks into. Below is our ha proxy erb template. It assumes that <code>@config</code> is in the current scope which should be a json object in the puppet file.  While the config is pretty basic, we don't use any ACLs or too many custom options, we can always tweak the base haproxy config or add more metadata to our json structure to support more options.</p>
+<p>[ruby]<br />
+#---------------------------------------------------------------------<br />
+# Example configuration for a possible web application.  See the<br />
+# full configuration options online.<br />
+#<br />
+#   http://haproxy.1wt.eu/download/1.4/doc/configuration.txt<br />
+#<br />
+#---------------------------------------------------------------------</p>
+<p>#---------------------------------------------------------------------<br />
+# Global settings<br />
+#---------------------------------------------------------------------<br />
+global<br />
+    # to have these messages end up in /var/log/haproxy.log you will<br />
+    # need to:<br />
+    #<br />
+    # 1) configure syslog to accept network log events.  This is done<br />
+    #    by adding the '-r' option to the SYSLOGD_OPTIONS in<br />
+    #    /etc/sysconfig/syslog<br />
+    #<br />
+    # 2) configure local2 events to go to the /var/log/haproxy.log<br />
+    #   file. A line like the following can be added to<br />
+    #   /etc/sysconfig/syslog<br />
+    #<br />
+    #    local2.*                       /var/log/haproxy.log<br />
+    #<br />
+    log         127.0.0.1 local2</p>
+<p>    chroot      /var/lib/haproxy<br />
+    pidfile     /var/run/haproxy.pid<br />
+    maxconn     4000<br />
+    user        haproxy<br />
+    group       haproxy<br />
+    daemon</p>
+<p>    # turn on stats unix socket<br />
+    stats socket /var/lib/haproxy/stats level admin</p>
+<p>#---------------------------------------------------------------------<br />
+# common defaults that all the 'listen' and 'backend' sections will<br />
+# use if not designated in their block<br />
+#---------------------------------------------------------------------<br />
+defaults<br />
+    mode                    http<br />
+    log                     global<br />
+    option                  httplog<br />
+    option                  dontlognull<br />
+    option http-server-close<br />
+    option forwardfor       except 127.0.0.0/8<br />
+    option                  redispatch<br />
+    retries                 3<br />
+    timeout http-request    10s<br />
+    timeout queue           1m<br />
+    timeout connect         10s<br />
+    timeout client          1m<br />
+    timeout server          1m<br />
+    timeout http-keep-alive 10s<br />
+    timeout check           10s<br />
+    maxconn                 3000</p>
+<p>listen stats :1936<br />
+    mode http<br />
+    stats enable<br />
+    stats hide-version<br />
+    stats realm Haproxy\ Statistics<br />
+    stats uri /<br />
+    stats auth admin:password<br />
+#---------------------------------------------------------------------<br />
+# main frontend which proxys to the backends<br />
+#---------------------------------------------------------------------<br />
+&lt;% @config[&quot;frontends&quot;].each do |frontend| %&gt;<br />
+frontend  &lt;%= frontend[&quot;name&quot;] %&gt; &lt;%= frontend[&quot;bind&quot;] %&gt;:&lt;%= frontend[&quot;port&quot;] %&gt;<br />
+    default_backend             &lt;%= frontend[&quot;default_backend&quot;] %&gt;<br />
+&lt;% end %&gt;<br />
+#---------------------------------------------------------------------<br />
+# backends<br />
+#---------------------------------------------------------------------</p>
+<p>&lt;% @config[&quot;backends&quot;].each do |backend| %&gt;<br />
+backend &lt;%= backend[&quot;name&quot;] %&gt;<br />
+    &lt;%- if backend[&quot;options&quot;] != nil -%&gt;<br />
+        &lt;%- backend[&quot;options&quot;].each do |option| -%&gt;<br />
+    &lt;%= option %&gt;<br />
+        &lt;%- end -%&gt;<br />
+    &lt;%- end -%&gt;<br />
+    &lt;%- backend[&quot;servers&quot;].each do |server| -%&gt;<br />
+    server  &lt;%= server[&quot;name&quot;] %&gt; &lt;%= server[&quot;host&quot;] %&gt; &lt;%= server[&quot;option&quot;] %&gt;<br />
+    &lt;%- end -%&gt;<br />
+&lt;% end %&gt;<br />
+[/ruby]</p>
+<p>This builds out a simple set of named frontends that point to a set of backends. We can populate backends for the different swing configurations (A cluster, B cluster, etc) and then toggle the default frontend to swing.</p>
+<p>But, we still have to provide for a graceful reload. There is <a href="http://engineeringblog.yelp.com/2015/04/true-zero-downtime-haproxy-reloads.html">a lot</a> of <a href="http://serverfault.com/questions/580595/haproxy-graceful-reload-with-zero-packet-loss">documentation</a> out there on this, but the gist is that you want to cause clients to retry under the hood while you restart, so that the actual requester of the connection doesn't notice a blip in service.  To do that we can leverage the codified structure as well with another template</p>
+<p>[ruby]<br />
+#!/bin/bash</p>
+<p># hold/pause new requests<br />
+&lt;% @config[&quot;frontends&quot;].each do |frontend| %&gt;<br />
+/usr/sbin/iptables -I INPUT -p tcp --dport &lt;%= frontend[&quot;port&quot;] %&gt; --syn -j DROP<br />
+&lt;% end %&gt;</p>
+<p>sleep 1</p>
+<p># gracefully restart haproxy<br />
+/usr/sbin/haproxy -f /etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid -sf $(cat /var/run/haproxy.pid)</p>
+<p># allow new requests to come in again<br />
+&lt;% @config[&quot;frontends&quot;].each do |frontend| %&gt;<br />
+/usr/sbin/iptables -D INPUT -p tcp --dport  &lt;%= frontend[&quot;port&quot;] %&gt; --syn -j DROP<br />
+&lt;% end %&gt;<br />
+[/ruby]</p>
+<p>This inserts a rule for each frontend port to drop SYN packets silenty. SYN is the first packet type used in the <a href="https://en.wikipedia.org/wiki/Transmission_Control_Protocol#Connection_establishment">tcp 3 way handshake</a> and by dropping it the client will retry a few times <a href="http://www.streppone.it/cosimo/blog/2011/07/how-to-detect-tcp-retransmit-timeouts-in-your-network/">after some interval</a> to reconnect.  This does mean the initial client will experience a slight delay, but their request will go through vs getting completely dropped.</p>
+<p>Now our final haproxy.pp file looks like</p>
+<p>[code]<br />
+class custom::loadbalancers::dynamic_ha(<br />
+  $load_balance_path = undef,<br />
+  $identity = undef # a unique seed to make sure the haproxy reloads dont stomp<br />
+)<br />
+{</p>
+<p>  if $load_balance_path  == undef {<br />
+    fail 'Pass in a load balance source path. Can be either a file on disk or a GET json url'<br />
+  }</p>
+<p>  if $identity == undef {<br />
+    fail &quot;Identity for ha should be unique and set. This creates a temp file for reloading the haproxy gracefully&quot;<br />
+  }</p>
+<p>  package { 'haproxy':<br />
+    ensure =&gt; installed<br />
+  } -&gt;</p>
+<p>  service { 'haproxy':<br />
+    enable =&gt; true,<br />
+    ensure =&gt; running,<br />
+  }  -&gt;</p>
+<p>  package { 'haproxyctl':<br />
+    ensure    =&gt; installed,<br />
+    provider  =&gt; &quot;gem&quot;<br />
+  }</p>
+<p>  $config = json_provider($load_balance_path)</p>
+<p>  $rand = fqdn_rand(1000, $identity)</p>
+<p>  $file = &quot;/tmp/$identity-ha-reload.sh&quot;</p>
+<p>  file { '/etc/haproxy/haproxy.cfg':<br />
+    ensure   =&gt; present,<br />
+    mode     =&gt; 644,<br />
+    notify   =&gt; Exec['hot-reload'],<br />
+    content  =&gt; template(&quot;custom/app/ha.conf.erb&quot;)<br />
+  }</p>
+<p>  file { $file:<br />
+    content  =&gt; template(&quot;custom/app/ha_reload.conf.erb&quot;),<br />
+    mode     =&gt; 0755<br />
+  } -&gt;<br />
+  exec { 'hot-reload' :<br />
+    require     =&gt; File[$file],<br />
+    command     =&gt; $file,<br />
+    path        =&gt; &quot;/usr/bin:/usr/sbin&quot;,<br />
+    refreshonly =&gt; true<br />
+  }<br />
+}<br />
+[/code]</p>
+<p>With this, we can now drive everything from either a json file, or from a GET rest endpoint that provides JSON.  We're planning on using consul as a simple key value store with an api to be able to drive the json payload.  At that point our swings get the current json configuration, change the default endpoint for the frontned, post it back, and issue a puppet command to the ha proxies via salt nodegroups and we're all good!</p>

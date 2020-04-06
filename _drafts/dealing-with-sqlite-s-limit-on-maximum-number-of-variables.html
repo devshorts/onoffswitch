@@ -1,0 +1,114 @@
+---
+layout: post
+title: Dealing with SQLite's limit on maximum number of variables
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: draft
+categories: []
+tags:
+- c#
+- SQLite
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_title: ''
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/"
+---
+<p>SQLite and other database engines allow you to construct a sql clause searching for all items in a range, looking something like:</p>
+<p>[sql]<br />
+SELECT * From Table<br />
+Where TableItems In (1, 2, 3, 4);<br />
+[/sql]</p>
+<p>This is great since now you can pull a bunch of elements back in a single SQL call, minimizing the time spent doing work on disk.  The fewer SQL calls you can make the better, so its best to pull a lot at once. But, careless coding can lead to building SQL like this:</p>
+<p>[csharp]<br />
+List&lt;Users&gt; GetUsers(List&lt;int&gt; userIds)<br />
+{<br />
+    var sql = @&quot;SELECT * From USERS where UserID IN (&quot; + userIds.ToCommaList() + &quot;)&quot;;<br />
+    return GetData.ExecuteSql(sql);<br />
+}<br />
+[/csharp]</p>
+<p>Looks fine, but what happens as your software grows and now that passed in list of <code>userIds</code> gets pretty big?  Unforutnately SQLite has a default limitation on the <a href="http://www.sqlite.org/limits.html">maximum number</a> of variables that a SQL statement can have, and if you encounter this you'll get this fun message</p>
+<blockquote><p>
+too many SQL variables
+</p></blockquote>
+<p>So what do we do? You may think to loop over your sql calls and do it one by one, but that'll just slow things down considerably. You could increase the default parameter limit in sqlite (<code>SQLITE_MAX_VARIABLE_NUMBER</code>), but that also comes at the risk of using more memory since that limit is there for a reason:</p>
+<blockquote><p>To prevent excessive memory allocations, the maximum value of a host parameter number is SQLITE_MAX_VARIABLE_NUMBER, defaults to 999</p></blockquote>
+<p>A simple solution if all you are doing is pulling back data using "IN" statements and if you don't need any dependent data (such as where clauses relating to data you are pulling back) is to break the call up into separate calls. So you can do </p>
+<p>[sql]SELECT * From Tables Where Items IN (1-100)[/sql]</p>
+<p>and then add the result of that to</p>
+<p>[sql]SELECT * From Tables Where Items IN (101-200)[/sql]</p>
+<p>etc.</p>
+<p>I wanted to generalize this and wrap all my basic sql getters in something that could do this for me. The idea was I wanted something like this</p>
+<p>[csharp]var totalList = BuildAndAppend(SourceList, (subset) =&gt; ReturnsListUsingDataFromSubset(subset));[/csharp]</p>
+<p><code>SourceList</code> could be anything, for example it could be a List of TableItems (sticking with the generic example).  The ReturnListFunction would take a <code>List</code> and return lets say a list of Table objects.  The build and append would be responsible for stitching it all together.  This way we've seperated out the problem from our internal storage calls so we don't have to worry about this when writing the SQL.</p>
+<p>Here is the BuildAndAppend function</p>
+<p>[csharp]<br />
+/// &lt;summary&gt;<br />
+/// Passes max items from the source subset to the supplied builder function<br />
+/// and aggregates the results<br />
+/// &lt;/summary&gt;<br />
+/// &lt;typeparam name=&quot;T&quot;&gt;&lt;/typeparam&gt;<br />
+/// &lt;typeparam name=&quot;Y&quot;&gt;&lt;/typeparam&gt;<br />
+/// &lt;param name=&quot;source&quot;&gt;&lt;/param&gt;<br />
+/// &lt;param name=&quot;builder&quot;&gt;&lt;/param&gt;<br />
+/// &lt;param name=&quot;max&quot;&gt;&lt;/param&gt;<br />
+/// &lt;returns&gt;&lt;/returns&gt;<br />
+public static List&lt;T&gt; BuildAndAppend&lt;T, Y&gt;(List&lt;Y&gt; source, Func&lt;List&lt;Y&gt;, List&lt;T&gt;&gt; builder, int max = 900)<br />
+{<br />
+    if (source.Count() &lt; max)<br />
+    {<br />
+        return builder(source);<br />
+    }</p>
+<p>    // create a local copy of the list so to not modify the original<br />
+    var list = new List&lt;Y&gt;(source);</p>
+<p>    // create a list to store the resulting set<br />
+    var items = new List&lt;T&gt;(source.Count());</p>
+<p>    // take up to the first max items<br />
+    var subItems = list.TakeAndRemove(max).ToList();</p>
+<p>    // while we have pending items, keep building new ones and<br />
+    // append to the resulting list<br />
+    while (subItems.Count() &gt; 0)<br />
+    {<br />
+        items.AddRange(builder(subItems));</p>
+<p>        subItems = list.TakeAndRemove(max).ToList();<br />
+    }</p>
+<p>    return items;<br />
+}<br />
+[/csharp]</p>
+<p>It uses an extension method called <code>TakeAndRemove</code> that is this:</p>
+<p>[csharp]<br />
+public static IEnumerable&lt;T&gt; TakeAndRemove&lt;T&gt;(this List&lt;T&gt; source, int val)<br />
+{<br />
+    if(source.Count() &lt; val)<br />
+    {<br />
+        var copy = source.ToList();<br />
+        source.Clear();<br />
+        return copy;<br />
+    }</p>
+<p>    var found = source.Take(val).ToList();<br />
+    source.RemoveRange(0, found.Count() - 1);<br />
+    return found;<br />
+}<br />
+[/csharp]</p>
+<p>As a final example, assume we have a function like</p>
+<p>[csharp]<br />
+public List&lt;Tables&gt; GetTables(List&lt;TableItems&gt; sourceItems)<br />
+{<br />
+    var sql = &quot;SELECT * From Tables where TableItems IN  ( &quot; + GetTableItemIdsAsParameters(sourceItems) + &quot;)&quot;;<br />
+    return BuildListFromSql(sql);<br />
+}<br />
+[/csharp]</p>
+<p>Which by itself returns to you a list of tables based on the id's of the source table items.  Then we can use our new <code>BuildAndAppend</code> function like this without having to worry about how large the table items list is</p>
+<p>[csharp]<br />
+List&lt;Tables&gt; tables = BuildAndAppend(sourceItems, GetTables);<br />
+[/csharp]</p>
+<p>While this does work, the best solution for this problem would be to understand your dataset and to make sure you aren't pulling back more than you need to. But if you do need to pull back in clause sql with over 999 items then you can use this function to do it in large chunks. This certainly beats looping 999+ times and allows your application to not crash if it does encounter large sets.</p>

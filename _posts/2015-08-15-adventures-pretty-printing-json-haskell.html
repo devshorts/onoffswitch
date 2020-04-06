@@ -1,0 +1,198 @@
+---
+layout: post
+title: Adventures in pretty printing JSON in haskell
+date: 2015-08-15 22:13:11.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- aeson
+- haskell
+- json
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558720432;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4244;}i:1;a:1:{s:2:"id";i:4327;}i:2;a:1:{s:2:"id";i:4348;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2015/08/15/adventures-pretty-printing-json-haskell/"
+---
+<p>Today I gave atom haskell-ide a whirl and wanted to play with haskell a bit more. I've played with haskell in the past and always been put off by the tooling. To be fair, I still kind of am. I love the idea of the language but the tooling is just not there to make it an enjoyable exploratory experience. I spend half my time in the repl inspecting types, the other half on hoogle, and the 3rd half (yes I know) being frustrated that I can't just type in package names and explore API's in sublime or atom or wherever I am. Now that I'm on a mac, maybe I'll give leksah another try. I tried it a while ago it didn't work well.</p>
+<p>Anyways, I digress. Playing with haskell and I thought I'd try poking with Aeson, the JSON library.  Like Scala, you have to define your objects as json parseable/serializable (unlike java/c# which use runtime reflection).  Thankfully if you enable some language extensions its just a matter of adding <code>Generic</code> to your derives list and making sure the data type is of the <code>ToJSON</code> and <code>FromJSON</code> typeclasses. Mostly I was just copying the examples from <a href="https://www.fpcomplete.com/school/starting-with-haskell/libraries-and-frameworks/text-manipulation/json">here</a>.</p>
+<p>My sample class is </p>
+<p>[haskell]<br />
+{-# LANGUAGE DeriveGeneric #-}</p>
+<p>module Types where</p>
+<p>import Data.Aeson<br />
+import GHC.Generics</p>
+<p>data Person =<br />
+  Person  { firstName :: String<br />
+           ,lastName :: String<br />
+          } deriving(Show, Generic)</p>
+<p>instance ToJSON Person<br />
+instance FromJSON Person<br />
+[/haskell]</p>
+<p>And I just wanted to make a simple hello world where I'd read in some data, make my object, and print pretty json to the screen.  </p>
+<p>On my first try:</p>
+<p>[haskell]<br />
+import Data.Aeson<br />
+import Types</p>
+<p>process :: IO String<br />
+process = getLine</p>
+<p>main = do<br />
+  putStrLn &quot;First name&quot;<br />
+  firstName &lt;- process</p>
+<p>  putStrLn &quot;Last name&quot;<br />
+  lastName &lt;- process</p>
+<p>  let person = Person firstName lastName</p>
+<p>  print $ (encode person)</p>
+<p>  return ()<br />
+[/haskell]</p>
+<p>When I run <code>cabal build;cabal run</code> I now get</p>
+<p>[code]<br />
+First name<br />
+anton<br />
+Last name<br />
+kropp<br />
+&quot;{\&quot;lastName\&quot;:\&quot;kropp\&quot;,\&quot;firstName\&quot;:\&quot;anton\&quot;}&quot;<br />
+[/code]</p>
+<p>Certainly JSON, but I want it <em>pretty</em>.  I found <a href="https://hackage.haskell.org/package/aeson-pretty">aeson-pretty</a> and gave that a shot. Now I'm doing:</p>
+<p>[haskell]<br />
+import Data.Aeson<br />
+import Data.Aeson.Encode.Pretty<br />
+import Types</p>
+<p>process :: IO String<br />
+process = getLine</p>
+<p>main = do<br />
+  putStrLn &quot;First name&quot;<br />
+  firstName &lt;- process</p>
+<p>  putStrLn &quot;Last name&quot;<br />
+  lastName &lt;- process</p>
+<p>  let person = Person firstName lastName</p>
+<p>  print $ (encodePretty person)</p>
+<p>  return ()<br />
+[/haskell]</p>
+<p>And I got:</p>
+<p>[code]<br />
+First name<br />
+anton<br />
+Last name<br />
+kropp<br />
+&quot;{\n    \&quot;lastName\&quot;: \&quot;kropp\&quot;,\n    \&quot;firstName\&quot;: \&quot;anton\&quot;\n}&quot;<br />
+[/code]</p>
+<p>Hmm. I can see that it <em>should</em> be pretty, but it isn't.  How come?  Lets check out the types:</p>
+<p>[haskell]<br />
+Prelude &gt; import Data.Aeson<br />
+Prelude Data.Aeson &gt; :t encode<br />
+encode :: ToJSON a =&gt; a -&gt; Data.ByteString.Lazy.Internal.ByteString<br />
+[/haskell]</p>
+<p>Whats a lazy bytestring? </p>
+<p>Well, from <a href="https://www.fpcomplete.com/school/to-infinity-and-beyond/pick-of-the-week/bytestring-bits-and-pieces">fpcomplete</a></p>
+<blockquote><p>ByteString provides a more efficient alternative to Haskell's built-in String which can be used to store 8-bit character strings and also to handle binary data</p></blockquote>
+<p>And the lazy one is the, well, lazy version.  Through some googling I find that the right way to print the bytestring is by using the "putStr" functions in the Data.ByteString package. But as a good functional programmer, I want to encapsulate that and basically make a useful function that given the json object I can get a plain ol happy string and decide how to print it later.</p>
+<p>I need to somehow make a lazy bytestring into a regular string. This leads me to this:</p>
+<p>[haskell]<br />
+getJson :: ToJSON a =&gt; a -&gt; String<br />
+getJson d = unpack $ decodeUtf8 $ BSL.toStrict (encodePretty d)<br />
+[/haskell]</p>
+<p>So I first evaluate the bytestring into a strict version (instead of lazy), then decode it to utf8, then unpack the text class into strings (apparenlty text is more efficient but more API's use String).</p>
+<p>[haskell]<br />
+Prelude &gt; :t toStrict<br />
+toStrict :: ByteString -&gt; Data.ByteString.Internal.ByteString</p>
+<p>Prelude &gt; :t decodeUtf8<br />
+decodeUtf8 :: Data.ByteString.Internal.ByteString -&gt; Text</p>
+<p>Prelude &gt; :t Data.Text.unpack<br />
+Data.Text.unpack :: Text -&gt; String<br />
+[/haskell]</p>
+<p>And now, finally:</p>
+<p>[haskell]<br />
+import Data.Aeson<br />
+import Data.Aeson.Encode.Pretty<br />
+import qualified Data.ByteString.Lazy as BSL<br />
+import Data.Text<br />
+import Data.Text.Encoding<br />
+import Types</p>
+<p>process :: IO String<br />
+process = getLine</p>
+<p>getJson :: ToJSON a =&gt; a -&gt; String<br />
+getJson d = unpack $ decodeUtf8 $ BSL.toStrict (encodePretty d)</p>
+<p>main = do<br />
+  putStrLn &quot;First name&quot;<br />
+  firstName &lt;- process</p>
+<p>  putStrLn &quot;Last name&quot;<br />
+  lastName &lt;- process</p>
+<p>  let person = Person firstName lastName</p>
+<p>  print $ getJson person</p>
+<p>  return ()<br />
+[/haskell]</p>
+<p>Which gives me</p>
+<p>[haskell]<br />
+First name<br />
+anton<br />
+Last name<br />
+kropp<br />
+&quot;{\n    \&quot;lastName\&quot;: \&quot;kropp\&quot;,\n    \&quot;firstName\&quot;: \&quot;anton\&quot;\n}&quot;<br />
+[/haskell]</p>
+<p>AGHH! Still!  Ok, more googling.  Google google google.  </p>
+<p>Last piece of the puzzle is that print is really <code>putStrLn . show</code></p>
+<p>[haskell]<br />
+Prelude &gt; let x = putStrLn . show<br />
+Prelude &gt; x &quot;foo\nbar&quot;<br />
+&quot;foo\nbar&quot;<br />
+[/haskell]</p>
+<p>And if we just do</p>
+<p>[haskell]<br />
+Prelude &gt; putStrLn &quot;foo\nbar&quot;<br />
+foo<br />
+bar<br />
+[/haskell]</p>
+<p>The missing ticket.  Finally all put together:</p>
+<p>[haskell]<br />
+import Data.Aeson<br />
+import Data.Aeson.Encode.Pretty<br />
+import qualified Data.ByteString.Lazy as BSL<br />
+import Data.Text<br />
+import Data.Text.Encoding<br />
+import Types</p>
+<p>process :: IO String<br />
+process = getLine</p>
+<p>getJson :: ToJSON a =&gt; a -&gt; String<br />
+getJson d = unpack $ decodeUtf8 $ BSL.toStrict (encodePretty d)</p>
+<p>main = do<br />
+  putStrLn &quot;First name&quot;<br />
+  firstName &lt;- process</p>
+<p>  putStrLn &quot;Last name&quot;<br />
+  lastName &lt;- process</p>
+<p>  let person = Person firstName lastName</p>
+<p>  putStrLn $ getJson person</p>
+<p>  return ()<br />
+[/haskell]</p>
+<p>Which gives me:</p>
+<p>[code]<br />
+$ cabal build; cabal run<br />
+Building sample-0.1.0.0...<br />
+Preprocessing executable 'sample' for sample-0.1.0.0...<br />
+[3 of 3] Compiling Main             ( src/Main.hs, dist/build/sample/sample-tmp/Main.o )<br />
+Linking dist/build/sample/sample ...<br />
+Preprocessing executable 'sample' for sample-0.1.0.0...<br />
+Running sample...<br />
+First name<br />
+anton<br />
+Last name<br />
+kropp<br />
+{<br />
+    &quot;lastName&quot;: &quot;kropp&quot;,<br />
+    &quot;firstName&quot;: &quot;anton&quot;<br />
+}<br />
+[/code]</p>
+<p>Source available at my <a href="https://github.com/devshorts/Playground/tree/master/haskell/aeson-tests">github</a></p>

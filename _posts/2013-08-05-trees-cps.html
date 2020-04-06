@@ -1,0 +1,218 @@
+---
+layout: post
+title: Trees and continuation passing style
+date: 2013-08-05 08:00:35.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+- Snippets
+tags:
+- c#
+- continuation passing
+- F#
+- graphs
+- tail recursion
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561472644;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2735;}i:1;a:1:{s:2:"id";i:3016;}i:2;a:1:{s:2:"id";i:4348;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/08/05/trees-cps/"
+---
+<p>For no reason in particular I decided to revisit tree traversal as a kind of <a href="http://en.wikipedia.org/wiki/Kata_(programming)" target="_blank" rel="noopener noreferrer">programming kata</a>.  There are two main kinds of tree traversal:</p>
+<ul>
+<li>Depth first - This is where you go all the way down a tree's branches first before bubbling up to do work. With a tree like below, you'd hit <code>c</code> before doing any work since it's the deepest part of the tree (assuming you iterated left first then right)
+<p>[code]<br />
+     a<br />
+    / \<br />
+   b   e<br />
+ /  \<br />
+c    d<br />
+[/code]</p>
+</li>
+<li>Breadth first - This is where you hit all the nodes at the level you're on before going further. So with the same tree, you'd hit a, then b, then e, then c and d.  </li>
+</ul>
+<p>Being as I actually hate tree traversal, and having to think about it, I decided that whatever I write better be extensible and clean.</p>
+<h2>Depth first</h2>
+<p>Here is a simple DFS traversal</p>
+<p>[csharp]<br />
+private List&lt;T&gt; DepthFirstFlatten&lt;T&gt;(T root, Func&lt;T, List&lt;T&gt;&gt; edgeFunction) where T : class<br />
+{<br />
+    if (root == null)<br />
+    {<br />
+        return null;<br />
+    }</p>
+<p>    var totalNodes = new List&lt;T&gt; { root };</p>
+<p>    var edges = edgeFunction(root);</p>
+<p>    if (edges != null &amp;&amp; edges.Any())<br />
+    {<br />
+        foreach (var edge in edges)<br />
+        {<br />
+            if (edge != null)<br />
+            {<br />
+                totalNodes.AddRange(DepthFirstFlatten(edge, edgeFunction));<br />
+            }<br />
+        }<br />
+    }</p>
+<p>    return totalNodes;<br />
+} </p>
+<p>[/csharp]</p>
+<p>In this case I'm just flattening the list and using a function to return all the edges. This way I can re-use the same depth algorithm for any kind of graph, not just a tree (assuming acyclic).  To handle cycles you would need to pass the total processed nodes as an accumulator and test if the current node was already processed and if so skip it. </p>
+<h2>Breadth first</h2>
+<p>For the BFS, it's very similar, except instead of using recursion it uses the standard iterative way of doing it with a queue:</p>
+<p>[csharp]<br />
+private List&lt;T&gt; BreadthFlatten&lt;T&gt;(T root, Func&lt;T, List&lt;T&gt;&gt; edgeFunction) where T : class<br />
+{<br />
+    var queue = new Queue&lt;T&gt;();</p>
+<p>    queue.Enqueue(root);</p>
+<p>    var allNodes = new List&lt;T&gt;();</p>
+<p>    while (queue.Any())<br />
+    {<br />
+        var head = queue.Dequeue();</p>
+<p>        if (head == null)<br />
+        {<br />
+            continue;<br />
+        }</p>
+<p>        allNodes.Add(head);</p>
+<p>        edgeFunction(head).ForEach(queue.Enqueue );<br />
+    }</p>
+<p>    return allNodes;<br />
+}<br />
+[/csharp]</p>
+<p>Same kind of deal here.  This one is nice because it's not limited by stack depth.  </p>
+<p>Also, for both traversals, if you wanted to you could pass in an action to do work each time a node was processed.  Here is an example using the following tree</p>
+<p>[code]<br />
+     1<br />
+    / \<br />
+   2   3<br />
+ /  \   \<br />
+4    5   6<br />
+[/code]</p>
+<p>Below is a small class representing a binary tree</p>
+<p>[csharp]<br />
+class Node&lt;T&gt;<br />
+{<br />
+    public Node(T data, Node&lt;T&gt; left = null, Node&lt;T&gt; right = null)<br />
+    {<br />
+        Item = data;<br />
+        Left = left;<br />
+        Right = right;<br />
+    }</p>
+<p>    public Node&lt;T&gt; Left { get; set; }<br />
+    public Node&lt;T&gt; Right { get; set; }</p>
+<p>    public T Item { get; set; }<br />
+}<br />
+[/csharp]</p>
+<p>And our unit test to print out the different traversal types</p>
+<p>[csharp]<br />
+[Test]<br />
+public void DepthFlatten()<br />
+{<br />
+    var tree = new Node&lt;int&gt;(1,<br />
+                            new Node&lt;int&gt;(2, new Node&lt;int&gt;(4), new Node&lt;int&gt;(5)),<br />
+                            new Node&lt;int&gt;(3, null, new Node&lt;int&gt;(6)));</p>
+<p>    Func&lt;Node&lt;int&gt;, List&lt;Node&lt;int&gt;&gt;&gt; extractor = node =&gt; new List&lt;Node&lt;int&gt;&gt; {node.Left, node.Right};</p>
+<p>    Console.WriteLine(&quot;Depth&quot;);<br />
+    DepthFirstFlatten(tree, extractor).ForEach(n =&gt; Console.WriteLine(n.Item));</p>
+<p>    Console.WriteLine(&quot;Breadth&quot;);<br />
+    BreadthFlatten(tree, extractor).ForEach(n =&gt; Console.WriteLine(n.Item)); ;<br />
+}<br />
+[/csharp]</p>
+<p>Which prints out:</p>
+<p>[code]<br />
+Depth<br />
+1<br />
+2<br />
+4<br />
+5<br />
+3<br />
+6</p>
+<p>Breadth<br />
+1<br />
+2<br />
+3<br />
+4<br />
+5<br />
+6<br />
+[/code]</p>
+<h2>DFS stack agnostic</h2>
+<p>We can even change the DFS to not use recursion in this case so that it's agnostic of how deep the tree is.  In this scenario, unlike the BFS, you'd use a stack instead of a queue.  This way you are pushing on the deepest nodes and then immediately processing them. This contrasts with the queue where you enqueue the deepest nodes but process the queue FIFO (first in first out), meaning you process all the nodes at the current depth first before moving to the next depth.</p>
+<p>[csharp]<br />
+private List&lt;T&gt; DepthFirstFlattenIterative&lt;T&gt;(T root, Func&lt;T, List&lt;T&gt;&gt; edgeFunction) where T : class<br />
+{<br />
+    var stack = new Stack&lt;T&gt;();</p>
+<p>    stack.Push(root);</p>
+<p>    var allNodes = new List&lt;T&gt;();</p>
+<p>    while (stack.Any())<br />
+    {<br />
+        var head = stack.Pop();</p>
+<p>        if (head == null)<br />
+        {<br />
+            continue;<br />
+        }</p>
+<p>        allNodes.Add(head);</p>
+<p>        var edges = edgeFunction(head);</p>
+<p>        edges.Reverse();</p>
+<p>        edges.ForEach(stack.Push);<br />
+    }</p>
+<p>    return allNodes;<br />
+}<br />
+[/csharp]</p>
+<p>The reverse is only there to be consistent with the left tree descent. Otherwise it goes down the right branch first. This spits out</p>
+<p>[csharp]<br />
+Depth iterative<br />
+1<br />
+2<br />
+4<br />
+5<br />
+3<br />
+6<br />
+[/csharp]</p>
+<h2>DFS with continuation passing</h2>
+<p>There is yet another way to do tree traversal that is common in functional languages. You can do what is called "continuation passing style". Doing it this way you can actually get tail recursive code while iterating over multiple tree branches.  </p>
+<p>Below is some F# code to count the number of nodes in a tree.  The tree I'm using as the sample looks like this</p>
+<p>[code]<br />
+       1<br />
+     /   \<br />
+   2      3<br />
+ /  \      \<br />
+4    5      6</p>
+<p>[/code]</p>
+<p>The total nodes here is 6, which is what you get with the code below.</p>
+<p>[fsharp]<br />
+open System</p>
+<p>type Tree =<br />
+    | Leaf of int<br />
+    | Node of int * Tree Option * Tree Option</p>
+<p>let countNodes tree =<br />
+    let rec countNodes' treeOpt cont =<br />
+        match treeOpt with<br />
+            | Some tree -&gt;<br />
+                match tree with<br />
+                | Leaf item -&gt; cont 1<br />
+                | Node (currentValue, left, right) -&gt;<br />
+                    countNodes' left (fun leftCount -&gt;<br />
+                                          countNodes' right (fun rightCount -&gt;<br />
+                                                                 cont(1 + leftCount + rightCount)))<br />
+            | None -&gt; cont 0</p>
+<p>    countNodes' tree id</p>
+<p>let leftBranch = Node(2, Some(Leaf(4)), Some(Leaf(5)))</p>
+<p>let rightBranch = Node(3, None, Some(Leaf(6)))</p>
+<p>let tree = Node(1, Some(leftBranch), Some(rightBranch))</p>
+<p>let treeNodeCount = countNodes (Some(tree))<br />
+[/fsharp]</p>
+<p>But what the hell is going on here? It's really not apparent when you first look at it what executes what and when.</p>
+<p>The trick here is to pass around a function to each iteration that closes over what the next work should be.  To be fair, its hard to wrap your mind around what is happening, so lets trace this out. I've highlighted each of the continuations and given them an alias so you can see how they are re-used elsewhere. Each time the continuation is called I also show the expanded form following the <code>-&gt;</code>.  </p>
+<p><a href="http://onoffswitch.net/wp-content/uploads/2013/04/2013-04-29-10_55_39-MarkdownPad-2.png" rel="attachment wp-att-3673"><img src="http://onoffswitch.net/wp-content/uploads/2013/04/2013-04-29-10_55_39-MarkdownPad-2-1024x328.png" alt="ContinuationPassing Trace" width="1024" height="328" class="alignnone size-large wp-image-3673" /></a></p>
+<p>You can see how each iteration captures the work to do next.  Eventually the very last work that needs to be done is the first function you passed in as the function seed. In this case, it's the built in <code>id</code> function that returns whatever value is given to it (which turns out to be 6, which is how many nodes are in the tree).  You can see the ordering of the traversal is the exact same as the other DFS traversals earlier, except this time everything is tail recursive.  </p>

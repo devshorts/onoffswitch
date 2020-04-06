@@ -1,0 +1,94 @@
+---
+layout: post
+title: Byte arrays, typed values, binary reader, and fwrite
+date: 2013-05-27 08:00:45.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- c#
+- endianess
+- x86
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561494804;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:1268;}i:1;a:1:{s:2:"id";i:4286;}i:2;a:1:{s:2:"id";i:4213;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/05/27/byte-arrays-values-binary-reader-fwrite/"
+---
+<p>I was trying to read a binary file created from a native app using the C# BinaryReader class but kept getting weird numbers. When I checked the hex in visual studio I saw that the bytes were backwards from what I expected, indicating endianess issues.  This threw me for a loop since I was writing the file from C++ on the same machine that I was reading the file in C# in.  Also, I wasn't sending any data over the network so I was a little confused. Endianess is usually an issue across machine architectures or over the network.</p>
+<p>The issue is that I ran into an endianess problem when writing values byte by byte, versus by using the actual data type of an object.  Let me demonstrate the issue</p>
+<p>What happens if I write 65297 (0xFF11) using C++</p>
+<p>[c]<br />
+#include &quot;stdafx.h&quot;<br />
+#include &quot;fstream&quot;</p>
+<p>int _tmain(int argc, _TCHAR* argv[])<br />
+{<br />
+	char buffer[] = { 0xFF, 0x11 };</p>
+<p>	auto _stream = fopen(&quot;test2.out&quot;,&quot;wb&quot;);</p>
+<p>	fwrite(buffer, 1, sizeof(buffer), _stream);</p>
+<p>	fclose(_stream);<br />
+}<br />
+[/c]</p>
+<p>And read it in using the following C# code</p>
+<p>[csharp]<br />
+public void ReadBinary()<br />
+{<br />
+    using (var reader = new BinaryReader(new FileStream(@&quot;test2.out&quot;, FileMode.Open)))<br />
+    {<br />
+        // read two bytes and print them out in hex<br />
+        foreach (var b  in reader.ReadBytes(2))<br />
+        {<br />
+            Console.Write(&quot;{0:X}&quot;, b);<br />
+        }</p>
+<p>        Console.WriteLine();</p>
+<p>        // go back to the beginning<br />
+        reader.BaseStream.Seek(0, SeekOrigin.Begin);</p>
+<p>        // read a two byte short and print it out in hex<br />
+        var val = reader.ReadUInt16();</p>
+<p>        Console.WriteLine(&quot;{0:X}&quot;, val);<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>What would you expect I get? You might think we get the same thing both times, a 16 bit unsigned integer (2 bytes) and reading two bytes from the file should be the same right? </p>
+<p>Actually, I got</p>
+<p>[code]<br />
+FF11 &lt;-- reading in two bytes<br />
+11FF &lt;-- reading in a two byte short<br />
+[/code]</p>
+<p>What gives?</p>
+<p>Turns out that since I'm on a little endian system (intel x86), when you read data as a typed structure it will always read little endian. The binary reader class in C# reads little endian, and fwrite in C++ will write little endian, as long as you aren't writing a value byte by byte.  </p>
+<p>When you write a value byte by byte it doesn't go through the correct endianess conversion. This means that you should make sure to use consistent write semantics. If you are going to write values byte by byte always write them byte by byte. If you are going to use typed data, always write with typed data. If you mix the write paradigms you can get into weird situations where some numbers are "big endian" (by writing it byte by byte), and some other values are little endian (by using typed data).</p>
+<p>Here's a good quote from the ibm blog on <a href="http://www.ibm.com/developerworks/aix/library/au-endianc/?ca=drs-" target="_blank" rel="noopener noreferrer">writing endianness independent code</a> summarizing the effect:</p>
+<blockquote><p>Endianness does matter when you use a type cast that depends on a certain endian being in use. </p></blockquote>
+<p>If you do happen to need to write byte by byte, and you want to read values in directly as casted types in C#, you can make use of Jon Skeet's <a href="http://www.yoda.arachsys.com/csharp/miscutil/" target="_blank" rel="noopener noreferrer">MiscUtil</a> which contains a big endian and little endian binary reader/writer class.  By using the big endian reader you can now read files where you wrote them from C++ byte by byte.</p>
+<p>Here is a fixed version</p>
+<p>[csharp]<br />
+using (var reader = new EndianBinaryReader(new BigEndianBitConverter(), new FileStream(@test2.out&quot;, FileMode.Open)))<br />
+{<br />
+    foreach (var b in reader.ReadBytes(2))<br />
+    {<br />
+        Console.Write(&quot;{0:X}&quot;, b);<br />
+    }</p>
+<p>    Console.WriteLine();</p>
+<p>    reader.BaseStream.Seek(0, SeekOrigin.Begin);</p>
+<p>    var val = reader.ReadUInt16();</p>
+<p>    Console.WriteLine(&quot;{0:X}&quot;, val);</p>
+<p>}<br />
+[/csharp]</p>
+<p>Which spits out</p>
+<p>[code]<br />
+FF11<br />
+FF11<br />
+[/code]</p>

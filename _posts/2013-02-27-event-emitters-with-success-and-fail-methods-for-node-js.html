@@ -1,0 +1,173 @@
+---
+layout: post
+title: Event emitters with success and fail methods for node.js
+date: 2013-02-27 00:29:03.000000000 -08:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- events
+- JavaScript
+- node.js
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _wpas_done_all: '1'
+  _su_title: ''
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560295314;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3295;}i:1;a:1:{s:2:"id";i:3452;}i:2;a:1:{s:2:"id";i:3128;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/02/27/event-emitters-with-success-and-fail-methods-for-node-js/"
+---
+<p>When it comes to node.js you hear a lot of hype, good and bad, so I've finally decided to take the plunge and investigate for myself what the fuss is about.  So far it's been interesting.  </p>
+<p>I'm not really building anything in particular right now, I'm just playing with different tech stacks to see how things are done. One of the things that I found I liked, while experimenting with node modules, is the syntax <em>success</em> and <em>fail</em> for callback registration.  Something like this:</p>
+<p>[javascript]<br />
+module.doSomething()<br />
+      .success(function() { })<br />
+      .fail(function() { });<br />
+[/javascript]</p>
+<p>Using this kind of syntax I wanted to have a basic user authentication forwarder that I could wrap route calls in such that only logged in users could call the route. Non logged in users would automatically be forwarded to a twitter oauth route for auto login (done using <a href="https://github.com/bnoguchi/everyauth" target="_blank" rel="noopener noreferrer">everyauth</a>).</p>
+<p>The first step was to create a custom event emitter object.  Coming from a .NET world this is similar to creating a class that dispatches an event delegate.  To wire up the event handlers you need to register a callback function to execute when the event happens.</p>
+<p>For event dispatching to work, your object needs to inherit from the <code>events</code> module:</p>
+<p>[javascript]<br />
+var EventEmitter = require(&quot;events&quot;).EventEmitter;<br />
+var sys = require(&quot;sys&quot;);</p>
+<p>sys.inherits(yourObject, EventEmitter);<br />
+[/javascript]</p>
+<p>And to emit events, you just emit them by name:</p>
+<p>[javascript]<br />
+this.emit('failure');<br />
+[/javascript]</p>
+<p>On the consumer end, to listen for events, you register a function on the object's inherited <code>on</code> member with the corresponding event name:</p>
+<p>[javascript]<br />
+var obj = new yourObject();<br />
+obj.on('someEvent', someFunction)<br />
+[/javascript]</p>
+<p>This is great, but I really don't like relying on strings. My biggest qualm with javascript is its lack of strong typing and runtime analysis, so anything I can do to prevent myself from making mistakes is a good thing.  </p>
+<p>Bringing it back to my original intention, I wanted to encapsulate my authentication checker in a class that could secure API calls. It would validate that the request had a user property and if so asynchronously dispatch success, or if no user was there, a failure.  If a failure happened, it would also automatically forward the request to the appropriate authentication route.</p>
+<p>Here is what I did</p>
+<p>[javascript]<br />
+var EventEmitter = require(&quot;events&quot;).EventEmitter;<br />
+var sys = require(&quot;sys&quot;);</p>
+<p>function Checker(req, res) {<br />
+    this.req = req;<br />
+    this.res = res;<br />
+    EventEmitter.call(this);<br />
+}</p>
+<p>sys.inherits(Checker, EventEmitter);</p>
+<p>Checker.prototype.success =<br />
+        function (fct) {<br />
+            this.on('success', fct)<br />
+            return this<br />
+        };</p>
+<p>Checker.prototype.failure =<br />
+    function (fct) {<br />
+        this.on('failure', fct)<br />
+        return this<br />
+    };</p>
+<p>Checker.prototype.run = function () {<br />
+    if (this.req.user === undefined || this.req.user == null) {<br />
+        this.res.redirect(&quot;/auth/twitter&quot;);<br />
+        this.emit('failure');<br />
+    }<br />
+    else {<br />
+        this.emit('success');<br />
+    }<br />
+    return this;<br />
+};</p>
+<p>module.exports.checkAuth = function (req, res) {<br />
+    return new Checker(req, res);<br />
+};<br />
+[/javascript]</p>
+<p>Lets see how it's used:</p>
+<p>[javascript]<br />
+app.get(&quot;/user/home&quot;, function(req, res){<br />
+        utils.checkAuth(req, res)<br />
+            .success(function() {<br />
+                res.send(&quot;user is logged in!&quot;)<br />
+            })<br />
+            .failure(function(){<br />
+                console.log(&quot;requested not logged in&quot;)<br />
+            })<br />
+            .run();<br />
+    });<br />
+[/javascript]</p>
+<p>After I defined the <code>Checker</code> constructor I inherited from the event emitter object.  This overrides the prototype of the object, so all other methods should be defined after you do the inheritance. Then I defined a success function that hid the <code>success</code> event listener, as well as a <code>failure</code> event listener.  All the methods return a <code>this</code> property to make the method calls <a href="http://en.wikipedia.org/wiki/Fluent_interface" target="_blank" rel="noopener noreferrer">fluent</a>.  The <code>Checker</code> constructor takes the request and result objects so we can test if the user exists.  </p>
+<p>To use it, I called the <code>checkAuth</code> function on the exported utility class, which returns a new instance of our checker object.  Then I register success and failure functions on the returned instance. Lastly, to get things running, I call <code>run()</code> which actually tests the code.  Now I have a nice reusable authentication forwarder that I can use in any authentication required API calls.</p>
+<p>The next step that I was thinking about was trying to see if I can get rid of the <code>.run()</code> method.   Let's change the constructor wrapper and tester function to look like this</p>
+<p>[javascript highlight="15,16,17"]<br />
+Checker.prototype.test = function () {<br />
+    if (this.req.user === undefined || this.req.user == null) {<br />
+        this.res.redirect(&quot;/auth/twitter&quot;);<br />
+        this.emit('failure');<br />
+    }<br />
+    else {<br />
+        this.emit('success');<br />
+    }<br />
+    return this;<br />
+};</p>
+<p>Checker.prototype.run = function(){<br />
+    var self = this;</p>
+<p>    setTimeout(function(){<br />
+        self.test()<br />
+    }, 1)</p>
+<p>    return this;<br />
+}</p>
+<p>module.exports.checkAuth = function (req, res) {<br />
+    var checker = new Checker(req, res);<br />
+    return checker.run();<br />
+};<br />
+[/javascript]</p>
+<p>And calling it like this:</p>
+<p>[javascript]<br />
+app.get(&quot;/add/:track&quot;, function(req, res){<br />
+    utils.checkAuth(req, res)<br />
+        .success(function() {<br />
+            res.send(&quot;did it!&quot;);<br />
+        })<br />
+        .failure(function(){<br />
+            console.log(&quot;requested not logged in&quot;)<br />
+        });<br />
+});<br />
+[/javascript]</p>
+<p>The main change (highlighted) was to defer the actual testing of the method with a one millisecond timeout. The run method returns the <code>this</code> object, which lets you register the success and fail callbacks. One millisecond later the test function fires and assumes the callbacks were registered.</p>
+<p>The reason this works is explained in a snippet from John Resig's (creator of JQuery) <a href="http://ejohn.org/blog/how-javascript-timers-work/" target="_blank" rel="noopener noreferrer">blog</a>:</p>
+<blockquote><p>If a timer is blocked from immediately executing it will be delayed until the next possible point of execution (which will be longer than the desired delay).</p></blockquote>
+<p>By deferring the <code>test</code> function we're leveraging node's event loop and the single threaded nature of javascript. Events will process when they get a chance (in the order they were queued), but as long as we are blocking they won't run. So, assuming you register your callbacks during the current execution flow then the timer will be blocked from executing until you are done. </p>
+<p>Just to demonstrate that point, here is a modified route. I've intentionally made it a little wonky. We get an <code>checkAuth</code> object via a function return, then we add a failure registration. Then we busy wait for a period of time (essentially blocking), then register a success function. Finally we logged that the route function was complete. Then we emit the success event from the deferred timer and log our callback invocation from the success function:</p>
+<p>[javascript]<br />
+app.get(&quot;/add/:track&quot;, function(req, res){</p>
+<p>    function getAuth(req, res){<br />
+        return utils.checkAuth(req, res);<br />
+    }</p>
+<p>    var auth = getAuth(req, res);</p>
+<p>    auth.failure(function(){<br />
+        console.log(&quot;requested not logged in&quot;)<br />
+    });</p>
+<p>    var x = 100000000;<br />
+    while(x &gt; 0){<br />
+        x = x - 1;<br />
+    }</p>
+<p>    auth.success(function() {<br />
+        console.log(&quot;success &quot; + new Date().getTime());<br />
+        res.send('donezo');<br />
+    })</p>
+<p>    console.log(&quot;ready &quot; + new Date().getTime());<br />
+});<br />
+[/javascript]</p>
+<p>Notice the while loop that should sit for a few seconds. When you hit <code>http://localhost:3000/add/test</code> the console logs</p>
+<p>[code]<br />
+registered failure function<br />
+registered success function<br />
+ready 1361995555376<br />
+success 1361995556530<br />
+[/code]</p>
+<p>which shows that the timer was deferred until the execution flow returned. When control flow exited, the delayed test function ran, emitting the event and executing our callbacks.</p>

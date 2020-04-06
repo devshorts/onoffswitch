@@ -1,0 +1,103 @@
+---
+layout: post
+title: Auto scaling akka routers
+date: 2015-03-11 23:26:35.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- akka
+- scala
+meta:
+  _edit_last: '1'
+  _su_rich_snippet_type: none
+  _syntaxhighlighter_encoded: '1'
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1555264548;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4627;}i:1;a:1:{s:2:"id";i:4456;}i:2;a:1:{s:2:"id";i:4596;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2015/03/11/auto-scaling-akka-routers/"
+---
+<p>I'm working on a project where I need to multiplex many requests through a finite set of open sockets. For example, I have 200 messages, but I can only have at max 10 sockets open.  To accomplish this I've wrapped the sockets in akka actors and am using an akka routing mechanism to "share" the 10 open sockets through a roundrobin queue.  </p>
+<p>This works out great, since now the consumers (who are rabbit mq listeners) just post messages to a facacde on the resource, and akka will route the request and do the appropriate work for me.</p>
+<p>However, I wanted to know of a clean way to be able to add more resources (or remove them). Say at runtime I am asked to add 10 more open connections, or that suddenly we need to scale down to 5 connections.  I'd like the router to be able to manage that for me.  </p>
+<p>It took a little poking around, but its not that complicated to do. The router manages a list of routees and you can pick a random one you want to remove (or add new ones). To remove one, send it a poison pill, and have the context unwatch it so the supervisor stops caring if it fails or not.  Then tell the router to stop routing messages to it. When the poison pill reaches the actor (it'll finish processing its messages first) then it'll stop itself and you can do cleanup. In my case this is where I'd close the open socket.</p>
+<p>A full scala example is here:</p>
+<p>[scala]</p>
+<p>import akka.actor._<br />
+import akka.routing._</p>
+<p>case class Add()</p>
+<p>case class Remove()</p>
+<p>class Worker(id: Integer) extends UntypedActor {<br />
+  println(s&quot;Made worker $id&quot;)</p>
+<p>  @throws[Exception](classOf[Exception]) override<br />
+  def preStart(): Unit = {<br />
+    println(s&quot;Starting $id&quot;)<br />
+  }</p>
+<p>  @throws[Exception](classOf[Exception]) override<br />
+  def postStop(): Unit = {<br />
+    println(s&quot;Stopping $id&quot;)<br />
+  }</p>
+<p>  @throws[Exception](classOf[Exception])<br />
+  override def onReceive(message: Any): Unit = message match {<br />
+    case _ =&gt; println(s&quot;Message received on actor $id&quot;)<br />
+  }<br />
+}</p>
+<p>class Master extends Actor {</p>
+<p>  var count = 0</p>
+<p>  def makeWorker() = {<br />
+    val id = count</p>
+<p>    count = count + 1</p>
+<p>    context.actorOf(Props(new Worker(id)))<br />
+  }</p>
+<p>  var router = {<br />
+    val startingRouteeNumber = 2</p>
+<p>    val initialRoutees = Seq.fill(startingRouteeNumber) {<br />
+      val worker = makeWorker()<br />
+      context watch worker<br />
+      ActorRefRoutee(worker)<br />
+    }</p>
+<p>    Router(RoundRobinRoutingLogic(), initialRoutees.toIndexedSeq)<br />
+  }</p>
+<p>  def receive = {<br />
+    case Remove =&gt;<br />
+      println(&quot;Removing route&quot;)</p>
+<p>      val head = router.routees.head.asInstanceOf[ActorRefRoutee].ref</p>
+<p>      head ! PoisonPill</p>
+<p>      context unwatch head</p>
+<p>      router = router.removeRoutee(head)</p>
+<p>      printRoutes()</p>
+<p>    case Add =&gt;<br />
+      println(&quot;Adding route&quot;)</p>
+<p>      val worker = makeWorker()</p>
+<p>      context watch worker</p>
+<p>      router = router.addRoutee(worker)</p>
+<p>      printRoutes()</p>
+<p>    case w: AnyRef =&gt;</p>
+<p>      printRoutes()</p>
+<p>      router.route(w, sender())<br />
+  }</p>
+<p>  def printRoutes(): Unit = {<br />
+    val size = router.routees.size</p>
+<p>    println(s&quot;Total routes $size&quot;)<br />
+  }<br />
+}</p>
+<p>object Main extends App {<br />
+  var system = ActorSystem.create(&quot;foo&quot;)</p>
+<p>  var master = system.actorOf(Props[Master])</p>
+<p>  master ! &quot;do work&quot;</p>
+<p>  master ! Remove</p>
+<p>  master ! &quot;do more work&quot;</p>
+<p>  master ! &quot;do even more work&quot;</p>
+<p>  master ! Add</p>
+<p>  master ! &quot;do work again&quot;<br />
+}<br />
+[/scala]</p>

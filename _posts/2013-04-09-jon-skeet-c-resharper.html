@@ -1,0 +1,165 @@
+---
+layout: post
+title: Jon Skeet, C#, and Resharper
+date: 2013-04-09 19:21:04.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Rants
+tags:
+- c#
+- resharper
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1556356876;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4493;}i:1;a:1:{s:2:"id";i:3656;}i:2;a:1:{s:2:"id";i:3565;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/04/09/jon-skeet-c-resharper/"
+---
+<p>Today, at 1pm EST, the venerable <a href="http://stackoverflow.com/users/22656/jon-skeet" target="_blank" rel="noopener noreferrer">Jon Skeet</a> had a goto meeting webinar sponsored by <a href="http://www.jetbrains.com/" target="_blank" rel="noopener noreferrer">JetBrains</a> reviewing weird and cool stuff about C# and Resharper. For those who aren't in the know, <a href="http://www.jetbrains.com/resharper/" target="_blank" rel="noopener noreferrer">Resharper</a> is a static analysis tool for C# that is pretty much the best thing ever.  Skeet's a great speaker and my entire team at work and I watched the webinar in our conference room while eating lunch.  </p>
+<p>I took some notes and wanted to share some of the interesting things that Jon mentioned. You can watch the video <a href="http://blogs.jetbrains.com/dotnet/2013/04/webinar-recording-jon-skeet-inspects-resharper/" target="_blank" rel="noopener noreferrer">here</a>.  It's an hour long and definitely worth viewing.</p>
+<h2>Recursive Parameterization</h2>
+<p>Skeet talked about how Resharper, and in fact the C# compiler lets you do weird stuff like this:</p>
+<p>[csharp]<br />
+public class SuperContainer&lt;T&gt;<br />
+{</p>
+<p>}</p>
+<p>public class Container&lt;T&gt; : SuperContainer&lt;Container&lt;Container&lt;T&gt;&gt;&gt;<br />
+{<br />
+}<br />
+[/csharp]</p>
+<p>Even though this leads itself to recursive parameterization.  Compiling this is just fine though. However, even if its not used in an assembly, if you run unit tests for that assembly you'll get:</p>
+<p><img src="http://onoffswitch.net/wp-content/uploads/2013/04/recursiveParameterization.-600x87.png" alt="recursiveParameterization." width="600" height="87" class="alignnone size-medium wp-image-3525" /></p>
+<p>This is because unit tests usually use reflection to test your assemblies. If you don't use a unit test, and you never access it you won't have an issue. The problem, Skeet told me, isn't in the C# compiler, it's that the CLR goes, as Skeet put it, "<em>bang</em>"</p>
+<h2>Access to modified closures</h2>
+<p>Jon talked about the problem of accessing modified closures and how it's different in C#5 vs previous versions.  The problem is described like this:</p>
+<p>[csharp]<br />
+var list = new List&lt;Action&gt;();<br />
+foreach (var i in Enumerable.Range(0, 10))<br />
+{<br />
+    list.Add(() =&gt; Console.WriteLine(i));<br />
+}<br />
+[/csharp]</p>
+<p>In C# 4, the variable <code>i</code> is the same reference for each iteration.  This means that when you capture the value in a lambda, you are closing on its reference.  Running this, you are going to get </p>
+<p>[code]<br />
+9<br />
+9<br />
+9<br />
+9<br />
+9<br />
+9<br />
+9<br />
+9<br />
+9<br />
+9<br />
+[/code]</p>
+<p>The C# 4 and earlier solution is to make sure that a new variable is created each time the iteration runs:</p>
+<p>[csharp]<br />
+var list = new List&lt;Action&gt;();<br />
+foreach (var i in Enumerable.Range(0, 10))<br />
+{<br />
+    int tmp = i;<br />
+    list.Add(() =&gt; Console.WriteLine(tmp));<br />
+}<br />
+[/csharp]</p>
+<p>This gives you the right answer. But in C# 5 they changed the handling of foreach internally to give you the expected behavior: you will close on different references each time.  </p>
+<h2>Covariance</h2>
+<p>Jon then spent a short bit discussing covariance between objects and how you can induce runtime failures, but resharper doesn't warn you about it.  For example, the following code is compilable, but not runnable:</p>
+<p>[csharp]<br />
+string[] x = new string[10];<br />
+object[] o = x;<br />
+o[0] = 5; // breaks<br />
+[/csharp]</p>
+<h2>Statics in generic types</h2>
+<p>The next thing Jon talked about was the Resharper warning when you have a static member variable as part of a class with generics.  For example:</p>
+<p>[csharp]<br />
+public class Foo&lt;T&gt;<br />
+{<br />
+    public static string Item { get; set; }<br />
+}</p>
+<p>[Test]<br />
+public void StaticTest()<br />
+{<br />
+    Foo&lt;String&gt;.Item = &quot;a&quot;;<br />
+    Console.WriteLine(Foo&lt;String&gt;.Item);</p>
+<p>    Foo&lt;int&gt;.Item = &quot;b&quot;;<br />
+    Console.WriteLine(Foo&lt;String&gt;.Item);<br />
+    Console.WriteLine(Foo&lt;int&gt;.Item);<br />
+}<br />
+[/csharp]</p>
+<p>Which prints out</p>
+<p>[code]<br />
+a<br />
+a<br />
+b<br />
+[/code]</p>
+<p>Interestingly enough, Resharper 7 gives me no warning on using a static item in a templated class.  The problem is really when you think you have a cache or some other static item per class, but its created once per <strong>type</strong>.  This was new info to me so I thought this was pretty cool.</p>
+<h2>Virtual method call in constructor</h2>
+<p>Jon's mentioned it on twitter before, and it was cool to see him mention it in his webinar, but you can get into very strange things when you call a virtual method from a base constructor.  For example:</p>
+<p>[csharp]<br />
+public class Base<br />
+{<br />
+    protected int item;</p>
+<p>    protected Base()<br />
+    {<br />
+        VirtualFunc();<br />
+    }</p>
+<p>    public virtual void VirtualFunc()<br />
+    {<br />
+        Console.WriteLine(item);<br />
+    }</p>
+<p>}</p>
+<p>public class Derived : Base<br />
+{<br />
+    public Derived()<br />
+    {<br />
+        item = 1;</p>
+<p>        VirtualFunc();<br />
+    }</p>
+<p>    public override void VirtualFunc()<br />
+    {<br />
+        if (item != 1)<br />
+        {<br />
+            throw new Exception(&quot;Should never do this&quot;);<br />
+        }<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>Which prints out</p>
+<p>[code]<br />
+System.Exception : Should never do this<br />
+[/code]</p>
+<p>Basically the base class constructor is called first, so you haven't set the member field in the derived constructor.  This means that if you run into this problem you have no way of assuring that items are initialized, even if they may be set in the constructor.  Resharper, thankfully, gives you a warning about this. So follow it's advice!</p>
+<h2> Miscellaneous c# weirdos</h2>
+<p>Skeet ended with a spattering of random C# weirdness, like being able to declare a class called <code>var</code> even though <code>var</code> is a keyword.  Also, comparing of doubles can be...well, odd:</p>
+<p>[csharp]<br />
+[Test]<br />
+public void CompareDouble()<br />
+{<br />
+    Console.WriteLine(double.NaN == double.NaN);</p>
+<p>    var x = double.NaN;</p>
+<p>    Console.WriteLine(x == x);<br />
+}<br />
+[/csharp]</p>
+<p>Here, Resharper says "hey, just change these values to true, they're always going to be true", but actually this prints out</p>
+<p>[code]<br />
+False<br />
+False<br />
+[/code]</p>
+<p>What? </p>
+<h2>Conclusion</h2>
+<p>Jon quoted an unnamed source that describes the content of the webinar:</p>
+<blockquote><p>You are entering dark places</p></blockquote>
+<p>And I tend to agree.  Thanks for the great presentation Jon and the JetBrains team.</p>
+<p>EDIT:</p>
+<p>Skeet tweeted his <a href="https://github.com/hhariri/Tidbits" target="_blank" rel="noopener noreferrer">sample solution project</a> that he used in the webinar.  For more samples of C# weird/cool stuff check it out!</p>

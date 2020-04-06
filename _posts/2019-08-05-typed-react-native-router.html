@@ -1,0 +1,166 @@
+---
+layout: post
+title: Typed react native router
+date: 2019-08-05 21:20:36.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- dependency injection
+- frontend
+- react
+meta:
+  _su_rich_snippet_type: none
+  _edit_last: '1'
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2019/08/05/typed-react-native-router/"
+---
+<p><!-- wp:quote --></p>
+<blockquote class="wp-block-quote"><p>Note, a seasoned UI friend of mine told me this is a terrible way to do things and to instead use hooks instead</p>
+</blockquote>
+<p><!-- /wp:quote --></p>
+<p><!-- wp:paragraph --></p>
+<p>I decided to give react native a go the last few days, just to try something different. For what it's worth I haven't done any real front-end work in quite a bit. The last stuff I did was angular 2/(8/a million?) and it was internal dev tooling stuff that was kind of hacky.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Seems like the javascript world has come quite a distance since back when typescript was still in beta!  </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>That said, I dove into a sample react native app that I scaffolded out using <a href="https://expo.io/">expo</a>.  Then I popped openn IntelliJ and started to play with react-native-paper and react-navigation.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>The first thing I wanted to see how to do properly was to do DI, since in my mind without clearly having DI you can't build large scale applications. There's a lot of ways to do DI but you need to make sure to not couple your code to its dependencies.  Seems like React's answer to that is props, contexts, and redux. I haven't looked much at redux yet, but my initial reaction to props and context was lackluster.  Props smells like a giant property god object to pass around and that never ends well.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>However, typescript does make this simpler and I do kind of like the higher order container stuff.  </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>After making a little hello world app and playing with the react router, I wanted to see if we could type the router.  For example, in all the examples I can see you use</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:syntaxhighlighter/code {"language":"jscript"} --></p>
+<pre class="wp-block-syntaxhighlighter-code"> this.props.navigation.navigate("Home")</pre>
+<p><!-- /wp:syntaxhighlighter/code --></p>
+<p><!-- wp:paragraph --></p>
+<p>To navigate around. This screams bad design to me because I can tell already people will start sprinkling in static strings everywhere, running into typos and other hard to track down problems. What I would rather have is</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:syntaxhighlighter/code {"language":"jscript"} --></p>
+<pre class="wp-block-syntaxhighlighter-code"> this.navigation.home()</pre>
+<p><!-- /wp:syntaxhighlighter/code --></p>
+<p><!-- wp:paragraph --></p>
+<p>Which is typed, discoverable, and easy to re-use.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>However, it took me quite a bit to figure out how to inject </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:list {"ordered":true} --></p>
+<ol>
+<li>Capture an instance of props</li>
+<li>Wrap the navigation object into an object we can type</li>
+<li>Pass that object to a component</li>
+</ol>
+<p><!-- /wp:list --></p>
+<p><!-- wp:paragraph --></p>
+<p>Turns out higher order containers were needed and the magic sauce is here. First I can make my routable class that given an instance of the screen router can do the things it wants to do. </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:syntaxhighlighter/code {"language":"jscript"} --></p>
+<pre class="wp-block-syntaxhighlighter-code">type RoutableProps = {
+    navigation: NavigationScreenProp&lt;any, any>
+}
+
+class Routable {
+    private navigation: NavigationScreenProp&lt;any, any>;
+
+    constructor(navigation: NavigationScreenProp&lt;any, any>) {
+        this.navigation = navigation;
+    }
+
+    home() {
+        console.log("home")
+        this.navigation.navigate("Home")
+    }
+
+    back() {
+        console.log("back")
+        this.navigation.goBack()
+    }
+
+    profile() {
+        console.log("profile")
+        this.navigation.navigate("Profile")
+    }
+}</pre>
+<p><!-- /wp:syntaxhighlighter/code --></p>
+<p><!-- wp:paragraph --></p>
+<p>Assuming we have this (somehow) we can use it in our nav bar</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:syntaxhighlighter/code {"language":"jscript"} --></p>
+<pre class="wp-block-syntaxhighlighter-code">interface NavProps {
+    router: Routable
+}
+
+export class NavBar extends React.Component&lt;NavProps> {
+    render() {
+        const navigate = this.props.router;
+
+        return (
+            &lt;Appbar>
+                &lt;Appbar.BackAction onPress={() => navigate.back()}/>
+                &lt;Appbar.Action icon="archive" onPress={() => navigate.home()}/>
+                &lt;Appbar.Action icon="mail" onPress={() => navigate.profile()}/>
+            &lt;/Appbar>
+        );
+    }
+}</pre>
+<p><!-- /wp:syntaxhighlighter/code --></p>
+<p><!-- wp:paragraph --></p>
+<p>Now here we can wrap a higher order container to capture the props, inject the setting we want, and return a new decorated component</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:syntaxhighlighter/code {"language":"jscript"} --></p>
+<pre class="wp-block-syntaxhighlighter-code">function withRouter(Component) {
+    // inject the navigation route to the props of the component
+    return withNavigation(
+        class extends React.Component&lt;RoutableProps> {
+            render() {
+                const nav = this.props.navigation;
+                // give the component a router
+                return (
+                    &lt;Component router={new Routable(nav)}/>
+                );
+            }
+
+        }
+    );
+}
+
+export const Nav = withRouter(NavBar);</pre>
+<p><!-- /wp:syntaxhighlighter/code --></p>
+<p><!-- wp:paragraph --></p>
+<p>Now we can safely use our typed navigation component </p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:syntaxhighlighter/code {"language":"jscript"} --></p>
+<pre class="wp-block-syntaxhighlighter-code">export default function Home() {
+    return (
+        &lt;PaperProvider theme={theme}>
+            &lt;SafeAreaView style={styles.bottom}>
+                &lt;Nav/>
+                &lt;Title>Hello&lt;/Title>
+            &lt;/SafeAreaView>
+        &lt;/PaperProvider>
+    );
+}</pre>
+<p><!-- /wp:syntaxhighlighter/code --></p>
+<p><!-- wp:paragraph --></p>
+<p>And whamo! Typed navigation.</p>
+<p><!-- /wp:paragraph --></p>
+<p><!-- wp:paragraph --></p>
+<p>Full source available at my github <a href="https://github.com/devshorts/react-native-samples">https://github.com/devshorts/react-native-samples</a></p>
+<p><!-- /wp:paragraph --></p>

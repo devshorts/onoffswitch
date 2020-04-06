@@ -1,0 +1,86 @@
+---
+layout: post
+title: 'Coding Dojo: a gentle introduction to Machine Learning with F# review'
+date: 2013-08-19 00:56:12.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- F#
+- machine learning
+- meetup
+meta:
+  _su_rich_snippet_type: none
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558691217;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4126;}i:1;a:1:{s:2:"id";i:4275;}i:2;a:1:{s:2:"id";i:4209;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/08/19/coding-dojo-gentle-introduction-machine-learning-f-review/"
+---
+<p>Recently I organized an <a href="http://www.meetup.com/F-meetup-in-Dupont-Circle/" target="_blank" rel="noopener noreferrer">F# meetup in DC</a>, and for our first event we brought in a wonderful speaker (Mathias Brandewinder) who's topic was called: "<em>Coding Dojo: a gentle introduction to Machine Learning with F#</em>".  </p>
+<p>I was certainly a little nervous about our first meetup, but a ton of great people came out: from experienced F# users, to people who had used other functional languages (like OCaml), to people with no functional experience.  The goal of the meetup was to write a k-nearest neighbors classifier for a previously posted <a href="http://www.kaggle.com/c/digit-recognizer/data" target="_blank" rel="noopener noreferrer">kaggle</a> exercise to classify pixellated numbers. </p>
+<p>[caption width="600" align="alignnone"]<img src="https://pbs.twimg.com/media/BR1-jWLCUAEO6E3.jpg" width="600" height="450" class /> Mathias introducing F#[/caption]</p>
+<p>Mathias did a great job of breaking people up into groups and then explaining what is machine learning and the criteria of the project in a surprsingly short time period. I think people were a little scared of jumping in since he only talked for about 10 to 15 minutes, but in place of a long lecture Mathias had a really well put together guided document that encouraged users to play and interact with F#.  </p>
+<p>The first step was to create an F# project and to download his fsx gist.  The gist was broken down into 7 steps where each step walked a user through the basics of F# and machine learning to build their classifier.  For example, one step was how to execute lines in F# interactive. Another step was explaining the map function.  Another step talked about how to read a file and parse a csv. And yet another discussed distance functions and converting raw data into records.  </p>
+<p>[caption width="600" align="alignnone"]<img src="https://pbs.twimg.com/media/BR0tUFACcAAJRre.jpg" width="600" height="450" class /> The meetup group[/caption]</p>
+<p>In the end, if you followed his steps, in a span of under 2 hours, even a novice could end up with a fully working classifier! The classifier's accuracy, by default, was about 94.4%. Not too bad.  </p>
+<p>I wanted to share my version of his classifer which is based off of Mathias' well guided steps.</p>
+<p>[fsharp]<br />
+open System<br />
+open System.IO</p>
+<p>type Number = { Label: string; Pixels: int[] }</p>
+<p>let splitLine (line:String) = line.Split([|','|])</p>
+<p>let extract file = File.ReadAllLines file |&gt; Array.map splitLine</p>
+<p>let strippedHeaders (arr:'a[]) = arr.[1..]</p>
+<p>let convertToInt (str:string) = Convert.ToInt32 str</p>
+<p>let lineToInt arr = Array.map convertToInt arr</p>
+<p>let linesAsInts = Array.map lineToInt </p>
+<p>let toNum (line:int[]) = {Label = line.[0].ToString(); Pixels = line.[1..] }</p>
+<p>let convertToNum lines = Array.map toNum lines</p>
+<p>let dist (a:int) (b:int) = (a-b)*(a-b)</p>
+<p>let arrayDist = Array.map2 dist</p>
+<p>let totalDist a b = arrayDist a b |&gt; Array.reduce (+)</p>
+<p>let train file =<br />
+    extract file<br />
+        |&gt; strippedHeaders<br />
+        |&gt; linesAsInts<br />
+        |&gt; convertToNum        </p>
+<p>let kNNSet trainingSet pixels k =<br />
+    trainingSet<br />
+        |&gt; Array.map (fun i -&gt; (i.Label, totalDist i.Pixels pixels))<br />
+        |&gt; Array.sortBy (fun (label, dist) -&gt; dist)<br />
+        |&gt; fun sorted -&gt; sorted.[0..(k - 1)]          </p>
+<p>let classify trainingSet pixels k =<br />
+    kNNSet trainingSet pixels k<br />
+        |&gt; Array.toSeq<br />
+        |&gt; Seq.groupBy (fun (label, dist) -&gt; label)<br />
+        |&gt; Seq.maxBy (fun (label, items) -&gt; Seq.length items)<br />
+        |&gt; fun (label, items) -&gt; label</p>
+<p>let accuracy trainingSet validationSet k =<br />
+    Array.map (fun i -&gt;<br />
+        let result = classify trainingSet i.Pixels k<br />
+        result = i.Label) validationSet<br />
+        |&gt; Array.map(fun i -&gt; if i = true then 1 else 0)<br />
+        |&gt; Array.sum<br />
+        |&gt; fun sum -&gt; (double)sum / (double)(Array.length validationSet)<br />
+        |&gt; fun acc -&gt; (int)(acc * 100.0)</p>
+<p>let training = train @&quot;C:\Projects\Personal2\DcDojo\DcDojo\trainingsample.csv&quot;<br />
+let validation = train @&quot;C:\Projects\Personal2\DcDojo\DcDojo\validationsample.csv&quot;<br />
+[/fsharp]</p>
+<p>Had I written this without following his steps I probably would have inlined a lot of the simple helper functions, but I wanted to show how Mathias really brought the "<em>start small, build big</em>" mentality to the project.  This is something that really works well in functional languages and I think all the meetup participants picked up on that.</p>
+<p>Another meetup participant (my coworker Sam) <a href="http://tech.blinemedical.com/machine-learning-with-f-and-c-side-by-side/" target="_blank" rel="noopener noreferrer">also posted</a> his kNN classifier, so go check it out and worked through it with a side by side C# example which was cool.</p>
+<p>If you get a chance to see Mathias during his <a href="http://www.clear-lines.com/blog/" target="_blank" rel="noopener noreferrer">summer of F# tour</a> you should! While DC was on the tail end of the trip, Boston and Detroit still are on the agenda.</p>
+<p>--<br />
+Edit:</p>
+<p>Here is a youtube of a portion of the dojo:</p>
+<p><iframe width="420" height="315" src="//www.youtube.com/embed/MW_Km-vr1eE" frameborder="0" allowfullscreen></iframe></p>

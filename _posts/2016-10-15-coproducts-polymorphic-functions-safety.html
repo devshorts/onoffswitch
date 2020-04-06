@@ -1,0 +1,91 @@
+---
+layout: post
+title: Coproducts and polymorphic functions for safety
+date: 2016-10-15 22:58:45.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- coproduct
+- scala
+- shapeless
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpcom_is_markdown: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1555115004;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4862;}i:1;a:1:{s:2:"id";i:4961;}i:2;a:1:{s:2:"id";i:4905;}}}}
+  _wpas_done_all: '1'
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2016/10/15/coproducts-polymorphic-functions-safety/"
+---
+<p>I was recently exploring <a href="https://github.com/milessabin/shapeless">shapeless</a> and a coworker turned me onto the interesting features of coproducts and how they can be used with polymorphic functions.</p>
+<p>Frequently when using pattern matching you want to make sure that all cases are exhaustively checked. A non exhaustive pattern match is a runtime exception waiting to happen. As a scala user, I'm all about compile time checking.  For classes that I own I can enforce exhaustiveness by creating a sealed trait heirarchy:</p>
+<p>[code lang=scala]<br />
+sealed trait Base<br />
+case class Sub1() extends Base<br />
+case class Sub2() extends Base<br />
+[/code]</p>
+<p>And if I ever try and match on an <code>Base</code> type I'll get a compiler warning (that I can fail on) if all the types aren't matched.  This is nice because if I ever add another type, I'll get a (hopefully) failed build.</p>
+<p>But what about the scenario where you <em>don't</em> own the types?</p>
+<p>[code lang=scala]<br />
+case class Type1()<br />
+case class Type2()<br />
+case class Type3()<br />
+[/code]</p>
+<p>They're all completely unrelated.  Even worse is how do you create a generic function that accepts an instance of those 3 types but no others?  You could always create overloaded methods:</p>
+<p>[code lang=scala]<br />
+def takesType(type: Type1) = ???<br />
+def takesType(type: Type2) = ???<br />
+def takesType1(type: Type3) = ???<br />
+[/code]</p>
+<p>Which works just fine, but what if that type needs to be passed through a few layers of function calls before its actually acted on?</p>
+<p>[code lang=scala]<br />
+def doStuff(type: Type1) = ... takesType(type1)<br />
+def doStuff(type: Type2) = ... takesType(type2)<br />
+def doStuff(type: Type3) = ... takesType(type3)<br />
+[/code]</p>
+<p>Oh boy, this is a mess.  We can't get around with just using generics with type bounds since there is no unified type for these 3 types.  And even worse is if we add another type. We could use an either like <code>Either[Type1, Either[Type2, Either[Type3, Nothing]]]</code></p>
+<p>Which lets us write just one function and then we have to match on the subsets.  This is kind of gross too since its polluted with a bunch of eithers.  Turns out though, that a coproduct is exactly this... a souped up either!</p>
+<p>Defining</p>
+<p>[code lang=scala]<br />
+type Items = Type1 :+: Type2 :+: Type3 :+: CNil<br />
+[/code]</p>
+<p>(where CNil is the terminator for a coproduct)  we now have a unified type for our collection.  We can write functions like :</p>
+<p>[code lang=scala]<br />
+def doStuff(item: Items) = {<br />
+  // whatever<br />
+  takesType(item)<br />
+}<br />
+[/code]</p>
+<p>At some point, you need to lift an instance of <code>Type1</code> etc into a type of <code>Item</code> and this can be done by calling <code>Coproduct[Item](instance)</code>.  This call will fail to compile if the type of the instance is not a type of <code>Item</code>.  You also are probably going to want to actually do work with the thing, so you need to unbox this souped up either and do stuff with it</p>
+<p>This is where the shapeless <code>PolyN</code> methods come into play.</p>
+<p>[code lang=scala]<br />
+object Worker {<br />
+  type Items = Type1 :+: Type2 :+: Type3 :+: CNil</p>
+<p>  object thisIsAMethod extends Poly1 {<br />
+    // corresponding def for the data type of the coproduct instance<br />
+    implicit def invokedOnType1 = at[Type1](data =&gt; data.toString)<br />
+    implicit def invokedOnType2 = at[Type2](data =&gt; data.toString)<br />
+    implicit def invokedOnType3 = at[Type3](data =&gt; data.toString)<br />
+  }</p>
+<p>  def takesItem(item: Item): String = {<br />
+    thisIsAMethod(item)<br />
+  }<br />
+}</p>
+<p>class Provider {<br />
+  Worker.takesItem(Coproduct[Item](Type1()) // ok<br />
+  Worker.takesItem(Coproduct[Item](WrongType()) // fails<br />
+}</p>
+<p>[/code]</p>
+<p>The object <code>thisIsAMethod</code> creates a bunch of implicit type dependent functions that are defined at all the elements in the coproduct.  If we add another option to our coproduct list, we'll get a compiler error when we try and use the coproduct against the polymorphic function.   This accomplishes the same thing as giving us the exhaustiveness check but its an even stronger guarantee as the build will fail.</p>
+<p>While it is a lot of hoops to jump through, and can be a little mind bending, I've found that coproducts and polymorphic functions are a really nice addition to my scala toolbox. Being able to strongly enforce these kinds of contracts is pretty neat!</p>

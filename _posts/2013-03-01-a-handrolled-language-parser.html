@@ -1,0 +1,609 @@
+---
+layout: post
+title: A handrolled language parser
+date: 2013-03-01 10:40:44.000000000 -08:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- c#
+- language implementation
+- Lexer
+- monads
+- parser
+- projects
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _wpas_done_all: '1'
+  _su_title: ''
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561472777;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4131;}i:1;a:1:{s:2:"id";i:4068;}i:2;a:1:{s:2:"id";i:4365;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/03/01/a-handrolled-language-parser/"
+---
+<p>In my <a href="http://onoffswitch.net/building-a-custom-lexer/" target="_blank" rel="noopener noreferrer">previous post</a> about building a custom lexer I mentioned that, for educational purposes, I created a simple <a href="https://github.com/devshorts/LanguageCreator" target="_blank" rel="noopener noreferrer">toy programming language</a> (still unnamed).  There, I talked about building a tokenizer and lexer from scratch. In this post I'll discuss building a parser that is responsible for generating an <a href="http://stackoverflow.com/questions/1721553/how-to-construct-an-abstract-syntax-tree" target="_blank" rel="noopener noreferrer">abstract syntax tree</a> (AST) for my language. This syntax tree can then be passed to other language components such as a scope and type resolver, and finally an interpreter.  </p>
+<p>The parser I made is a <a href="http://en.wikipedia.org/wiki/Recursive_descent_parser" target="_blank" rel="noopener noreferrer">recursive descent</a> <a href="http://stackoverflow.com/a/7141394/310196" target="_blank" rel="noopener noreferrer">packrat parser</a> that uses backtracking. Short of memoizing found AST, there aren't any other real optimizations. The goal was to create a working parser, not a production parser to distribute or use (or reuse) in any professional sense.  Like the lexer, this is an academic exercise to try and hit on some of the points covered by <a href="http://www.cs.usfca.edu/~parrt/" target="_blank" rel="noopener noreferrer">Terence Parr's</a> <a href="http://www.amazon.com/Language-Implementation-Patterns-Domain-Specific-Programming/dp/193435645X" target="_blank" rel="noopener noreferrer">Language Implementation Patterns</a> book that I recently finished reading.</p>
+<p>I'm not going to cover much language theory because I want to jump into what I did and how it's implemented.  There are a lot of resources on context free grammars, LL parsers, left-recursion, ambiguous vs unambiguous  grammars, PEG (parsing expression grammars), shift reduce parsing, parse tables, and other subjects related to parsing and language implementation on the internet.  I'll leave explanations of those topics for someone else who is more qualified than me. But, if you are interested and are new to it (like myself), starting with Parr's book is a great first step and helps clear up some of the theoretical haze that surrounds a lot of programming language theory.</p>
+<h2>Syntax definitions</h2>
+<p>Every language is defined by a grammar, where the syntax represents the rules of the grammar.  The grammar of my language was grown organically, I didn't really go into it with any specific syntax. I knew I wanted to have lambdas, the <code>var</code> keyword, and simple stuff like if, else, while, for, function declarations and class declarations.  When I wrote the parser I just started with some basic syntax and added to it as I wanted more functionality.  I think most people give their languages a bit more thought than I did, but all's well that ends well.</p>
+<p>In general, you can represent your grammar using <a href="http://en.wikipedia.org/wiki/Backus%E2%80%93Naur_Form" target="_blank" rel="noopener noreferrer">BNF</a>. Let's define a really simple language:</p>
+<p>[code]<br />
+word := [A-z]+<br />
+number := \d+<br />
+operator := + | -<br />
+token := word | number<br />
+expression := token | token operator expression<br />
+variableDeclration = var word = expression<br />
+statement : = variableDeclaration | expression<br />
+ifStatement := if (expression) { statement* }<br />
+[/code]</p>
+<p>What this translates to is:</p>
+<ul>
+<li><b>word</b>. This is any group of characters at least once with no spaces. <code>foo</code> for example would be a word</li>
+<li><b>number</b>. This is any number of digits (no decimals). Something like <code>1234</code></li>
+<li><b>operator</b>. This is a plus sign or a minus sign</li>
+<li><b>token</b>. Either a word or a number</li>
+<li><b>expression</b>. This is either a token or a token with an operator followed by an expression. This example here is what is called right recursive, since the expression references itself on the right hand side of the operation. Recursive descent parsers <a href="http://stackoverflow.com/questions/847439/why-cant-a-recursive-descent-parser-handle-left-recursion" target="_blank" rel="noopener noreferrer">can't handle left recursion</a> since it leads to infinite loops.  </li>
+<li><b>variable declaration</b>. This is the keyword <code>var</code> followed by a word followed by an <code>=</code> followed by an expression</li>
+<li><b>statement</b>. Either a variable declaration or some expression</li>
+<li><b>if statement</b>. The keyword <code>if</code> followed by a <code>(</code> followed by an expression, followed by a <code>)</code> followed by a <code>{</code> followed by one or more statements, followed by a <code>}</code></li>
+</ul>
+<p>If you wanted to you, you could feed this general grammar (modified syntactically) to libraries that can auto generate parsers for you, but that's no fun and feels like cheating when you are learning.  </p>
+<h2>The Parsers Job</h2>
+<p>The goal of the parser is to take a strongly typed token stream from the lexer, and to create a syntax tree that we can use.  A simple way to think about it is that each bullet point in our grammar can be a class.  Imagine we have a class called <code>IfStatement</code>. It might look something like this:</p>
+<p>[csharp]<br />
+public class IfStatement{<br />
+   public Expression Predicate { get; set; }<br />
+   public List&lt;Statement&gt; Statements { get; set; }<br />
+}<br />
+[/csharp]</p>
+<p>We don't really care about the keyword <code>if</code> or any other of the special characters like (, ), {, and }, since the important part is that we now have a class that describes what the if statement meant: a <a href="http://en.wikipedia.org/wiki/Predicate_(mathematical_logic)" target="_blank" rel="noopener noreferrer">predicate</a>, and a list of statements to execute if the predicate is true.  This type of class is what is known as a syntax tree. It's a tree because it references other syntax nodes.  Here is an image showing what a syntax tree could look like (image taken from <a href="http://en.wikipedia.org/wiki/Abstract_syntax_tree" target="_blank" rel="noopener noreferrer">wikipedia</a>)</p>
+<p><img src="http://onoffswitch.net/wp-content/uploads/2013/02/531px-Abstract_syntax_tree_for_Euclidean_algorithm.svg_.png" alt="531px-Abstract_syntax_tree_for_Euclidean_algorithm.svg" width="531" height="599" class="aligncenter size-full wp-image-2751" /></p>
+<p>When you're done parsing, you will have a root node that references the entire structure of your program. Later parts of the language chain (building out scope, types, and interpreting the code) will go through these definitions and actually evaluate what they mean. Those later passes might also add extra metadata to each node, so the AST is like our master repo of program related metadata. For now the goal is to create these classes.  </p>
+<h2>Capturing Information</h2>
+<p>Since the parsers goal is to create these classes, it needs to be able to work on an underlying token stream and create meaningful representations from that stream.  The parser knows what kinds of syntactical patterns it expects. For example, if we have the following variable declaration and assignment</p>
+<p>[code]<br />
+int x = 5;<br />
+[/code]</p>
+<p>We can tell it's a variable declaration and assignment because it matches the pattern of </p>
+<p>[code]<br />
+valid type<br />
+word<br />
+equals<br />
+valid assignment (an expression maybe or a single token?)<br />
+semicolon<br />
+[/code]</p>
+<p>The parsers job is to take those tokens in meaningful orders and create an AST from it.  When I say "take", I mean you remove the current token from the head of the stream (or advance the token streams index pointer). Lets say we are parsing that variable declaration above, it might have a token stream that looks like this</p>
+<p>[code]<br />
+int (keyword)<br />
+word (x)<br />
+equals (keyword)<br />
+number (5)<br />
+semicolon (keyword)<br />
+[/code]</p>
+<p>We see that the head of the stream is a keyword that can be a valid variable type (int), so we can take it off the list and store it.  Then we expect the pattern "word", "equals", "expression", "semicolon". We can take them one at a time and while it matches keep on going.  Certain items like the semicolon you can trash. It's there to tell the parser when to stop.</p>
+<h2>Alternatives</h2>
+<p><a href="http://en.wikipedia.org/wiki/LL_parser#LL.281.29_Conflicts" target="_blank" rel="noopener noreferrer">Sometimes</a>, however, you can't determine what an expression will be just by looking at the current token. For example, what does this mean if you only look at the first element?</p>
+<p>[code]<br />
+1 + 1<br />
+[/code]</p>
+<p>Is it a token of value 1? Or is it an expression of 1 + 1?  Obviously it's 1 + 1, but the parser can't always tell. Careful ordering of your parser can avoid most of these ambiguities, but when it can't, you can either peek into the stream (so you see that the next token is a + so that means expression), or simply try alternatives.  The first alternative to match wins!   </p>
+<p>For alternatives, you try first an expression. If that fails, then you try a token. If that fails, then invalid syntax.  Remember that I mentioned that my parser is a packrat parser? All this means is that while it's trying alternatives it will cache if it found them. Later, when I actually go and try to take a certain branch I can retrieve the already parsed AST from the cache. This cuts down on a lot of extra work.</p>
+<h2>The Token Stream</h2>
+<p>In the last <a href="http://onoffswitch.net/building-a-custom-lexer/" target="_blank" rel="noopener noreferrer">post</a> about the lexer, I created a <code>TokenizableStreamBase</code> base class that handles basic snapshot/commit/rollback/consume functionality on an input stream.  Here I'm going to re-use it and pass it a stream of tokens, instead of a stream of characters.  The parser will instantiate this <code>ParseableTokenStream</code> class (which subclasses the tokenizable stream base) and use it as it's token stream.</p>
+<p>The most basic form of the class is this:</p>
+<p>[csharp]<br />
+public class ParseableTokenStream : TokenizableStreamBase&lt;Token&gt;<br />
+{<br />
+    public ParseableTokenStream(Lexer lexer) : base (() =&gt; lexer.Lex().ToList())<br />
+    {<br />
+    }</p>
+<p>    ... implementation ...<br />
+}<br />
+[/csharp]</p>
+<p>It takes the lexer, lexes the tokens, and creates an underlying token stream that we can do snapshots on.  We also have methods to test if the current item on the stream is a specific token type (defined by a known enum):</p>
+<p>[csharp]<br />
+public Boolean IsMatch(TokenType type)<br />
+{<br />
+    return Current.TokenType == type;<br />
+}<br />
+[/csharp]</p>
+<p>The parsing stream base also lets us "take" a specific token. If you remember from the last post, all consuming of a lexable item does is advance the internal array index.  The important part is that after we <code>Consume</code>, we've advanced to the next token in the token stream.</p>
+<p>You'll see in my parser that sometimes I use the <code>Take</code> return value, and sometimes it's discarded. This is intentional. Even if you don't intend to use a token in the syntax tree (like a semicolon) you still have to acknowledge that it was part of the expected pattern and advance the token stream.</p>
+<p>[csharp]<br />
+public Token Take(TokenType type)<br />
+{<br />
+    if (IsMatch(type))<br />
+    {<br />
+        var current = Current;</p>
+<p>        Consume();</p>
+<p>        return current;<br />
+    }</p>
+<p>    throw new InvalidSyntax(<br />
+        String.Format(&quot;Invalid Syntax. Expecting {0} but got {1}&quot;,<br />
+                        type,<br />
+                        Current.TokenType));<br />
+}<br />
+[/csharp]</p>
+<p>We can also try an alternate route. If the route function returns a non-null syntax tree we'll assume the route succeeded and cache it. Later requests for getting syntax trees at that current index will first check the cache before trying to re-build the tree (if it needs to):</p>
+<p>[csharp]<br />
+public Boolean Alt(Func&lt;Ast&gt; action)<br />
+{<br />
+    TakeSnapshot();</p>
+<p>    Boolean found = false;</p>
+<p>    try<br />
+    {<br />
+        var currentIndex = Index;</p>
+<p>        var ast = action();</p>
+<p>        if (ast != null)<br />
+        {<br />
+            found = true;</p>
+<p>            CachedAst[currentIndex] = new Memo<br />
+                                        {<br />
+                                            Ast = ast,<br />
+                                            NextIndex = Index<br />
+                                        };<br />
+        }<br />
+    }<br />
+    catch<br />
+    {</p>
+<p>    }</p>
+<p>    RollbackSnapshot();</p>
+<p>    return found;<br />
+}<br />
+[/csharp]</p>
+<p>The <code>CachedAst</code> field is defined as</p>
+<p>[csharp]<br />
+private Dictionary&lt;int, Memo&gt; CachedAst = new Dictionary&lt;int, Memo&gt;();<br />
+[/csharp]</p>
+<p>Where <code>Memo</code> is </p>
+<p>[csharp]<br />
+internal class Memo<br />
+{<br />
+    public Ast Ast { get; set; }<br />
+    public int NextIndex { get; set; }<br />
+}<br />
+[/csharp]</p>
+<p>There are also couple of extra methods that let me try a route, and if it succeeds return it's cached results</p>
+<p>[csharp]<br />
+public Ast Capture(Func&lt;Ast&gt; ast)<br />
+{<br />
+    if (Alt(ast))<br />
+    {<br />
+        return Get(ast);<br />
+    }</p>
+<p>    return null;<br />
+}</p>
+<p>/// &lt;summary&gt;<br />
+/// Retrieves a cached version if it was found during any alternate route<br />
+/// otherwise executes it<br />
+/// &lt;/summary&gt;<br />
+/// &lt;param name=&quot;getter&quot;&gt;&lt;/param&gt;<br />
+/// &lt;returns&gt;&lt;/returns&gt;<br />
+public Ast Get(Func&lt;Ast&gt; getter)<br />
+{<br />
+    Memo memo;<br />
+    if (!CachedAst.TryGetValue(Index, out memo))<br />
+    {<br />
+        return getter();<br />
+    }</p>
+<p>    Index = memo.NextIndex;</p>
+<p>    return memo.Ast;<br />
+}<br />
+[/csharp]</p>
+<p>The underlying stream in my parser is an array, so the inherited <code>Index</code> property keeps track of where we are in the stream. When we return a memoized syntax tree, we can seek the stream to the index directly after the last memoized token. This means we can easily jump around in our parser stream.  Hopefully this makes sense, because if we returned a cached syntax tree that spanned token items 1 through 15, we should jump immediately to token index 16 and continue parsing from there.  </p>
+<p>For small parsing this works well, but obviously wouldn't scale with large programs.  Still, to change it so that we work on a buffered section of an infinite stream wouldn't be that much work, and in the end wouldn't modify how the actual parser behaves. This is all hidden in the shared base class (so the lexer would also improve).</p>
+<h2>Finally, Parsing</h2>
+<p>First, to tie in the section above, here is the constructor of the <a href="https://github.com/devshorts/LanguageCreator/tree/master/Lang/Parser" target="_blank" rel="noopener noreferrer">parser</a>:</p>
+<p>[csharp]<br />
+private ParseableTokenStream TokenStream { get; set; }</p>
+<p>public LanguageParser(Lexer lexer)<br />
+{<br />
+    TokenStream = new ParseableTokenStream(lexer);<br />
+}<br />
+[/csharp]</p>
+<p>Next, I've defined a few syntax tree classes that the parser will use:</p>
+<p><img src="http://onoffswitch.net/wp-content/uploads/2013/02/ast..png" alt="ast." width="225" height="322" class="alignnone size-full wp-image-2779" /></p>
+<p>All of the syntax tree containers inherit from the base class <code>Ast</code>. This makes working with syntax trees in the parser easy because everything can be passed around as the base, and it means we can extend the metadata that syntax trees have just by adding to the base class.  Hopefully most of the class names are self explanatory (if statement, while loop, method declaration, class dereference) just by class name.  If you're interested in class details you can go to the <a href="https://github.com/devshorts/LanguageCreator/tree/master/Lang/AST" target="_blank" rel="noopener noreferrer">github</a> and check them out. Suffice to say that they look kind of like the if statement class I pseudocoded earlier.</p>
+<p>As an example, let me show one that I reused a lot. The <code>ScopeDeclr</code> AST gets created anytime the parser encounters a <code>{</code> followed by some statements, terminated by <code>}</code>.   </p>
+<p>[csharp]<br />
+public class ScopeDeclr : Ast<br />
+{<br />
+    public List&lt;Ast&gt; ScopedStatements { get; private set; } </p>
+<p>    public ScopeDeclr(List&lt;Ast&gt; statements) : base(new Token(TokenType.ScopeStart))<br />
+    {<br />
+        ScopedStatements = statements;<br />
+    }</p>
+<p>    public override void Visit(IAstVisitor visitor)<br />
+    {<br />
+        visitor.Visit(this);<br />
+    }</p>
+<p>    public override AstTypes AstType<br />
+    {<br />
+        get { return AstTypes.ScopeDeclr; }<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p><code>ScopedStatements</code> is a list of statements that are found in the scoped block. </p>
+<p>I used the <code>ScopeDeclr</code> syntax tree to hold the root node of the entire application. This is because I considered the global scope (starting at the root) to be, well, a scope. The <code>ScopeDeclr</code> also turned out to be extremely useful when building out partial curried functions, a subject I'll cover in the next post about scope and type definitions. </p>
+<p>Here is the entrypoint to the parser:</p>
+<p>[csharp]<br />
+public Ast Parse()<br />
+{<br />
+    var statements = new List&lt;Ast&gt;(1024);</p>
+<p>    while (TokenStream.Current.TokenType != TokenType.EOF)<br />
+    {<br />
+        statements.Add(ScopeStart().Or(Statement));<br />
+    }</p>
+<p>    return new ScopeDeclr(statements);<br />
+}<br />
+[/csharp]</p>
+<p>The <code>.Or()</code> method is an extension method I added inspired by the <a href="http://en.wikibooks.org/wiki/F_Sharp_Programming/Computation_Expressions#Monad_Primer" target="_blank" rel="noopener noreferrer">maybe monad</a>. It returns the first non-null result in a chain of functions. </p>
+<p>[csharp]<br />
+public static class Maybe<br />
+{<br />
+    public static TInput Or&lt;TInput&gt;(this TInput input, Func&lt;TInput&gt; evaluator)<br />
+        where TInput : class<br />
+    {<br />
+        if (input != null)<br />
+        {<br />
+            return input;<br />
+        }</p>
+<p>        return evaluator();<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>Lets take a look at what is a <code>Statement</code></p>
+<p>[csharp]<br />
+/// &lt;summary&gt;<br />
+/// Class, method declaration or inner statements<br />
+/// &lt;/summary&gt;<br />
+/// &lt;returns&gt;&lt;/returns&gt;<br />
+private Ast Statement()<br />
+{<br />
+    var ast = TokenStream.Capture(Class)<br />
+                         .Or(() =&gt; TokenStream.Capture(MethodDeclaration));</p>
+<p>    if (ast != null)<br />
+    {<br />
+        return ast;<br />
+    }</p>
+<p>    // must be an inner statement if the other two didn't pass<br />
+    // these are statements that can be inside of scopes such as classes<br />
+    // methods, or just global scope<br />
+    var statement = InnerStatement();</p>
+<p>    if (TokenStream.Current.TokenType == TokenType.SemiColon)<br />
+    {<br />
+        TokenStream.Take(TokenType.SemiColon);<br />
+    }</p>
+<p>    return statement;<br />
+}<br />
+[/csharp]</p>
+<p>A statement can either be a class, a method declaration, or an inner statement.  I didn't want to need to put semicolons after class and method definitions, so I don't test for a semicolon there.  I also made semicolons optional, if we can unambiguously determine the grammar without needing semicolons then great, otherwise we'll use it to terminate a statement if it's there.  Though in reality you need to put in semicolons or the parser will barf.  Call it a <a href="https://www.google.com/search?q=programming+language+quirks" target="_blank" rel="noopener noreferrer">language quirk</a>.</p>
+<p>Here is an inner statement. These are statements I considered valid within scopes such as method declarations, global scope, or inside of classes.  </p>
+<p>[csharp]<br />
+/// &lt;summary&gt;<br />
+/// A statement inside of a valid scope<br />
+/// &lt;/summary&gt;<br />
+/// &lt;returns&gt;&lt;/returns&gt;<br />
+private Ast InnerStatement()<br />
+{<br />
+    // ordering here matters since it resolves to precedence<br />
+    var ast = TryCatch().Or(ScopeStart)<br />
+                        .Or(LambdaStatement)<br />
+                        .Or(VariableDeclWithAssignStatement)<br />
+                        .Or(VariableDeclrStatement)<br />
+                        .Or(GetIf)<br />
+                        .Or(GetWhile)<br />
+                        .Or(GetFor)<br />
+                        .Or(GetReturn)<br />
+                        .Or(PrintStatement)<br />
+                        .Or(Expression)<br />
+                        .Or(New);</p>
+<p>    if (ast != null)<br />
+    {<br />
+        return ast;<br />
+    }</p>
+<p>    throw new InvalidSyntax(String.Format(&quot;Unknown expression type {0} - {1}&quot;, TokenStream.Current.TokenType, TokenStream.Current.TokenValue));<br />
+}<br />
+[/csharp]</p>
+<p>Let's check out a few other parsers. Here is how to parse a <code>new</code> of the form</p>
+<p>[csharp]<br />
+new thing(a, b, c)<br />
+[/csharp]</p>
+<p>I explicity didn't put in a semicolon, since semicolons delimit statements, not just expressions.  </p>
+<p>This gives me a class <code>NewAst</code> that has the class name (<code>thing</code>) and a list of the arguments (<code>a</code>, <code>b</code>, and <code>c</code>).</p>
+<p>[csharp]<br />
+private Ast New()<br />
+{<br />
+    Func&lt;Ast&gt; op = () =&gt;<br />
+        {<br />
+            if (TokenStream.Current.TokenType == TokenType.New)<br />
+            {<br />
+                TokenStream.Take(TokenType.New);</p>
+<p>                var name = new Expr(TokenStream.Take(TokenType.Word));</p>
+<p>                List&lt;Ast&gt; args = GetArgumentList();</p>
+<p>                return new NewAst(name, args);<br />
+            }</p>
+<p>            return null;<br />
+        };</p>
+<p>    return TokenStream.Capture(op);<br />
+}<br />
+[/csharp]</p>
+<p>We test if the current token is of type <code>TokenType.New</code> and if so consumes it. Then it expects an expression (the word <code>thing</code>), and then gets a comma delimited list of arguments.  There's no semicolon because this <code>new</code> statement is part of a larger sequence of statements which will contain a reference to this <code>new</code> on the tree.  We don't really know, or care, if the statement is part of a variable declaration, or a print statement, or a function call, or whatever, as long as its valid in the grammar.</p>
+<p>Here is a <code>while</code></p>
+<p>[csharp]<br />
+private Ast GetWhile()<br />
+{<br />
+    if (TokenStream.Current.TokenType == TokenType.While)<br />
+    {<br />
+        Func&lt;WhileLoop&gt; op = () =&gt;<br />
+            {<br />
+                var predicateAndStatements = GetPredicateAndStatements(TokenType.While);</p>
+<p>                var predicate = predicateAndStatements.Item1;</p>
+<p>                var statements = predicateAndStatements.Item2;</p>
+<p>                return new WhileLoop(predicate, statements);<br />
+            };</p>
+<p>        return TokenStream.Capture(op);<br />
+    }</p>
+<p>    return null;<br />
+}<br />
+[/csharp]</p>
+<p>Which leverages the following helper function</p>
+<p>[csharp]<br />
+private Tuple&lt;Ast, ScopeDeclr&gt; GetPredicateAndStatements(TokenType type)<br />
+{<br />
+    TokenStream.Take(type);</p>
+<p>    TokenStream.Take(TokenType.OpenParenth);</p>
+<p>    var predicate = InnerStatement();</p>
+<p>    TokenStream.Take(TokenType.CloseParenth);</p>
+<p>    var statements = GetStatementsInScope(TokenType.LBracket, TokenType.RBracket);</p>
+<p>    return new Tuple&lt;Ast, ScopeDeclr&gt;(predicate, statements);<br />
+}<br />
+[/csharp]</p>
+<p>Hopefully you can see now how this all continues on.  <code>GetStatementsInScope</code> pulls all semicolon delimited statements between a left bracket and a right bracket and returns a scope declaration block with them inside.</p>
+<h2>Expressions</h2>
+<p>I wanted to dedicate a specific section on parsing expressions because I struggled with this.  These are ones like</p>
+<p>[code]<br />
+1 + 1<br />
+(b.x.z * 2.0)<br />
+(new class()).x == true<br />
+(f + 2) + foo() + 3 + (a - 2 - z)<br />
+[/code]</p>
+<p>I'll be truthful here, I didn't think expressions through thoroughly before I started. For every pattern I was able to match I exposed one that I couldn't. At one point I ran into a bunch of left recursion issues.  In the end, expressions, as I've "<em>defined</em>" them look like this</p>
+<p>[code]<br />
+operator = + | - | / | ^ | = | | | == | !=<br />
+terminal = new statement | function call | class dereference | single token<br />
+expression' = terminal operator expression | terminal<br />
+expression = ( expression ) | ( expression ) operator expression | expression'<br />
+[/code]</p>
+<p>This was mostly figured out through trial and error, some pen and paper diagrams, extensive unit tests, and a lot of head scratching. Honestly, out of the whole parser this is what took the longest to get right (at least right enough).</p>
+<p>What I did to avoid left recursion, I later realized, looks similar to what <a href="http://en.wikipedia.org/wiki/Left_recursion#Removing_left_recursion" target="_blank" rel="noopener noreferrer">wikipedia</a> suggests, which is to create a new intermediate nonterminal. This is the subset of specific terminals I called <code>terminal</code> in the BNF above.   So I'm not just matching on <em>expression operator expression</em> since that would recurse endlessly (assuming tail call recursion) or, more likely, just blow up my stack and crash.  </p>
+<p>The expression parsing code, in the end, matches expressions of the following formats (for example). I made all the examples use a plus sign because I was lazy - any available operator works in any ordering (these cases are from my expression testing unit test)</p>
+<p>[csharp]<br />
+1 + 2;<br />
+1 + 2 + 3;<br />
+(1 + 2) + 3;<br />
+(1 + 2 ) + (3 + 4);<br />
+1 + (2 + 3);<br />
+1 + (2 + 3) + 4;<br />
+(1 + 2 + 3 + 4);<br />
+new foo().z + 1;<br />
+a.f().z * 2.0 + (new foo().x + 2);<br />
+(new foo().z) + 1;<br />
+(f + 2) + foo() + 3 + (a + 2 + z)<br />
+[/csharp]</p>
+<p>Which when tested, looks something like this</p>
+<p>[csharp]<br />
+SCOPE:<br />
+(Int: 1 Plus: + Int: 2)<br />
+(Int: 1 Plus: + (Int: 2 Plus: + Int: 3))<br />
+((Int: 1 Plus: + Int: 2) Plus: + Int: 3)<br />
+((Int: 1 Plus: + Int: 2) Plus: + (Int: 3 Plus: + Int: 4))<br />
+(Int: 1 Plus: + (Int: 2 Plus: + Int: 3))<br />
+(Int: 1 Plus: + ((Int: 2 Plus: + Int: 3) Plus: + Int: 4))<br />
+(Int: 1 Plus: + (Int: 2 Plus: + (Int: 3 Plus: + Int: 4)))<br />
+([( new Word: foo with args n/a). (Word: z)] Plus: + Int: 1)<br />
+([( Word: a). (call Word: f with args ). (Word: z)] Asterix: * (Float: 2.0 Plus: + ([( new Word: foo with args n/a). (Word: x)] Plus: + Int: 2)))<br />
+([( new Word: foo with args n/a). (Word: z)] Plus: + Int: 1)<br />
+((Word: f Plus: + Int: 2) Plus: + (call Word: foo with args  Plus: + (Int: 3 Plus: + (Word: a Plus: + (Int: 2 Plus: + Word: z)))))<br />
+[/csharp]</p>
+<p>Like the other parse functions, this one returns an <code>Ast</code> and does some basic alternative checking.  The <code>new</code> test, on line  3, isn't part of <code>IsValidOperand</code> because I re-use <code>IsValidOperand</code> elsewhere.  </p>
+<p>[csharp]<br />
+private Ast Expression()<br />
+{<br />
+    if (IsValidOperand() || TokenStream.Current.TokenType == TokenType.New)<br />
+    {<br />
+        return ParseExpression();<br />
+    }</p>
+<p>    switch (TokenStream.Current.TokenType)<br />
+    {<br />
+        case TokenType.OpenParenth:</p>
+<p>            Func&lt;Ast&gt; basicOp = () =&gt;<br />
+                {<br />
+                    TokenStream.Take(TokenType.OpenParenth);</p>
+<p>                    var expr = Expression();</p>
+<p>                    TokenStream.Take(TokenType.CloseParenth);</p>
+<p>                    return expr;<br />
+                };</p>
+<p>            Func&lt;Ast&gt; doubleOp = () =&gt;<br />
+                {<br />
+                    var op1 = basicOp();</p>
+<p>                    var op = Operator();</p>
+<p>                    var expr = Expression();</p>
+<p>                    return new Expr(op1, op, expr);<br />
+                };</p>
+<p>            return TokenStream.Capture(doubleOp)<br />
+                              .Or(() =&gt; TokenStream.Capture(basicOp));</p>
+<p>        default:<br />
+            return null;<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>What we're doing here is splitting up the operation into 3 different sections</p>
+<ul>
+<li>Terminal. This is the first statement. If it's a terminal parse and return. Terminals aren't just single tokens, they are terminal expression types (like <code>new</code>, function calls, single operands, simple operations like <em>operand operator operand</em>, etc)</li>
+<li>Expressions inside of parenthesis.  If we have something like <code>(1 + 1)</code>, take the parenthesis out and parse the expression.</li>
+<li>Expressions inside of parenthesis, followed by an operator, followed by an expression. If we have <code>(1 + 1) + (1 - a)</code>, or <code>(1 + 1) + 2 + 3</code>, take the first section, then the operator, then try the next section</li>
+</ul>
+<p>If we have a valid left operand we can parse a basic expression that is of the form</p>
+<p>[code]<br />
+terminal | terminal operator expression<br />
+[/code]</p>
+<p>This is right recursive! Sweet, no recursion issues. If you didn't catch why earlier, check out <a href="http://stackoverflow.com/questions/847439/why-cant-a-recursive-descent-parser-handle-left-recursion" target="_blank" rel="noopener noreferrer">this</a> stack overflow question.  The ordering of parsing here matters, I am parsing from most terms to least terms. If I switched the order (terminal first, then expression), the parser would break since we'd run into the alternative issue I mentioned in a section above.</p>
+<p>Here is how I parsed the basic expression defined in the above BNF</p>
+<p>[csharp]<br />
+private Ast ParseExpression()<br />
+{<br />
+    Func&lt;Func&lt;Ast&gt;, Func&lt;Ast&gt;, Ast&gt; op = (leftFunc, rightFunc) =&gt;<br />
+        {<br />
+            var left = leftFunc();</p>
+<p>            if (left == null)<br />
+            {<br />
+                return null;<br />
+            }</p>
+<p>            var opType = Operator();</p>
+<p>            var right = rightFunc();</p>
+<p>            if (right == null)<br />
+            {<br />
+                return null;<br />
+            }</p>
+<p>            return new Expr(left, opType, right);<br />
+        };</p>
+<p>    Func&lt;Ast&gt; leftOp = () =&gt; op(ExpressionTerminal, Expression);</p>
+<p>    return TokenStream.Capture(leftOp)<br />
+                      .Or(() =&gt; TokenStream.Capture(ExpressionTerminal));<br />
+}<br />
+[/csharp]</p>
+<p>Where <code>IsValidOperand</code> is</p>
+<p>[csharp]<br />
+private bool IsValidOperand()<br />
+{<br />
+    switch (TokenStream.Current.TokenType)<br />
+    {<br />
+        case TokenType.Int:<br />
+        case TokenType.QuotedString:<br />
+        case TokenType.Word:<br />
+        case TokenType.True:<br />
+        case TokenType.Float:<br />
+        case TokenType.Nil:<br />
+        case TokenType.False:<br />
+            return true;<br />
+    }<br />
+    return false;<br />
+}<br />
+[/csharp]</p>
+<p>And <code>ExpressionTerminal</code> is</p>
+<p>[csharp]<br />
+private Ast ExpressionTerminal()<br />
+{<br />
+    return ClassReferenceStatement().Or(FunctionCallStatement)<br />
+                                    .Or(New)<br />
+                                    .Or(SingleToken);<br />
+}<br />
+[/csharp]</p>
+<h2>Testing the parser</h2>
+<p>At this point everything is set up! I didn't cover all of the parser functions but they are pretty similar in nature. Anyways, lets do a few tests</p>
+<p>[csharp]<br />
+[Test]<br />
+public void TestSimpleAst()<br />
+{<br />
+    var test = @&quot;x = 1;&quot;;</p>
+<p>    var ast = new LanguageParser(new Lexers.Lexer(test)).Parse() as ScopeDeclr;</p>
+<p>    var expr = (ast.ScopedStatements[0] as Expr);</p>
+<p>    Assert.IsTrue(expr.Left.Token.TokenType == TokenType.Word);<br />
+    Assert.IsTrue(expr.Right.Token.TokenType == TokenType.Int);<br />
+    Assert.IsTrue(ast.Token.TokenType == TokenType.ScopeStart);<br />
+}<br />
+[/csharp]</p>
+<p>And something more complicated</p>
+<p>[csharp]<br />
+[Test]<br />
+public void AstWithExpression2()<br />
+{<br />
+    var test = @&quot;int z = 1;<br />
+                {<br />
+                    int y = 5 + 4;<br />
+                }<br />
+                x = 1 + 2 ^ (5-7);&quot;;</p>
+<p>    var ast = new LanguageParser(new Lexers.Lexer(test)).Parse() as ScopeDeclr;</p>
+<p>    Assert.IsTrue(ast.ScopedStatements.Count == 3);<br />
+    Assert.IsTrue(ast.ScopedStatements[0] is VarDeclrAst);<br />
+    Assert.IsTrue(ast.ScopedStatements[1].Token.TokenType == TokenType.ScopeStart);<br />
+    Assert.IsTrue(ast.ScopedStatements[2] is Expr);</p>
+<p>    Console.WriteLine(ast);<br />
+}<br />
+[/csharp]</p>
+<p>Let me print out the above test string representation:</p>
+<p>[code]<br />
+SCOPE:<br />
+	Declare Word: z as Int: int with value Int: 1<br />
+	SCOPE:<br />
+		Declare Word: y as Int: int with value (Int: 5 Plus: + Int: 4)<br />
+	(Word: x Equals: = (Int: 1 Plus: + (Int: 2 Carat: ^ (Int: 5 Minus: - Int: 7))))<br />
+[/code]</p>
+<p>And this insane block of gibberish.  </p>
+<p>[csharp]<br />
+[Test]<br />
+public void FunctionTest()<br />
+{<br />
+    var test = @&quot;void foo(int x, int y){<br />
+                    int x = 1;<br />
+                    var z = fun() -&gt; {<br />
+                        zinger = &quot;&quot;your mom!&quot;&quot;;<br />
+                        someThing(a + b) + 25 - (&quot;&quot;test&quot;&quot; + 5);<br />
+                    };<br />
+                }</p>
+<p>                z = 3;</p>
+<p>                int testFunction(){<br />
+                    var p = 23;</p>
+<p>                    if(foo){<br />
+                        var x = 1;<br />
+                    }<br />
+                    else if(faa){<br />
+                        var y = 2;<br />
+                        var z = 3;<br />
+                    }<br />
+                    else{<br />
+                        while(1 + 1){<br />
+                            var x = fun () -&gt;{<br />
+                                test = 0;<br />
+                            };<br />
+                        }</p>
+<p>                        if(foo){<br />
+                            var x = 1;<br />
+                        }<br />
+                        else if(faa){<br />
+                            var y = 2;<br />
+                            var z = 3;<br />
+                        }<br />
+                        else{<br />
+                            for(int i = 0; i &lt; 10; i = i + 1){<br />
+                                var x = z;<br />
+                            }<br />
+                        }<br />
+                    }<br />
+                }&quot;;</p>
+<p>    var ast = new LanguageParser(new Lexers.Lexer(test)).Parse() as ScopeDeclr;</p>
+<p>    Assert.IsTrue(ast.ScopedStatements.Count == 3);<br />
+    Assert.IsTrue(ast.ScopedStatements[0] is MethodDeclr);<br />
+    Assert.IsTrue(ast.ScopedStatements[1] is Expr);<br />
+    Assert.IsTrue(ast.ScopedStatements[2] is MethodDeclr);<br />
+}<br />
+[/csharp]</p>
+<p>Well, you get the idea.</p>
+<h2>Conclusion</h2>
+<p>One thing I didn't like about how my parser turned is that the entire parsing code ended up in one class. I couldn't think of a clean way to separate all this out, since we have lots of mutual recursion going on. Each function needed to know about the other one.  I thought about passing around the lexer as a state (functional style) but when I tried that it ended up messier than I had hoped.  </p>
+<p>Anyways, it's a lot to take in, and I showed a bunch of code, some of which is out of context. Make sure to go to the <a href="https://github.com/devshorts/LanguageCreator" target="_blank" rel="noopener noreferrer">github</a> if you want to poke around some more.  After doing the parser, I wouldn't do one again by hand. This is pretty tedious and it took me two frustrating weeks to get it all right (thanks for bearing with me <a href="https://twitter.com/nightCheese2" target="_blank" rel="noopener noreferrer">Tracy</a>!).  This is why you would absolutely use a pre-rolled lexing/parsing solution to get you to your abstract syntax trees.  <a href="http://en.wikipedia.org/wiki/Comparison_of_parser_generators" target="_blank" rel="noopener noreferrer">Here</a> is a list of parser generators, and I'm sure there are tons not listed. Lots of smart people have built these and will save you plenty of time in the long run.  </p>
+<p>Like the exercise with the lexer, I'm glad I did it and I have a much better appreciation for libraries that do this all for you.</p>
+<p>The next step (and post) will be to determine proper scoping rules, static typing (and type validation), and add some extra neat features like partial functions to our language.  This is going to be done using a scope builder that will use the visitor pattern to iterate over our syntax tree. Having the syntax tree means we can finally start doing interesting stuff and making language decisions. </p>
+<h2>Disclaimer</h2>
+<p>If I got something wrong in the post please let me know! Like I've mentioned before I'm new at this and just sharing my findings.</p>

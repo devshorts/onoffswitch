@@ -1,0 +1,134 @@
+---
+layout: post
+title: Testing puppet with docker and python
+date: 2015-07-08 00:50:45.000000000 -07:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- docker
+- jenkins
+- puppet
+- python
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_rich_snippet_type: none
+  _wpas_done_all: '1'
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1556506239;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4699;}i:1;a:1:{s:2:"id";i:4737;}i:2;a:1:{s:2:"id";i:4978;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2015/07/08/testing-puppet-docker-python/"
+---
+<p>In all the past positions I've been in I've been lucky enough to have a dedicated ops team to handle service deployment, cluster health, and machine managmenent. However, at my new company there is much more of a "self serve" mentality such that each team needs to handle things themselves. On the one hand this is a huge pain in my ass, since really the last thing I want to do is deal with clusters and machines. On the other hand though, because we have the ability to spin up openstack boxes in our data centers at the click of a button, each team has the flexibility to host their own infrastructrure and stack.  </p>
+<p>For the most part my team and I are deploying our java services using dockerized containers. Our container is a centos7 base image with a logstash forwarder in it and some other minor tooling, and we run our java service in the foreground.  All we need to have on our host boxes is a bootloader script that we execute to shut down old docker containers and spin up new docker containers, and of course docker.  To get docker and our bootloader (and of course manage things like our jenkins instances, RMQ clusters, cassandra nodes, etc) we are using puppet.</p>
+<p>After deep diving into puppet my first question was "how do I test this?". Most suggestions indicate testing is two fold</p>
+<ol>
+<li>Syntax checking</li>
+<li>Integration testing on isolated machines</li>
+</ol>
+<p>The first element is a no brainer. You run the puppet syntax checker and you get some output. That's not that helpful though, other than making sure I didn't fat finger something.  And the second point really sucks. You have to manually check if everything worked.  As an engineer I shudder at the word "manual", so I set out to create an isolated test framework that my team can use to simulate and automatically test puppet scripts both local and on jenkins.</p>
+<p>To do that, I wrote <a href="https://github.com/devshorts/Puppety">puppety</a>.  It's really stupidly simple.  The gist is you have a puppet master in a docker container who auto signs anyone who connects, and you have a puppet agent in a docker container who connects, syncs, and then runs tests validating the sync was complete.</p>
+<h2>Puppety structure</h2>
+<p>If you look at the git repo, you'll see there are two main folders:</p>
+<p>[code]<br />
+/data<br />
+/test<br />
+[/code]</p>
+<p>The <code>/data</code> folder is going to map to the <code>/etc/puppet</code> folder on our puppet master. It should contain all the stuff we want to deploy as if we plopped that whole folder onto the puppet root.</p>
+<p>The test folder contains the python test runners, as well as the dockerized containers for both the master and the agent.  </p>
+<h2>Testing a node</h2>
+<p>If you have a node configuration in an environment you can test a node by annotating it like so:</p>
+<p>[code]<br />
+# node-test: jenkins/test-server<br />
+node &quot;test.foo.com&quot; {<br />
+  file {'/tmp/example-ip':                                            # resource type file and filename<br />
+    ensure  =&gt; present,                                               # make sure it exists<br />
+    mode    =&gt; 0644,                                                  # file permissions<br />
+    content =&gt;  &quot;Here is my Public IP Address: ${ipaddress_eth0}.\n&quot;,  # note the ipaddress_eth0 fact<br />
+  }<br />
+}<br />
+[/code]</p>
+<p>Lets say this node sits in a definition file in <code>/etc/puppet/environments/develop/manifests/nodes/jenkins.pp</code></p>
+<p>Our test runner can pick up that we asked to test the jenkins node, and template our manifests such that during run time the actual node definition looks like</p>
+<p>[code]<br />
+# node-test: jenkins/test-server<br />
+node /docker_host.*/ {<br />
+  file {'/tmp/example-ip':                                            # resource type file and filename<br />
+    ensure  =&gt; present,                                               # make sure it exists<br />
+    mode    =&gt; 0644,                                                  # file permissions<br />
+    content =&gt;  &quot;Here is my Public IP Address: ${ipaddress_eth0}.\n&quot;,  # note the ipaddress_eth0 fact<br />
+  }<br />
+}<br />
+[/code]</p>
+<p>Now, when the dockerized puppet container connects, it assumes the role of the jenkins node!  </p>
+<p>The tests sit in a folder called tests/runners and the test name is the path to the test to run. It's that simple.</p>
+<p>We are also structuring our puppet scripts in terms of roles. Roles using a custom facter who reads from <code>/etc/.role/role</code> to find out the role name of a machine. So this way, when a machine connects to puppet it'll say "I'm this role" and puppet can switch on the role to know what configurations to apply. </p>
+<p>To support this, we can annotate role tests like so</p>
+<p>[code]<br />
+node default {<br />
+  case $node_role{<br />
+    # role-test: roles/slave-test<br />
+    'slave': {<br />
+      file {'/tmp/node-role': # resource type file and file<br />
+        ensure  =&gt; present,   # make sure it exists<br />
+        mode    =&gt; 0644,      # file permissions<br />
+        content =&gt;    &quot;Here is my Role ${$node_Role}.\n&quot;,  # note the node role<br />
+       }<br />
+    }<br />
+    # role-test: roles/listener-test<br />
+    'listener': {<br />
+      file { '/tmp/listener': # resource type file and file<br />
+        ensure  =&gt; present,   # make sure it exists<br />
+        mode    =&gt; 0644,      # file permissions<br />
+        content =&gt;    &quot;I am a listener&quot;,  # note the node role<br />
+      }<br />
+    }<br />
+   }<br />
+}<br />
+[/code]</p>
+<p>When the <code>roles/slave-test</code> gets run the test runner will add the role <code>slave</code> to the right file, such that when the container connects it'll assume that role.</p>
+<p>The tests themselves are trivial. They use <code>pytest</code> syntax and look like this:</p>
+<p>[python]<br />
+from util.puppet_utils import *</p>
+<p>@agent<br />
+def test_file_exists():<br />
+    assert file_exists(&quot;/tmp/example-ip&quot;)</p>
+<p>@agent<br />
+def test_ip_contents_set():<br />
+    assert contents_contains('/tmp/example-ip', 'Here is my Public IP Address')</p>
+<p>@master<br />
+def test_setup():<br />
+    print &quot;foo&quot;<br />
+[/python]</p>
+<p>Tests are annotated by where they'll run at. Agent tests run after a sync, but master tests will run BEFORE the master runs. This is so you can do any setup on the master you need. Need to drop in some custom data before the agent starts? Perfect place to do it.  </p>
+<h2>Getting test results on jenkins</h2>
+<p>The fun part about this is that we can output the result of each test into a linked docker volume. Our jenkins test runner just looks like:</p>
+<p>[shell]<br />
+cd test</p>
+<p>PATH=$WORKSPACE/venv/bin:/usr/local/bin:$PATH</p>
+<p>virtualenv venv</p>
+<p>. venv/bin/activate</p>
+<p>pip install -r requirements.txt</p>
+<p>python test-runner.py -e develop --all</p>
+<p>python test-runner.py -e production --all<br />
+[/shell]</p>
+<p>And we can collect our results to get a nice test graph</p>
+<p><img src="http://onoffswitch.net/wp-content/uploads/2015/07/Screen-Shot-2015-07-07-at-5.38.23-PM.png" alt="Screen Shot 2015-07-07 at 5.38.23 PM" width="901" height="359" class="aligncenter size-full wp-image-4674" /></p>
+<p>To deploy we have cron job on the puppet master to pull back our puppet scripts git repo and merge the <code>data</code> folder into its /etc/puppet folder. </p>
+<h2>Debugging the containers</h2>
+<p>Sometimes using puppety goes wrong and it's nice to see whats going on. Because each container exposes an entrypoint script we can pass in a debug flag to get access to a shell so we can run the tests manually:</p>
+<p>[code]<br />
+$ docker run -it -h docker_host -v ~/tmp/:/opt/local/tmp puppet-tests/puppet-agent --debug /bin/bash<br />
+[/code]</p>
+<p>Now we can execute the entrypoint by hand, or run puppet by hand and play around.  </p>
+<h2>Conclusion</h2>
+<p>All in all this has worked really well for our team. It's made it easy for us to prototype and play with our infrastructure scripts in a controlled environment locally. And since we are able to now actually write tests against our infrastructure we can feel more comfortable about pushing changes out to prod.  </p>

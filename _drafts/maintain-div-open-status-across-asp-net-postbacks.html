@@ -1,0 +1,102 @@
+---
+layout: post
+title: Maintain div open status across asp.net postbacks
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: draft
+categories: []
+tags:
+- asp.net
+- C#
+- JavaScript
+meta:
+  _syntaxhighlighter_encoded: '1'
+  _su_title: ''
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/"
+---
+<p>I ran into a situation where I was using jquery to open and close a collection of divs on an aspx page that changes its state based on postback data.  Unfortunately when you do a postback the div open/close status is lost and that makes the page feel inconsistent and jerky.  I came up with a simple solution to track the div status in a hidden input field that the backing asp.net page knows about, and on post-back re-applying a styling to any previously open divs. </p>
+<p>First we need a place to store the ID's of the open divs. I've added a hidden input field to the bottom of my page that accomplishes that. In the aspx page I have:</p>
+<p>[csharp]<br />
+&lt;asp:HiddenField ID=&quot;openDivs&quot; runat=&quot;server&quot;/&gt;<br />
+[/csharp]</p>
+<p>This way I can reference the values in <code>openDivs</code> later from the backing code.</p>
+<p>Each div which we need to collapse and expand has "hideAbleClass" assigned to it and is by default closed.  I also wrote a javascript a function named <code>toggle</code> that is responsible for opening and closing the divs, as well as updating the backing <code>openDivs</code> field with which divs are open. The logic is simple: first we clear out the <code>openDivs</code> hidden input value, then iterate over all the tagged divs on the page and update their Id's (corresponding to their backing asp.net id's) into a semicolon delimited list in the hidden field.</p>
+<p>For the initial css, it's important that all the div's be initialized style with the class level css so that they default to <code>display:none</code> since we'll end up overriding their class stylings with inline styles later.  Defining a class styling also lets us fall back to a class style when we remove an inline style.</p>
+<p>[css]<br />
+&lt;style type=&quot;text/css&quot;&gt;<br />
+    .hideAbleClass<br />
+    {<br />
+        display:none;<br />
+    }<br />
+&lt;/style&gt;<br />
+[/css]</p>
+<p>Here is a sample panel that would use the <code>toggle</code> function</p>
+<p>[html]<br />
+&lt;a class=&quot;clickToggleDivClass&quot; onclick=&quot;toggle('_panelID')&quot;&gt;&lt;h1&gt;Click here to open this div!&lt;/h1&gt;&lt;/a&gt;<br />
+&lt;asp:Panel ID=&quot;_panelID&quot; runat=&quot;server&quot; Visible=&quot;true&quot; CssClass=&quot;hideAbleClass&quot;&gt;<br />
+    &lt;!-- content --&gt;<br />
+&lt;/asp:Panel&gt;<br />
+[/html]</p>
+<p>When we click the link we pass the <code>_panelID</code> to the toggle function and it handles maintaining the status of open div's for us.</p>
+<p>[js]<br />
+function toggle(itemId) {<br />
+    $('#' + itemId).slideToggle('fast',<br />
+        function () {<br />
+            var openDivValue = &quot;&quot;;</p>
+<p>            $(&quot;#openDivs&quot;).val(openDivValue);</p>
+<p>            $(&quot;.hideAbleClass&quot;).each(function (item) {<br />
+                if ($(this).is(&quot;:visible&quot;)) {<br />
+                    openDivValue +=$(this).attr(&quot;id&quot;) +&quot;;&quot;;<br />
+                }<br />
+            });</p>
+<p>            $(&quot;#openDivs&quot;).val(openDivValue);<br />
+        });<br />
+}<br />
+[/js]</p>
+<p>Now we have a page level storage of what is going on with all our open div's.  Anything that is shown gets added to the hidden input and all we have to do is on a postback re-apply the display css to any divs. </p>
+<p>[csharp]<br />
+protected void Page_Load(object sender, EventArgs e)<br />
+{<br />
+    if(IsPostBack)<br />
+    {<br />
+        MaintainOpenPositions(FindControl(&quot;parentContainer&quot;));<br />
+    }<br />
+}</p>
+<p>/// &lt;summary&gt;<br />
+/// Keeps divs open if they were previously open on a postbakc<br />
+/// otherwise resets their display field to revert back to their css class default<br />
+/// &lt;/summary&gt;<br />
+/// &lt;param name=&quot;findControl&quot;&gt;&lt;/param&gt;<br />
+private void MaintainOpenPositions(Control findControl)<br />
+{<br />
+    var openDivList = openDivs.Value.Split(new[]{';'}, StringSplitOptions.RemoveEmptyEntries);</p>
+<p>    foreach (Control c in findControl.Controls)<br />
+    {<br />
+        if (c is Panel)<br />
+        {<br />
+            MaintainOpenPositions(c);</p>
+<p>            var panel = c as Panel;<br />
+            if(!CollectionUtil.IsNullOrEmpty(openDivList) &amp;&amp;<br />
+                        openDivList.Any(openId=&gt; openId.Contains(panel.ID.ToLowerInvariant(),<br />
+                                                 StringComparison.InvariantCultureIgnoreCase)))<br />
+            {<br />
+                panel.Attributes.Add(&quot;style&quot;, &quot;display:block&quot;);<br />
+            }<br />
+            else<br />
+            {<br />
+                panel.Attributes.Add(&quot;style&quot;, &quot;display:&quot;);<br />
+            }</p>
+<p>        }<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>You can see that on page load we look for all controls under a div called <code>parentContainer</code>. I did this so I can encapsulate the open/close state maintaining to only work for a subset of the page. In <code>MaintainOpenPositions</code> we recursively search the page for all panel's and find if the panel ID is in the list of openDiv's that we tracked in the hidden field. If it is, we want to set the inline css style to <code>display:block</code> which will show the panel, otherwise we reset the styling to be an empty string (<a href="http://stackoverflow.com/questions/3522643/how-to-revert-back-to-normal-after-displaynone-for-table-row"><code>display:</code></a>) which lets the div use class level css.</p>

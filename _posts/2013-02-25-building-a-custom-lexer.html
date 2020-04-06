@@ -1,0 +1,486 @@
+---
+layout: post
+title: Building a custom lexer
+date: 2013-02-25 16:54:43.000000000 -08:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Code
+tags:
+- c#
+- language implementation
+- Lexer
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  _su_title: ''
+  _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561966458;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3565;}i:1;a:1:{s:2:"id";i:3016;}i:2;a:1:{s:2:"id";i:7777;}}}}
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/2013/02/25/building-a-custom-lexer/"
+---
+<p>As a software engineer I spend all day (hopefully) writing code.  I love code and I love that there are languages that help me solve problems and create solutions.  But as an engineer I always want to know more about the tools I work with so I recently picked up "<a href="http://www.amazon.com/Language-Implementation-Patterns-Domain-Specific-Programming/dp/193435645X" target="_blank" rel="noopener noreferrer">Language Implementation Patterns</a>" by <a href="http://www.cs.usfca.edu/~parrt/" target="_blank" rel="noopener noreferrer">Terence Parr</a> and decided I was going to learn how to build a language.  After reading through most of the book and working on examples for about 5 weeks I ended up building an interpreted <a href="https://github.com/devshorts/LanguageCreator" target="_blank" rel="noopener noreferrer">toy general purpose</a> language that has features like:</p>
+<ul>
+<li>type inference</li>
+<li>partial functions</li>
+<li>static typing</li>
+<li>classes</li>
+<li>first class methods</li>
+</ul>
+<p>The language I wrote is by no means production level. It's a toy, and it can do toy things. It can't do IO, it can't talk to the OS, it doesn't do GC, but it does evaluate expressions, call methods, basic exception handling, dynamic typing, and lets you do simple work.  </p>
+<p>Now that I'm done (but never finished) with the project I really appreciate how much goes into making a working language. The whole project increased my respect ten fold for people like <a href="http://twitter.com/dsyme" target="_blank" rel="noopener noreferrer">Don Syme</a>, <a href="https://twitter.com/ttliu2000" target="_blank" rel="noopener noreferrer">Tao Liu</a>, <a href="http://en.wikipedia.org/wiki/Anders_Hejlsberg" target="_blank" rel="noopener noreferrer">Anders Hejlsberg</a>, <a href="http://en.wikipedia.org/wiki/Bjarne_Stroustrup" target="_blank" rel="noopener noreferrer">Bjarne Stroustrup</a>, <a href="http://en.wikipedia.org/wiki/Guido_van_Rossum" target="_blank" rel="noopener noreferrer">Guido van Rossum</a>, and countless others who have made REAL languages. But now that I'm about done with my project, I wanted to share how parts of my language were done. </p>
+<h2>Tokenizing</h2>
+<p>The first step to implementing a domain specific language, or even a general purpose language, is to figure out what the string representing the program means.  You have to figure out that something like this:</p>
+<p>[csharp]<br />
+int foo = 1;</p>
+<p>void func(){<br />
+   print &quot;abc&quot;;<br />
+}<br />
+[/csharp]</p>
+<p>Really means</p>
+<p>[csharp]<br />
+int<br />
+foo<br />
+equals<br />
+number<br />
+semicolon<br />
+void<br />
+word<br />
+left parenthesis<br />
+right parenthesis<br />
+left bracket<br />
+word<br />
+quoted string<br />
+semicolon<br />
+right bracket<br />
+[/csharp]</p>
+<p>To do this you need to first break up the program into a series of strings that you know are independent tokens, such as "int", and "foo". This is called tokenizing. Then you then need to go over that list and say "oh hey, I found this token 'int' but really it means <code>TokenType.Int</code>".  Converting the strings to strong types is called lexing. Translating the string into strong types makes it significantly easier to work on it later. </p>
+<p>While some grammars can be tokenized by breaking up on whitespace, for my language I found it easier to tokenize character by character. This means I don't have to worry about whitespace or special characters or any other kinds of weird delimiters. Granted, it's more resource intensive, but for a toy language that's OK. There are some great libraries out there that will let you define grammars for your language and will prebuild you lexers, tokenizers, parsers, tree walkers, etc (such as <a href="http://www.antlr.org/" target="_blank" rel="noopener noreferrer">ANTLR</a>) but it can be fun doing this by hand the first time.</p>
+<p>To tokenize my grammar I created a base class called <code>TokenizableStreamBase</code> that takes a function to generate a list of items and gives you some functionality to work on that stream. The base class lets me</p>
+<ul>
+<li>Consume an item. This means I've processed whatever is at the current index and we should move to the next item</li>
+<li>Snapshot the stream.  I can keep track of where I am and if something happens later I can rollback to this point in the stream.</li>
+<li>Commit the stream.  If I made a snapshot just discard it and continue from where I am now.</li>
+</ul>
+<p>Let me give an example of why you want to use snapshots. Pretend you are trying to match the word "string", but the current tokenizer has "strint". Going character by character you would successfully match the word "strint" up until the last character. At that point you can tell it's not a "string" so you can roll back the stream to the start of the word and try something else. </p>
+<p>Here is the base class:</p>
+<p>[csharp]<br />
+public class TokenizableStreamBase&lt;T&gt; where T : class<br />
+{<br />
+    public TokenizableStreamBase(Func&lt;List&lt;T&gt;&gt; extractor)<br />
+    {<br />
+        Index = 0;</p>
+<p>        Items = extractor();</p>
+<p>        SnapshotIndexes = new Stack&lt;int&gt;();<br />
+    }</p>
+<p>    private List&lt;T&gt; Items { get; set; }</p>
+<p>    protected int Index { get; set; }</p>
+<p>    private Stack&lt;int&gt; SnapshotIndexes { get; set; }</p>
+<p>    public virtual T Current<br />
+    {<br />
+        get<br />
+        {<br />
+            if (EOF(0))<br />
+            {<br />
+                return null;<br />
+            }</p>
+<p>            return Items[Index];<br />
+        }<br />
+    }</p>
+<p>    public void Consume()<br />
+    {<br />
+        Index++;<br />
+    }</p>
+<p>    private Boolean EOF(int lookahead)<br />
+    {<br />
+        if (Index + lookahead &gt;= Items.Count)<br />
+        {<br />
+            return true;<br />
+        }</p>
+<p>        return false;<br />
+    }</p>
+<p>    public Boolean End()<br />
+    {<br />
+        return EOF(0);<br />
+    }</p>
+<p>    public virtual T Peek(int lookahead)<br />
+    {<br />
+        if (EOF(lookahead))<br />
+        {<br />
+            return null;<br />
+        }</p>
+<p>        return Items[Index + lookahead];<br />
+    }</p>
+<p>    public void TakeSnapshot()<br />
+    {<br />
+        SnapshotIndexes.Push(Index);<br />
+    }</p>
+<p>    public void RollbackSnapshot()<br />
+    {<br />
+        Index = SnapshotIndexes.Pop();<br />
+    }</p>
+<p>    public void CommitSnapshot()<br />
+    {<br />
+        SnapshotIndexes.Pop();<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>And here is my entire tokenizer that creates a consumable stream of characters from the input source:</p>
+<p>[csharp]<br />
+public class Tokenizer : TokenizableStreamBase&lt;String&gt;<br />
+{<br />
+    public Lexer(String source) :<br />
+        base(() =&gt; source.ToCharArray().Select(i =&gt; i.ToString(CultureInfo.InvariantCulture))<br />
+                                       .ToList())<br />
+    {<br />
+    }<br />
+}</p>
+<p>[/csharp]</p>
+<p>In a later post I'll describe how I built my parser, which is responsible for creating abstract syntax trees and logical validation of the code. The parser re-uses the tokenizer stream base and instead of using characters (like the tokenizer stream) uses a stream of tokens.  </p>
+<h2>Lexing</h2>
+<p>A tokenizer is pretty useless though without creating meaningful tokens out of that source.  To do that you need a way to match the characters to an expected literal.  In my language I've created the concept of a matcher that can emit an object of type <code>Token</code>.  Each matcher will be able to take the current tokenizer, consume characters until it finds what it wants, and if it found its match type, return the strongly typed token.  </p>
+<p>So, lets say I want to match the word "int" to token <code>Int</code>  I'll have a matcher that knows it wants the string "int" and it will go through the lexer's current position matching while things are matching, or bailing if it encounters a character that it didn't expect. Being able to roll back a snapshot is called backtracking. Some grammars are clear enough to never have to do this. For example, if you will always have words that start with "i" and they are ALWAYS supposed to be "int" then you don't need to backtrack.  If you fail to match then the syntax is invalid.</p>
+<p>To build the matchers, I started with an abstract base:</p>
+<p>[csharp]<br />
+public abstract class MatcherBase : IMatcher<br />
+{<br />
+    public Token IsMatch(Tokenizer tokenizer)<br />
+    {<br />
+        if (tokenizer.End())<br />
+        {<br />
+            return new Token(TokenType.EOF);<br />
+        }</p>
+<p>        tokenizer.TakeSnapshot();</p>
+<p>        var match = IsMatchImpl(tokenizer);</p>
+<p>        if (match == null)<br />
+        {<br />
+            tokenizer.RollbackSnapshot();<br />
+        }<br />
+        else<br />
+        {<br />
+            tokenizer.CommitSnapshot();<br />
+        }</p>
+<p>        return match;<br />
+    }</p>
+<p>    protected abstract Token IsMatchImpl(Tokenizer tokenizer);<br />
+}<br />
+[/csharp]</p>
+<p>This takes a <code>Tokenizer</code> and hands the tokenizer to whatever subclasses the abstract base for the match implementation. The base class will make sure to handle snapshots. If the matcher returns a non-null token then it will commit the snapshot otherwise it can roll it back and let the next matcher try.</p>
+<p>As an example, here is the matcher for whitespace tokens. For whitespace I don't really care how much whitespace there was, just that there was whitespace. In fact in the end I discard whitespace completely since it doesn't really matter. If it found whitespace it'll return a new token of token type whitespace. Otherwise it'll return null.</p>
+<p>[csharp]<br />
+class MatchWhiteSpace : MatcherBase<br />
+{<br />
+    protected override Token IsMatchImpl(Tokenizer tokenizer)<br />
+    {<br />
+        bool foundWhiteSpace = false;</p>
+<p>        while (!tokenizer.End() &amp;&amp; String.IsNullOrWhiteSpace(tokenizer.Current))<br />
+        {<br />
+            foundWhiteSpace = true;</p>
+<p>            tokenizer.Consume();<br />
+        }</p>
+<p>        if (foundWhiteSpace)<br />
+        {<br />
+            return new Token(TokenType.WhiteSpace);<br />
+        }</p>
+<p>        return null;<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>Below is another matcher that finds quoted strings. You can set the quote delimiter to be either a " or a '. So "this" matches and so does 'this'.  </p>
+<p>[csharp]<br />
+public class MatchString : MatcherBase<br />
+{<br />
+    public const string QUOTE = &quot;\&quot;&quot;;</p>
+<p>    public const string TIC = &quot;'&quot;;</p>
+<p>    private String StringDelim { get; set; }</p>
+<p>    public MatchString(String delim)<br />
+    {<br />
+        StringDelim = delim;<br />
+    }</p>
+<p>    protected override Token IsMatchImpl(Tokenizer tokenizer)<br />
+    {<br />
+        var str = new StringBuilder();</p>
+<p>        if (tokenizer.Current == StringDelim)<br />
+        {<br />
+            tokenizer.Consume();</p>
+<p>            while (!tokenizer.End() &amp;&amp; tokenizer.Current != StringDelim)<br />
+            {<br />
+                str.Append(tokenizer.Current);<br />
+                tokenizer.Consume();<br />
+            }</p>
+<p>            if (tokenizer.Current == StringDelim)<br />
+            {<br />
+                tokenizer.Consume();<br />
+            }<br />
+        }</p>
+<p>        if (str.Length &gt; 0)<br />
+        {<br />
+            return new Token(TokenType.QuotedString, str.ToString());<br />
+        }</p>
+<p>        return null;<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>The next matcher (below) does the bulk of the work. This one finds built in keywords and special characters by taking an input string, and the final token it should represent. It determines if the current stream contains that token and then emits it.  The idea is if you know "int" is a built in type, and it should match to some <code>TokenType.Int</code>, you can pass that info to a <code>MatchKeyword</code> instance and it'll find the token for you if it exists. The <code>Match</code> property contains the raw string you want to match on, and the <code>TokenType</code> property represents the strongly typed type that should be paired to the raw string:</p>
+<p>[csharp]<br />
+public class MatchKeyword : MatcherBase<br />
+{<br />
+    public string Match { get; set; }</p>
+<p>    private TokenType TokenType { get; set; }</p>
+<p>    /// &lt;summary&gt;<br />
+    /// If true then matching on { in a string like &quot;{test&quot; will match the first cahracter<br />
+    /// because it is not space delimited. If false it must be space or special character delimited<br />
+    /// &lt;/summary&gt;<br />
+    public Boolean AllowAsSubString { get; set; }</p>
+<p>    public List&lt;MatchKeyword&gt; SpecialCharacters { get; set; } </p>
+<p>    public MatchKeyword(TokenType type, String match)<br />
+    {<br />
+        Match = match;<br />
+        TokenType = type;<br />
+        AllowAsSubString = true;<br />
+    }</p>
+<p>    protected override Token IsMatchImpl(Tokenizer tokenizer)<br />
+    {<br />
+        foreach (var character in Match)<br />
+        {<br />
+            if (tokenizer.Current == character.ToString(CultureInfo.InvariantCulture))<br />
+            {<br />
+                tokenizer.Consume();<br />
+            }<br />
+            else<br />
+            {<br />
+                return null;<br />
+            }<br />
+        }</p>
+<p>        bool found;</p>
+<p>        if (!AllowAsSubString)<br />
+        {<br />
+            var next = tokenizer.Current;</p>
+<p>            found = String.IsNullOrWhiteSpace(next) || SpecialCharacters.Any(character =&gt; character.Match == next);<br />
+        }<br />
+        else<br />
+        {<br />
+            found = true;<br />
+        }</p>
+<p>        if (found)<br />
+        {<br />
+            return new Token(TokenType, Match);<br />
+        }</p>
+<p>        return null;<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>The special characters list is an injected list of keyword matchers that let the current matcher know when things are delimited. For example, we want to support both</p>
+<p>[csharp]<br />
+if(<br />
+[/csharp]</p>
+<p>and </p>
+<p>[csharp]<br />
+if (<br />
+[/csharp]</p>
+<p>In the first block, the keyword "if" is delimited by a special character "(" and not just whitespace.  By using special characters AND whitespace as delimiters we can have whitespace agnostic code.</p>
+<p>For my language I supported the following special characters and keywords:</p>
+<p>[csharp]<br />
+public enum TokenType<br />
+{<br />
+    Infer,<br />
+    Void,<br />
+    WhiteSpace,<br />
+    LBracket,<br />
+    RBracket,<br />
+    Plus,<br />
+    Minus,<br />
+    Equals,<br />
+    HashTag,<br />
+    QuotedString,<br />
+    Word,<br />
+    Comma,<br />
+    OpenParenth,<br />
+    CloseParenth,<br />
+    Asterix,<br />
+    Slash,<br />
+    Carat,<br />
+    DeRef,<br />
+    Ampersand,<br />
+    Fun,<br />
+    GreaterThan,<br />
+    LessThan,<br />
+    SemiColon,<br />
+    If,<br />
+    Return,<br />
+    While,<br />
+    Else,<br />
+    ScopeStart,<br />
+    EOF,<br />
+    For,<br />
+    Float,<br />
+    Print,<br />
+    Dot,<br />
+    True,<br />
+    False,<br />
+    Boolean,<br />
+    Or,<br />
+    Int,<br />
+    Double,<br />
+    String,<br />
+    Method,<br />
+    Class,<br />
+    New,<br />
+    Compare,<br />
+    Nil,<br />
+    NotCompare,<br />
+    Try,<br />
+    Catch<br />
+}<br />
+[/csharp]</p>
+<p>It's a lot, but at the same time it's not nearly enough! Still, having a single matcher that can match on known tokens means extending the language at this level is quite easy. Here is the construction of the list of my matchers. Order here matters since it determines precedence.  You can see now that to add new keywords or characters to the grammar only requires defining a new enum and updating the appropriate match list.</p>
+<p>[csharp]<br />
+private List&lt;IMatcher&gt; InitializeMatchList()<br />
+{<br />
+    // the order here matters because it defines token precedence</p>
+<p>    var matchers = new List&lt;IMatcher&gt;(64);</p>
+<p>    var keywordmatchers = new List&lt;IMatcher&gt;<br />
+                            {<br />
+                                new MatchKeyword(TokenType.Void, &quot;void&quot;),<br />
+                                new MatchKeyword(TokenType.Int, &quot;int&quot;),<br />
+                                new MatchKeyword(TokenType.Fun, &quot;fun&quot;),<br />
+                                new MatchKeyword(TokenType.If, &quot;if&quot;),<br />
+                                new MatchKeyword(TokenType.Infer, &quot;var&quot;),<br />
+                                new MatchKeyword(TokenType.Else, &quot;else&quot;),<br />
+                                new MatchKeyword(TokenType.While, &quot;while&quot;),<br />
+                                new MatchKeyword(TokenType.For, &quot;for&quot;),<br />
+                                new MatchKeyword(TokenType.Return, &quot;return&quot;),<br />
+                                new MatchKeyword(TokenType.Print, &quot;print&quot;),<br />
+                                new MatchKeyword(TokenType.True, &quot;true&quot;),<br />
+                                new MatchKeyword(TokenType.False, &quot;false&quot;),<br />
+                                new MatchKeyword(TokenType.Boolean, &quot;bool&quot;),<br />
+                                new MatchKeyword(TokenType.String, &quot;string&quot;),<br />
+                                new MatchKeyword(TokenType.Method, &quot;method&quot;),<br />
+                                new MatchKeyword(TokenType.Class, &quot;class&quot;),<br />
+                                new MatchKeyword(TokenType.New, &quot;new&quot;),<br />
+                                new MatchKeyword(TokenType.Nil, &quot;nil&quot;)<br />
+                            };</p>
+<p>    var specialCharacters = new List&lt;IMatcher&gt;<br />
+                            {<br />
+                                new MatchKeyword(TokenType.DeRef, &quot;-&gt;&quot;),<br />
+                                new MatchKeyword(TokenType.LBracket, &quot;{&quot;),<br />
+                                new MatchKeyword(TokenType.RBracket, &quot;}&quot;),<br />
+                                new MatchKeyword(TokenType.Plus, &quot;+&quot;),<br />
+                                new MatchKeyword(TokenType.Minus, &quot;-&quot;),<br />
+                                new MatchKeyword(TokenType.Equals, &quot;=&quot;),<br />
+                                new MatchKeyword(TokenType.HashTag, &quot;#&quot;),<br />
+                                new MatchKeyword(TokenType.Comma, &quot;,&quot;),<br />
+                                new MatchKeyword(TokenType.OpenParenth, &quot;(&quot;),<br />
+                                new MatchKeyword(TokenType.CloseParenth, &quot;)&quot;),<br />
+                                new MatchKeyword(TokenType.Asterix, &quot;*&quot;),<br />
+                                new MatchKeyword(TokenType.Slash, &quot;/&quot;),<br />
+                                new MatchKeyword(TokenType.Carat, &quot;^&quot;),<br />
+                                new MatchKeyword(TokenType.Ampersand, &quot;&amp;&quot;),<br />
+                                new MatchKeyword(TokenType.GreaterThan, &quot;&gt;&quot;),<br />
+                                new MatchKeyword(TokenType.LessThan, &quot;&lt;&quot;),<br />
+                                new MatchKeyword(TokenType.Or, &quot;||&quot;),<br />
+                                new MatchKeyword(TokenType.SemiColon, &quot;;&quot;),<br />
+                                new MatchKeyword(TokenType.Dot, &quot;.&quot;),<br />
+                            };</p>
+<p>    // give each keyword the list of possible delimiters and not allow them to be<br />
+    // substrings of other words, i.e. token fun should not be found in string &quot;function&quot;<br />
+    keywordmatchers.ForEach(keyword =&gt;<br />
+        {<br />
+            var current = (keyword as MatchKeyword);<br />
+            current.AllowAsSubString = false;<br />
+            current.SpecialCharacters = specialCharacters.Select(i =&gt; i as MatchKeyword).ToList();<br />
+        });</p>
+<p>    matchers.Add(new MatchString(MatchString.QUOTE));<br />
+    matchers.Add(new MatchString(MatchString.TIC));</p>
+<p>    matchers.AddRange(specialCharacters);<br />
+    matchers.AddRange(keywordmatchers);</p>
+<p>    matchers.AddRange(new List&lt;IMatcher&gt;<br />
+                                        {<br />
+                                            new MatchWhiteSpace(),<br />
+                                            new MatchNumber(),<br />
+                                            new MatchWord(specialCharacters)<br />
+                                        });</p>
+<p>    return matchers;<br />
+}<br />
+[/csharp]</p>
+<p>To actually run through and get the tokens we do this</p>
+<p>[csharp]<br />
+public IEnumerable&lt;Token&gt; Lex()<br />
+{<br />
+    Matchers = InitializeMatchList();</p>
+<p>    var current = Next();</p>
+<p>    while (current != null &amp;&amp; current.TokenType != TokenType.EOF)<br />
+    {<br />
+        // skip whitespace<br />
+        if (current.TokenType != TokenType.WhiteSpace)<br />
+        {<br />
+            yield return current;<br />
+        }</p>
+<p>        current = Next();<br />
+    }<br />
+}</p>
+<p>.... define the match list ...</p>
+<p>private Token Next()<br />
+{<br />
+    if (Lexer.End())<br />
+    {<br />
+        return new Token(TokenType.EOF);<br />
+    }</p>
+<p>    return<br />
+            (from match in Matchers<br />
+            let token = match.IsMatch(Tokenizer)<br />
+            where token != null<br />
+            select token).FirstOrDefault();<br />
+}<br />
+[/csharp]</p>
+<p>And the only thing left is in the constructor of the Tokenizer</p>
+<p>[csharp]<br />
+public Lexer(String source)<br />
+{<br />
+    Tokenizer = new Tokenizer(source);<br />
+}<br />
+[/csharp]</p>
+<h2>Testing</h2>
+<p>Lets see it in action in a unit test. Keep in mind the tokenizer and lexer do only the most basic syntax validation, but not much. It's more about creating a typed token stream representing your code.  Later we can use the typed token stream to create meaningful data structures representing the code.</p>
+<p>[csharp]<br />
+[Test]<br />
+public void TestTokenizer()<br />
+{<br />
+    var test = @&quot;function void int &quot;&quot;void int&quot;&quot; {} -&gt;*/test^void,5,6,7 8.0&quot;;</p>
+<p>    var tokens = new Lexer(test).Lex().ToList();</p>
+<p>    foreach (var token in tokens)<br />
+    {<br />
+        Console.WriteLine(token.TokenType + &quot; - &quot; + token.TokenValue);<br />
+    }<br />
+}<br />
+[/csharp]</p>
+<p>And this prints us out</p>
+<p>[csharp]<br />
+Word - function<br />
+Void - void<br />
+Int - int<br />
+QuotedString - void int<br />
+LBracket - {<br />
+RBracket - }<br />
+DeRef - -&gt;<br />
+Asterix - *<br />
+Slash - /<br />
+Word - test<br />
+Carat - ^<br />
+Void - void<br />
+Comma - ,<br />
+Int - 5<br />
+Comma - ,<br />
+Int - 6<br />
+Comma - ,<br />
+Int - 7<br />
+Float - 8.0<br />
+[/csharp]</p>
+<p>Now we're in a position that we can start parsing our language. </p>

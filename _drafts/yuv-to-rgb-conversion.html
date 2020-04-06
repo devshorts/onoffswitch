@@ -1,0 +1,92 @@
+---
+layout: post
+title: YUV to RGB conversion
+date: 
+type: post
+parent_id: '0'
+published: false
+password: ''
+status: draft
+categories: []
+tags:
+- C++
+- Image
+meta:
+  _edit_last: '1'
+  _syntaxhighlighter_encoded: '1'
+  dsq_thread_id: '878116333'
+  _su_title: ''
+author:
+  login: akropp
+  email: akropp@gmail.com
+  display_name: akropp
+  first_name: ''
+  last_name: ''
+permalink: "/"
+---
+<p>There isn't clear much documentation on how to convert between different <a href="http://en.wikipedia.org/wiki/Color_space">colorspaces</a> on the internet, at least not that I've found. It's a little bit like voodoo. You can pick up some information here, or some information there, but in the end its up to you to piece it all together. At some point we had an issue where we had a raw YUV frame and needed to convert a section of it to RGB. This kind of problem arises because sometimes the input format isn't the format you want to work with (either a library wants a different colorspace, or an algorithm is easier to work with in a different colorspace) so its worth knowing how to convert them. Unfortunately, the conversion isn't lossless so keep that in mind when choosing a primary colorspace for your work.</p>
+<h2>YUV vs RGB</h2>
+<p>YUV and RGB are two different ways of encoding a visual pixel. They are known as colorspaces. In fact there are many different kinds of colorspaces: <a href="http://www.fourcc.org/yuv.php#Packed YUV Formats">packed</a> and <a href="http://www.fourcc.org/yuv.php#Planar YUV Formats">planar</a> for both <a href="http://www.fourcc.org/yuv.php">yuv</a> and <a href="http://www.fourcc.org/rgb.php">rgb</a> subsets. All you really need to know about this is that they are different ways of putting the bytes together.</p>
+<p>In terms of what the acronyms stand for I think most everyone knows what RGB is. RGB is represented by one byte for the red color, one byte for the blue color, and one byte for the green color. Together this forms the representation of a single pixel. YUV, while not as often talked about, is just as common. In fact this colorspace is frequently encountered when grabbing raw frames from webcams or hardware capture cards. YUV is represented by</p>
+<ul>
+<li><strong>Y</strong> - One byte for the <a href="http://en.wikipedia.org/wiki/Luma_(video)">luminance</a>. This is how bright the color is.</li>
+<li><strong>UV</strong> - Two bytes for the U and V, which are known as chroma. <a href="http://en.wikipedia.org/wiki/Chrominance">Wikipedia</a> has the best explanation for this: "Chrominance is usually represented as two color-difference components: U = B' − Y' (blue − luma) and V = R' − Y' (red − luma)"</li>
+</ul>
+<h2>Packed vs Planar</h2>
+<p>Packed formats put the y, u, and v (or r,g,b) bytes together linearly in an array in some known order (depending on colorspace type). You can usually access them like</p>
+<p>[c language="++"]<br />
+int index = 0;<br />
+byte y = rawFrameData[index];<br />
+byte u = rawFrameData[index + 1];<br />
+byte v = rawFrameData[index + 2];<br />
+[/c]</p>
+<p>And as you increment your index you get the pixel for the row/column as you iterate through your array. The array, while linear, usually represents rows and columns flattened. </p>
+<p>Here is what a packed format looks like for UYVY (a type of YUV format):</p>
+<p><a href="http://tech.blinemedical.com/wp-content/uploads/2012/08/uyvy.gif"><img class="alignnone size-full wp-image-213" src="http://tech.blinemedical.com/wp-content/uploads/2012/08/uyvy.gif" alt="" width="600" height="100" /></a></p>
+<p>In terms of packing formats, planar is more complicated, since it represents all the y's first, then all the u's, then all the v's. This means to access the array you need to flatten what the matrix is into a 1 dimensional array and calculate the offsets. If you look at the charts in fourcc's site, it shouldn't be too hard to figure out how to calculate the offsets for a certain pixel at row X column Y.</p>
+<p>Here is what planar looks like represented as a matrix. However, in the actual data array all of the Y bytes are first, then all the U bytes, then all the V bytes so you have to do a little bit of pointer arithmetic to line up what is a Y and a U and a V.</p>
+<p><a href="http://tech.blinemedical.com/wp-content/uploads/2012/08/yplane.gif"><img class="alignnone size-full wp-image-214" src="http://tech.blinemedical.com/wp-content/uploads/2012/08/yplane.gif" alt="" width="200" height="127" /></a> <a href="http://tech.blinemedical.com/wp-content/uploads/2012/08/u2plane.gif"><img class="alignnone size-full wp-image-212" src="http://tech.blinemedical.com/wp-content/uploads/2012/08/u2plane.gif" alt="" width="200" height="127" /></a> <a href="http://tech.blinemedical.com/wp-content/uploads/2012/08/v2plane.gif"><img class="alignnone size-full wp-image-215" src="http://tech.blinemedical.com/wp-content/uploads/2012/08/v2plane.gif" alt="" width="200" height="127" /></a></p>
+<h2>Convert YUV to RGB</h2>
+<p>Unfortunatley, converting between the colorspaces is not trivial. Even <a href="http://www.fourcc.org/fccyvrgb.php">fourcc</a> doesn't seem to have a conclusive answer to what is the right formula. I'm not an image expert and I'm not going to pretend like I understand the matrix transformations involved in colorspace conversions but here is what worked for me:</p>
+<p>[c language="++"]<br />
+/************************************************************************/<br />
+/* Calculate RGB values from input YUV values		                    */<br />
+/************************************************************************/<br />
+RgbPixel YuvFrame::GetRgbPixel(UINT8 currentY, UINT8 currentU, UINT8 currentV) {<br />
+	RgbPixel rgbPixel;</p>
+<p>	int subY = 16;<br />
+	int subU = 128;<br />
+	int subV = 128;</p>
+<p>	int rY = 298;	int rU = 0; 	int rV = 409;</p>
+<p>	int gY = 298;	int gU = 100;	int gV = 128;</p>
+<p>	int bY = 298;	int bU = 516;	int bV = 0;</p>
+<p>	rgbPixel.r = Clip( (rY*(currentY-subY)+								rV*(currentV-subV)) &amp;gt;&amp;gt; 8	);<br />
+	rgbPixel.g = Clip( (gY*(currentY-subY) - gU*(currentU-subU) -		gV*(currentV-subV)) &amp;gt;&amp;gt; 8	);<br />
+	rgbPixel.b = Clip( (bY*(currentY-subY) + bU*(currentU-subU))		&amp;gt;&amp;gt; 8	);</p>
+<p>	return rgbPixel;<br />
+}</p>
+<p>/************************************************************************/<br />
+/* Forces values greater than 255 to be 255								*/<br />
+/* And values less than 0 to be 0										*/<br />
+/************************************************************************/<br />
+UINT8 YuvFrame::Clip(double val) {<br />
+	if(val &amp;gt; 255){<br />
+		return 255;<br />
+	}<br />
+	else if(val &amp;lt; 0){<br />
+		return 0;<br />
+	}<br />
+	return (UINT8)val;<br />
+}<br />
+[/c]</p>
+<p>An RgbPixel class is simple a struct that looks like this:</p>
+<p>[c language="++"]<br />
+struct RgbPixel<br />
+{<br />
+	unsigned char r;<br />
+	unsigned char g;<br />
+	unsigned char b;<br />
+}<br />
+[/c]</p>
+<p>For more information go to fourcc.org or visit thedoom9 boards. There is a wealth of knowledge of people who have worked on vlc and other video and image processing libraries that can provide more help.</p>
+<p>Images from <a href="http://www.fourcc.org/">fourcc.org</a>.</p>
