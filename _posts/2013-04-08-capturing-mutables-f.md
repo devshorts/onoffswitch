@@ -20,12 +20,7 @@ meta:
   _edit_last: '1'
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560183675;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:1873;}i:1;a:1:{s:2:"id";i:3723;}i:2;a:1:{s:2:"id";i:4028;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/04/08/capturing-mutables-f/"
 ---
 I was talking about F# with a coworker recently and we were discussing the merits of a stateless system. Both of us really like the enforcement of having to inject state, and when necessary, returning a new modified copy of state. Functional languages want you to work with this pattern, but like with all things software, it's good to be able to break the rules. This is one of the things I like about F#, you can create mutables and do work imperatively if you need to.

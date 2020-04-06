@@ -16,12 +16,7 @@ tags:
 meta:
   _su_rich_snippet_type: none
   _edit_last: '1'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2019/08/05/typed-react-native-router/"
 ---
 <!-- wp:quote -->

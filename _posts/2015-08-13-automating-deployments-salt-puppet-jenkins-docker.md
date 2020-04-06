@@ -22,12 +22,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560966243;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4673;}i:1;a:1:{s:2:"id";i:4737;}i:2;a:1:{s:2:"id";i:5000;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2015/08/13/automating-deployments-salt-puppet-jenkins-docker/"
 ---
 I know, its a buzzword mouthful. My team has had good first success leveraging jenkins, salt, sensu, puppet, and docker to package and monitor distributed java services with a one click deployment story so I wanted to share how we've set things up.

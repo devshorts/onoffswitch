@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_dont_email_post_to_subs: '1'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2018/02/15/tracking-batch-queue-fanouts/"
 ---
 > Edit: This code now exists at [https://github.com/paradoxical-io/carlyle](https://github.com/paradoxical-io/carlyle)

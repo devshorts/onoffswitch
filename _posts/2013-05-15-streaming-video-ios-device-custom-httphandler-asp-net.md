@@ -21,12 +21,7 @@ meta:
   _wpas_done_all: '1'
   _wp_old_slug: streaming-h-264-video-ipad-iphone-custom-http-handler-asp-net
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561920465;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4028;}i:1;a:1:{s:2:"id";i:1587;}i:2;a:1:{s:2:"id";i:3524;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/05/15/streaming-video-ios-device-custom-httphandler-asp-net/"
 ---
 I ran into an interesting tidbit just now while trying to dynamically stream a video file using a custom http handler. The idea here is to bypass the static handler for a file so that I can perform authentication/preprocessing/etc when a user requests a video resource and I don't have to expose a static folder with potentially sensitive resources.

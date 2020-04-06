@@ -21,12 +21,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560310780;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4598;}i:1;a:1:{s:2:"id";i:4529;}i:2;a:1:{s:2:"id";i:4213;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2014/03/22/strongly-typed-powershell-csv-parser/"
 ---
 Somehow I missed the powershell boat. I've been a .NET developer for years and I trudged through using the boring old cmd terminal, frequently mumbling about how much I missed zsh. But something snapped and I decided to really dive into powershell and learn why those who use it really love the hell out of it. After realizing that the reason everyone loves it is because everything is strongly typed and you can use .NET in your shell I was totally sold.

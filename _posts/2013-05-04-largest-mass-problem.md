@@ -20,12 +20,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1559119788;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4411;}i:1;a:1:{s:2:"id";i:3899;}i:2;a:1:{s:2:"id";i:1043;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/05/04/largest-mass-problem/"
 ---
 I was recently asked to write some code to find the largest contiguous group of synonymous elements in a two dimensional array. The idea is that you want to find the largest "land mass" in a problem where you have a game board that looks something like

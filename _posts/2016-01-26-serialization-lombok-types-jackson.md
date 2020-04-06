@@ -19,12 +19,7 @@ meta:
   _wpas_done_all: '1'
   _su_rich_snippet_type: none
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561483126;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4456;}i:1;a:1:{s:2:"id";i:4919;}i:2;a:1:{s:2:"id";i:4862;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2016/01/26/serialization-lombok-types-jackson/"
 ---
 For anyone who uses lombok with jackson, you should checkout [jackson-lombok](https://github.com/paradoxical-io/jackson-lombok) which is a fork from [xebia](https://github.com/xebia/jackson-lombok) that allows lombok value types (and lombok generated constructors) to be json creators.

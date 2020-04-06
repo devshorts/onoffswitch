@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1559969648;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4209;}i:1;a:1:{s:2:"id";i:4170;}i:2;a:1:{s:2:"id";i:4275;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/07/25/f-machine-learning-meetup-dc/"
 ---
 As you may have figured out, I like F# and I like functional languages. At some point I tweeted to the f# community lamenting that there was a dearth of F# meetups in the DC area. Lo and behold, tons of people replied saying they'd be interested in forming one, and some notable speakers piped up and said they'd come and speak if I set something up.

@@ -16,12 +16,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558720449;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4028;}i:1;a:1:{s:2:"id";i:4515;}i:2;a:1:{s:2:"id";i:3500;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/05/02/tech-talk-angularjs/"
 ---
 Today's tech talk was a continuation on front-end discussions we're having. Last week we talked about typescript (I forgot to write it up) and this week we discussed the basics of [angular](http://angularjs.org/). Angular is a front-end MVC framework written by google that, at first glance, looks completely different from previous javascript/html development. The basic gist is to strongly decouple logic into encapsulated modules. But that's not all there is, there's a lot to it. Angular has a templating engine, dependency injection, double bindings between views and controllers, event dispatching, etc.

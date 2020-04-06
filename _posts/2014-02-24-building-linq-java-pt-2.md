@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1557352026;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4316;}i:1;a:1:{s:2:"id";i:3367;}i:2;a:1:{s:2:"id";i:3497;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2014/02/24/building-linq-java-pt-2/"
 ---
 In my [last post](http://onoffswitch.net/building-linq-java/ "Building LINQ in Java") I discussed building a static class that worked as the fluent interface exposing different iterator sources that provide transformations. For 1:1 iterators, like take, skip, while, for, nth, first, last, windowed, etc, you just do whatever you need to do internally in the iterator by manipulating the output the stream.

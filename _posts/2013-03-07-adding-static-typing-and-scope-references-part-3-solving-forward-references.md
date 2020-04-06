@@ -18,12 +18,7 @@ meta:
   _wpas_done_all: '1'
   _su_rich_snippet_type: none
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561171017;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3016;}i:1;a:1:{s:2:"id";i:3164;}i:2;a:1:{s:2:"id";i:3161;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/03/07/adding-static-typing-and-scope-references-part-3-solving-forward-references/"
 ---
 In an [earlier post](http://onoffswitch.net/adding-static-typing-and-scope-validation-into-the-language-part-1/) I gave a brief overview of the scope builder and its jobs. There I mentioned that supporting forward references required some extra work. In this post I'll talk more about how I solved forward references.

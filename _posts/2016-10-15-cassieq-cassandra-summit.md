@@ -29,12 +29,7 @@ meta:
     allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
     allowfullscreen></iframe>'
   _oembed_time_7532e3fedf830a9c4e190a996ad38222: '1562281635'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2016/10/15/cassieq-cassandra-summit/"
 ---
 I had the great chance to talk at Cassandra summit 2016 this year about [cassieq](https://github.com/paradoxical-io/cassieq), the project I worked on with Jake Swenson at Paradoxical. For anyone interested, here's the video!

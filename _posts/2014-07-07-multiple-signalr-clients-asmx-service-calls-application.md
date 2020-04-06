@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1556647018;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3392;}i:1;a:1:{s:2:"id";i:4091;}i:2;a:1:{s:2:"id";i:2365;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2014/07/07/multiple-signalr-clients-asmx-service-calls-application/"
 ---
 I was writing a test application to simulate what multiple signalR clients to a server would act like. The clients were triggered by the server and then would initiate a sequence of asmx web service calls back to the server using a legacy web service. This way I was using signalR as a triggering mechanism and not as a data transport. For my purpose this worked out great.

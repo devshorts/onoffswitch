@@ -21,12 +21,7 @@ meta:
   _wpas_done_all: '1'
   _jetpack_dont_email_post_to_subs: '1'
   _wp_old_slug: passing-request-context-finatra
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2017/02/12/stronlgy-typed-headers-finatra/"
 ---
 When building service architectures one thing you need to solve is how to pass context between services. This is usually stuff like request id's and other tracing information (maybe you use [zipkin](http://zipkin.io/)) between service calls. This means that if you set request id FooBar123 on an entrypoint to service A, if service A calls service B it should know that the request id is still FooBar123. The bigger challenge is usually making sure that all thread locals keep this around (and across futures/execution contexts), but before you attempt that you need to get it into the system in the first place.

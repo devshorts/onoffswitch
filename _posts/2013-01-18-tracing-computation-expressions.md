@@ -17,12 +17,7 @@ meta:
   dsq_thread_id: '979357360'
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"d1e23d6ffe5a1de5892bb68020be156f";a:2:{s:7:"expires";i:1555043233;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2735;}i:1;a:1:{s:2:"id";i:4463;}i:2;a:1:{s:2:"id";i:4226;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/01/18/tracing-computation-expressions/"
 ---
 _This article was originally published at [tech.blinemedical.com](http://tech.blinemedical.com/tracing-computation-expressions/)_

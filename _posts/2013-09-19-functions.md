@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1557131303;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4365;}i:1;a:1:{s:2:"id";i:4131;}i:2;a:1:{s:2:"id";i:4077;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/09/19/functions/"
 ---
 Just wanted to share a couple little functions that I was playing with since it made my code terse and readable. At first I needed a way to fold a function until a predicate. This way I could stop and didn't have to continue through the whole list. Then I needed to be able to do the same kind of thing but choosing all elements up until a predicate.

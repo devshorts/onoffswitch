@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"f251743520edff2facd5c40ee081a536";a:2:{s:7:"expires";i:1558534014;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4593;}i:1;a:1:{s:2:"id";i:4862;}i:2;a:1:{s:2:"id";i:4945;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2015/02/03/simple-log-context-wrapper/"
 ---
 I'm still toying around with the scala play! framework and I wanted to check out how I can make logging contextual information easy. In the past with .NET I've used and written libraries that wrap the current log provider and give you extra niceties with logging. One of my favorites was being able to do stuff like

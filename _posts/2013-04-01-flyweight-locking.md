@@ -20,12 +20,7 @@ meta:
   _wpas_done_all: '1'
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560570566;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2447;}i:1;a:1:{s:2:"id";i:738;}i:2;a:1:{s:2:"id";i:2365;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/04/01/flyweight-locking/"
 ---
 [Locking](http://en.wikipedia.org/wiki/Lock_(computer_science)) is a necessary aspect of multithreading code: it prevents unpredictable behavior and makes sure code that is expected to run synchronously does so. Some situations can leverage [lockless](http://yinsochen.com/thread-safe-and-or-lockless-data-structures/) code, but not always. When you do need to do a lock you shouldn't do it carelessly, if you lock a section of code that does some major work (such as database access) and it blocks other pending calls you need to be cognizant that there could be a delay or bottleneck. However, just because we have to lock doesn't mean we can't do some simple optimizations depending on what our business logic is. If we only need to lock items per a defined group then we can leverage flyweight locking. Lets go through an example to make this scenario clearer.

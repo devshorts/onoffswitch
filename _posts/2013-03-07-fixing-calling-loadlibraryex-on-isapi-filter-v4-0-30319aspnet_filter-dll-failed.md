@@ -19,12 +19,7 @@ meta:
   _wpas_done_all: '1'
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561366663;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3814;}i:1;a:1:{s:2:"id";i:4914;}i:2;a:1:{s:2:"id";i:4028;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/03/07/fixing-calling-loadlibraryex-on-isapi-filter-v4-0-30319aspnet_filter-dll-failed/"
 ---
 [code wraplines="true"]Calling LoadLibraryEx on ISAPI filter "C:\Windows\Microsoft.NET\Framework\v4.0.30319\\aspnet\_filter.dll" failed[/code]

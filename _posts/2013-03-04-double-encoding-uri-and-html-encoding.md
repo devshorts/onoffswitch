@@ -19,12 +19,7 @@ meta:
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561033504;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4262;}i:1;a:1:{s:2:"id";i:3942;}i:2;a:1:{s:2:"id";i:4725;}}}}
   _oembed_dcc58c858c7066130a1a8a543b535881: "{{unknown}}"
   _oembed_da0fe90d451adcefeea5c7bb0f51ab34: "{{unknown}}"
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/03/04/double-encoding-uri-and-html-encoding/"
 ---
 URL's have specific characters that are special, like `%` and `&` that if you need to use as part of your GET URI then you need to [encode](http://www.w3schools.com/tags/ref_urlencode.asp) them. For example:

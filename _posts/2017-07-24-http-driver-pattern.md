@@ -22,12 +22,7 @@ meta:
   _syntaxhighlighter_encoded: '1'
   _wpas_done_all: '1'
   _jetpack_dont_email_post_to_subs: '1'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2017/07/24/http-driver-pattern/"
 ---
 Yet another SOA blog post, this time about calling services. I've seen a lot of posts, articles, even books, on how to _write_ services but not a good way about _calling_ services. It may seem trivial, isn't calling a service a matter of making a web request to one? Yes, it is, but in a larger organization it's not always so trivial.

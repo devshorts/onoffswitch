@@ -17,12 +17,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560307503;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4209;}i:1;a:1:{s:2:"id";i:4170;}i:2;a:1:{s:2:"id";i:3847;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/09/25/machine-learning-disaster-video-posted/"
 ---
 A few weeks ago we had our second [DC F# meetup](http://www.meetup.com/DC-fsharp/) with speaker [Phil Trelford](http://trelford.com/blog/) where he led a hands on session introducing decision trees. The goal of meetup was to see how good of a predictor we could make of who would live and die on the titanic. [Kaggle](http://www.kaggle.com/c/titanic-gettingStarted) has an excellent data set that shows age, sex, ticket price, cabin number, class, and a bunch of other useful features describing Titanic passengers.

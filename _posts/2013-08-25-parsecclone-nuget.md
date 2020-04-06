@@ -17,12 +17,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1554986094;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4131;}i:1;a:1:{s:2:"id";i:2735;}i:2;a:1:{s:2:"id";i:4077;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/08/25/parsecclone-nuget/"
 ---
 Today I published the first version of [ParsecClone](https://github.com/devshorts/ParsecClone) to [nuget](https://www.nuget.org/packages/ParsecClone/). I [blogged](http://onoffswitch.net/parsing-csvs-parser-combinator/) recently about creating my own parser combinator and it's come along pretty well. While [FParsec](http://www.quanttec.com/fparsec/) is more performant and better optimized, mine has other advantages (such as being able to work on arbitrary consumption streams such as binary or bit level) and work directly on strings with regex instead of character by character. Though I wouldn't recommend using ParsecClone for production string parsing if you have big data sets, since the string parsing isn't streamed. It works directly on a string. That's still on the todo list, however the binary parsing does work on streams.

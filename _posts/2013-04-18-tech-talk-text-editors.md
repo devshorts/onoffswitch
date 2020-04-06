@@ -17,12 +17,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1559335486;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4568;}i:1;a:1:{s:2:"id";i:4244;}i:2;a:1:{s:2:"id";i:3536;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/04/18/tech-talk-text-editors/"
 ---
 Today's tech talk was a little less tech but no less important. We got together and talked about the different text editors that we use and why we like them.

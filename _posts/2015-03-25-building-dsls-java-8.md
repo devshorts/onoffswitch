@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1554060671;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4919;}i:1;a:1:{s:2:"id";i:4629;}i:2;a:1:{s:2:"id";i:1587;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2015/03/25/building-dsls-java-8/"
 ---
 I really like doing all of my domain modeling with clean DSL's (domain specific languages). Basically I want my code to read like a sentence, and to hide all the magic behind things. When things read clearly even a non professional can determine if something is wrong. The ideal scenario is to have your code read like pseudocode since nobody really cares what the internals are, what matters is your general solution.

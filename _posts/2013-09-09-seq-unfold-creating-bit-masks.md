@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1559923232;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4213;}i:1;a:1:{s:2:"id";i:3615;}i:2;a:1:{s:2:"id";i:4286;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/09/09/seq-unfold-creating-bit-masks/"
 ---
 In the course of working on [ParsecClone](https://github.com/devshorts/ParsecClone) I needed some code that could take in an arbitrary byte array and convert it to a corresponding bit array. The idea is if I have an array of

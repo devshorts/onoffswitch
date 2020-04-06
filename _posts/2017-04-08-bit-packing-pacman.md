@@ -21,12 +21,7 @@ meta:
   _wpas_done_all: '1'
   _jetpack_dont_email_post_to_subs: '1'
   _wp_old_slug: bit-packing
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2017/04/08/bit-packing-pacman/"
 ---
 Haven't posted in a while, since I've been heads down in building a lot of cool tooling at work (blog posts coming), but had a chance to mess around a bit with something that came up in an interview question this week.

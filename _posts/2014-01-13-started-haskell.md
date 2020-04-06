@@ -19,12 +19,7 @@ meta:
   _wpas_done_all: '1'
   _syntaxhighlighter_encoded: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561000134;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4244;}i:1;a:1:{s:2:"id";i:4725;}i:2;a:1:{s:2:"id";i:4348;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2014/01/13/started-haskell/"
 ---
 I wanted to share how I've finally settled on my haskell development environment and how I got it set up, since the process in the end wasn't that trivial. Hopefully anyone else starting in haskell can avoid the annoyances and pitfalls that I ran into and get up and running (and doing haskell) quickly.

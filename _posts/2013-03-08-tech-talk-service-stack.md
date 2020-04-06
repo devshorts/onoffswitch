@@ -16,12 +16,7 @@ meta:
   _wpas_done_all: '1'
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560613195;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4919;}i:1;a:1:{s:2:"id";i:3696;}i:2;a:1:{s:2:"id";i:4939;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/03/08/tech-talk-service-stack/"
 ---
 Today's tech talk the team and I talked about [ServiceStack](http://www.servicestack.net/). I've heard a lot of hype about it but never really understood what it did or was about. Today, unfortunately, didn't really clear any of that up.

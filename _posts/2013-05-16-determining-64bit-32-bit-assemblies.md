@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560340851;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3837;}i:1;a:1:{s:2:"id";i:4737;}i:2;a:1:{s:2:"id";i:4800;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/05/16/determining-64bit-32-bit-assemblies/"
 ---
 I work on a 64 bit machine but frequently deploy to 32 bit machines. The code I work on though has native hooks so I always need to deploy assembly entry points at 32 bit. This means I am usually paranoid about the build configuration. However, sometimes things slip up and a 64 bit dll gets sent out or an entrypoint is built with `ANY CPU` set. Usually this is caught on our continuous build server with some cryptic reason for a unit test that should be working is actually failing.

@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560513278;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4991;}i:1;a:1:{s:2:"id";i:4575;}i:2;a:1:{s:2:"id";i:4905;}}}}
   _wpas_done_all: '1'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2016/08/03/extracting-scala-method-names-objects-macros/"
 ---
 I have a soft spot in me for AST's ever since I went through the exercise of [building](http://onoffswitch.net/building-a-custom-lexer/) my own [language](https://github.com/devshorts/LanguageCreator). Working in Java I missed the dynamic ability to get compile time information, though I knew it was available as part of the annotation processing pipleine during compilation (which is how lombok works). Scala has something similiar in the concept of macros: a way to hook into the compiler, manipulate or inspect the syntax tree, and rewrite or inject whatever you want. It's a wonderfully elegant system that reminds me of Lisp/Clojure macros.

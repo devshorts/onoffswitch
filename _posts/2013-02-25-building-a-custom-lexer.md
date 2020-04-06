@@ -18,12 +18,7 @@ meta:
   _syntaxhighlighter_encoded: '1'
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561966458;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3565;}i:1;a:1:{s:2:"id";i:3016;}i:2;a:1:{s:2:"id";i:7777;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/02/25/building-a-custom-lexer/"
 ---
 As a software engineer I spend all day (hopefully) writing code. I love code and I love that there are languages that help me solve problems and create solutions. But as an engineer I always want to know more about the tools I work with so I recently picked up "[Language Implementation Patterns](http://www.amazon.com/Language-Implementation-Patterns-Domain-Specific-Programming/dp/193435645X)" by [Terence Parr](http://www.cs.usfca.edu/~parrt/) and decided I was going to learn how to build a language. After reading through most of the book and working on examples for about 5 weeks I ended up building an interpreted [toy general purpose](https://github.com/devshorts/LanguageCreator) language that has features like:

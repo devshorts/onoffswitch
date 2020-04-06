@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1556356876;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4493;}i:1;a:1:{s:2:"id";i:3656;}i:2;a:1:{s:2:"id";i:3565;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/04/09/jon-skeet-c-resharper/"
 ---
 Today, at 1pm EST, the venerable [Jon Skeet](http://stackoverflow.com/users/22656/jon-skeet) had a goto meeting webinar sponsored by [JetBrains](http://www.jetbrains.com/) reviewing weird and cool stuff about C# and Resharper. For those who aren't in the know, [Resharper](http://www.jetbrains.com/resharper/) is a static analysis tool for C# that is pretty much the best thing ever. Skeet's a great speaker and my entire team at work and I watched the webinar in our conference room while eating lunch.

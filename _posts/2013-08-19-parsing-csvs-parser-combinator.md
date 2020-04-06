@@ -21,12 +21,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558681316;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4068;}i:1;a:1:{s:2:"id";i:3723;}i:2;a:1:{s:2:"id";i:4213;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/08/19/parsing-csvs-parser-combinator/"
 ---
 In a few recent posts I talked about playing with fparsec to parse data into usable syntax trees. But, even after all the time spent fiddling with it, I really didn't fully understand how combinators actually worked. With that in mind, I decided to build a version of fparsec from scratch. What better way to understand something than to build it yourself? I had one personal stipulation, and that was to not look at the fparsec source. To be fair, I cheated with one function (the very first one) so I kind of cheated a lot, but I didn't peek at anything else, promise.

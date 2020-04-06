@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558686525;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4027;}i:1;a:1:{s:2:"id";i:4783;}i:2;a:1:{s:2:"id";i:3656;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/05/09/tech-talk-path-finding-algorithms/"
 ---
 Today's tech talk was about path finding algorithms. The topic was picked because of a recent linked shared to reddit that [visualized](http://qiao.github.io/PathFinding.js/visual/) different algorithms. The neat thing about the link is that you can really see how different algorithms and heuristics modify the route.

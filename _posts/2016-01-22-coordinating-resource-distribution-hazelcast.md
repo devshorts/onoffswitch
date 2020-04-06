@@ -22,12 +22,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1554534280;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4839;}i:1;a:1:{s:2:"id";i:4750;}i:2;a:1:{s:2:"id";i:4800;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2016/01/22/coordinating-resource-distribution-hazelcast/"
 ---
 A fun problem that has come up during the implementation of [cassieq](https://github.com/paradoxical-io/cassieq) (a distributed queue based on cassandra) is how to evenly distribute resources across a group of machines. There is a scenario in cassieq where writes can be delayed, and as such there is a custom worker in the app (by queue) who watches a queue to see if a delayed write comes in and republishes the message to a bucket later on. It's transparent to the user, but if we have multiple workers on the same queue we could potentially republish the message twice. While technically that falls within the SLA we've set for cassieq (at least once delivery) it'd be nice to avoid this particular race condition.

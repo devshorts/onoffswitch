@@ -18,12 +18,7 @@ meta:
   _edit_last: '1'
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1554378326;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4027;}i:1;a:1:{s:2:"id";i:3500;}i:2;a:1:{s:2:"id";i:2274;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/02/28/tech-talk-bloom-filters/"
 ---
 Each Thursday at work my team and I do a 45 minute to an hour discussion on any technical subject that we find interesting. We call these Thursday get togethers tech talks and I think they are awesome. We've been doing them for years and I'm hoping to start reposting our subjects and a blurb about our discussions each week after they happen.

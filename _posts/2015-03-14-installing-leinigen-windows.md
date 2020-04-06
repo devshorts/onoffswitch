@@ -17,12 +17,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560799432;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:8009;}i:1;a:1:{s:2:"id";i:4327;}i:2;a:1:{s:2:"id";i:1268;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2015/03/14/installing-leinigen-windows/"
 ---
 Figured I'd spend part of the afternoon and play with clojure but was immediately thwarted trying to install [leiningen](http://leiningen.org/) on windows via powershell. I tried the msi installer but it didn't seem to do anything, so I went to my `~/.lein/bin` folder and ran

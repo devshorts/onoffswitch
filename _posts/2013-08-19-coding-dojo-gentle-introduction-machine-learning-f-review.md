@@ -19,12 +19,7 @@ meta:
   _syntaxhighlighter_encoded: '1'
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558691217;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4126;}i:1;a:1:{s:2:"id";i:4275;}i:2;a:1:{s:2:"id";i:4209;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/08/19/coding-dojo-gentle-introduction-machine-learning-f-review/"
 ---
 Recently I organized an [F# meetup in DC](http://www.meetup.com/F-meetup-in-Dupont-Circle/), and for our first event we brought in a wonderful speaker (Mathias Brandewinder) who's topic was called: "_Coding Dojo: a gentle introduction to Machine Learning with F#_".

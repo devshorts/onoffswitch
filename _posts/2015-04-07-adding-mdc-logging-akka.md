@@ -20,12 +20,7 @@ meta:
   _wpas_done_all: '1'
   _su_rich_snippet_type: none
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560404400;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4596;}i:1;a:1:{s:2:"id";i:4629;}i:2;a:1:{s:2:"id";i:4593;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2015/04/07/adding-mdc-logging-akka/"
 ---
 I've mentioned before, but I'm working heavily in a project that is leveraging akka. I am really enjoying the message passing model and so far things are great, but tying in an MDC for the SLFJ logging context proved complicated. I had played with the custom executor model described [here](http://yanns.github.io/blog/2014/05/04/slf4j-mapped-diagnostic-context-mdc-with-play-framework/) but hadn't attempted the akka custom dispatcher.

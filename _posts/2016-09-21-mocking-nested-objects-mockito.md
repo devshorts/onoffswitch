@@ -19,12 +19,7 @@ meta:
   _edit_last: '1'
   _syntaxhighlighter_encoded: '1'
   _wpas_done_all: '1'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2016/09/21/mocking-nested-objects-mockito/"
 ---
 Yes, I know its a code smell. But I live in the real world, and sometimes you need to mock nested objects. This is a scenario like:

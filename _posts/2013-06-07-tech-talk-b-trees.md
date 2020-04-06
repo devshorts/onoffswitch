@@ -17,12 +17,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1555847166;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:1043;}i:1;a:1:{s:2:"id";i:3161;}i:2;a:1:{s:2:"id";i:4945;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/06/07/tech-talk-b-trees/"
 ---
 Yesterdays tech talk was on b-trees. B-trees are an interesting tree data structure that are used to minimize disk read access. Also, since they are self balancing, and optimized for sequential reads and inserts, they're really good for file systems and databases. CouchDB, MongoDB, SQLite, SQL Server and other datbases all use either a b-tree or a b+ tree as their data indexes, so it was interesting to discuss b-tree properties.

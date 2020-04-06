@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560398911;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4394;}i:1;a:1:{s:2:"id";i:1587;}i:2;a:1:{s:2:"id";i:365;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/06/17/threadpooling-in-netduino/"
 ---
 Sometimes you want to do asynchronous work without holding up your current thread but the work that needs to be done doesn't really warrant [the cost](http://msdn.microsoft.com/en-us/magazine/cc163552.aspx#S4) of spinning up a new thread (though what the exact cost is on an embedded environment I'm not sure).

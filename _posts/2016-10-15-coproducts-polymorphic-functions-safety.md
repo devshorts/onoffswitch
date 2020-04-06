@@ -20,12 +20,7 @@ meta:
   _wpcom_is_markdown: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1555115004;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4862;}i:1;a:1:{s:2:"id";i:4961;}i:2;a:1:{s:2:"id";i:4905;}}}}
   _wpas_done_all: '1'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2016/10/15/coproducts-polymorphic-functions-safety/"
 ---
 I was recently exploring [shapeless](https://github.com/milessabin/shapeless) and a coworker turned me onto the interesting features of coproducts and how they can be used with polymorphic functions.

@@ -17,12 +17,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558691229;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4919;}i:1;a:1:{s:2:"id";i:4737;}i:2;a:1:{s:2:"id";i:4515;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2014/07/16/wcf-request-entity-large/"
 ---
 I ran into a stupid issue today with WCF request entity too large errors. If you're sure your bindings are set properly on both the server and client, make sure to double check that the service name and contract's are set properly in the server.

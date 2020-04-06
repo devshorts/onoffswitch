@@ -21,12 +21,7 @@ meta:
   _syntaxhighlighter_encoded: '1'
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558918892;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4027;}i:1;a:1:{s:2:"id";i:4170;}i:2;a:1:{s:2:"id";i:3847;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/06/10/fogbugz-priority-prediction-naive-bayes/"
 ---
 <p>At my work we use fogbugz for our bugtracker and over the history of our company's lifetime we have tens of thousands of cases.  I was thinking recently that this is an interesting repository of historical data and I wanted to see what I could do with it.  What if I was able to predict, to some degree of acuracy, who the case would be assigned to based soley on the case title?  What about area? Or priority? Being able to predict who a case gets assigned to could alleviate a big time burden on the bug triager.</p>

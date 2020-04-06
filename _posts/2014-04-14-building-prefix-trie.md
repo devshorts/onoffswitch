@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558781240;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4011;}i:1;a:1:{s:2:"id";i:3847;}i:2;a:1:{s:2:"id";i:3656;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2014/04/14/building-prefix-trie/"
 ---
 [Prefix trie](http://en.wikipedia.org/wiki/Trie)'s are cool data structures that let you compress a dictionary of words based on their shared prefix. If you think about it, this makes a lot of sense. Why store `abs`, `abbr`, and `abysmal` when you only need to store `a,b,b,r,s,y,s,m,a,l`. Only storing what you have to (based on prefix) in this example gives you a 70% compression ratio! Not too bad, and it would only get better the more words you added.

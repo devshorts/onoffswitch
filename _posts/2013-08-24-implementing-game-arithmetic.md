@@ -21,12 +21,7 @@ meta:
   _syntaxhighlighter_encoded: '1'
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560829492;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2020;}i:1;a:1:{s:2:"id";i:4244;}i:2;a:1:{s:2:"id";i:4262;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/08/24/implementing-game-arithmetic/"
 ---
 There is a subreddit on reddit called [/r/dailyprogrammer](http://www.reddit.com/r/dailyprogrammer) and while they don't actually post exercises daily, they do sometimes post neat questions that are fun to solve. About a week ago, they posted [a problem](http://www.reddit.com/r/dailyprogrammer/comments/1k7s7p/081313_challenge_135_easy_arithmetic_equations/) that I solved with F# that I wanted to share. For the impatient, my full source is available at [this fssnip](http://fssnip.net/jy).

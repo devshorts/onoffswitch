@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _edit_last: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558607516;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4244;}i:1;a:1:{s:2:"id";i:3295;}i:2;a:1:{s:2:"id";i:3524;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/04/03/advice-young-engineers/"
 ---
 I had the opportunity to represent the company I work for at an engineering networking event at the University of Maryland today catered to young engineering students of all disciplines. The basic idea was to be available for students to ask questions they don't normally get to ask of working professionals such as "_what's the day to day like?_" [lots of coffee, followed by coding all day], "what advice would you give to someone looking to get into xyz field", etc.

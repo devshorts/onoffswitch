@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561494804;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:1268;}i:1;a:1:{s:2:"id";i:4286;}i:2;a:1:{s:2:"id";i:4213;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/05/27/byte-arrays-values-binary-reader-fwrite/"
 ---
 I was trying to read a binary file created from a native app using the C# BinaryReader class but kept getting weird numbers. When I checked the hex in visual studio I saw that the bytes were backwards from what I expected, indicating endianess issues. This threw me for a loop since I was writing the file from C++ on the same machine that I was reading the file in C# in. Also, I wasn't sending any data over the network so I was a little confused. Endianess is usually an issue across machine architectures or over the network.

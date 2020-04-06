@@ -19,12 +19,7 @@ meta:
   _syntaxhighlighter_encoded: '1'
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560643978;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4275;}i:1;a:1:{s:2:"id";i:4126;}i:2;a:1:{s:2:"id";i:3656;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/06/03/building-decision-tree/"
 ---
 After following [Mathias Brandewinder's](http://clear-lines.com/blog/post/Decision-Tree-classification.aspx) series on converting the python from ["Machine Learning in Action"](http://www.manning.com/pharrington/) to F#, I decided I'd give the book a try myself. Brandewinder's blog is great and he went through chapter by chapter working through F# conversions. If you followed his series, this won't be anything new. Still, I decided to do the same thing as a way to solidify the concepts for myself, and in order to differentiate my posts I am reworking the python code into C#. For the impatient, the full source is available at my [github](https://github.com/devshorts/Playground/tree/master/MachineLearning/DecisionTree).

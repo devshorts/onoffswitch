@@ -17,12 +17,7 @@ meta:
   _wpas_done_all: '1'
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558691246;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2635;}i:1;a:1:{s:2:"id";i:4394;}i:2;a:1:{s:2:"id";i:3710;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/03/21/tech-talk-javascript-memory-leaks-and-jswiz/"
 ---
 Todays tech talk revolved around the recently published [JSWhiz whitepaper](http://static.googleusercontent.com/external_content/untrusted_dlcp/research.google.com/en/us/pubs/archive/40738.pdf) from google. The paper discusses common javascript memory leak patterns. It also goes over how those leaks can be created and how google automated detection of them using [Closure](https://developers.google.com/closure/) type annotations.

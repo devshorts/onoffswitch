@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560268662;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4586;}i:1;a:1:{s:2:"id";i:4945;}i:2;a:1:{s:2:"id";i:4627;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2016/01/28/logging-easy/"
 ---
 > This is a cross post from [the original posting at godaddy's engineering blog](http://engineering.godaddy.com/logging-the-easy-way/). This is a project I have spent considerable time working on and leverage a lot.

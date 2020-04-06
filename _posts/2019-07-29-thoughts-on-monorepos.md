@@ -15,12 +15,7 @@ tags:
 meta:
   _edit_last: '1'
   _su_rich_snippet_type: none
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2019/07/29/thoughts-on-monorepos/"
 ---
 <!-- wp:paragraph -->

@@ -18,12 +18,7 @@ meta:
   _edit_last: '1'
   _su_rich_snippet_type: none
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561721293;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4327;}i:1;a:1:{s:2:"id";i:4725;}i:2;a:1:{s:2:"id";i:4262;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/09/30/time-experience-haskell-editors/"
 ---
 When you start learning a new language the first hurdle to overcome is how to edit, compile, and debug an application. In my professional career I rely heavily on visual studio and intellij IDEA as my two IDE workhorses. Things just work with them. I use visual studio for C#, C++, and F# development and IDEA for everything else (including scala, typescript, javascript, sass, ruby, and python).

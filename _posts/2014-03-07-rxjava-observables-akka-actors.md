@@ -21,12 +21,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561910971;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4627;}i:1;a:1:{s:2:"id";i:4593;}i:2;a:1:{s:2:"id";i:4629;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2014/03/07/rxjava-observables-akka-actors/"
 ---
 I was playing with both [akka](http://akka.io/) and [rxjava](https://github.com/Netflix/RxJava) and came across the [following post](java.dzone.com/articles/creating-rxjava-observable) that described how to map rxjava observables from messages posted to akka actors.

@@ -19,12 +19,7 @@ meta:
   _wpas_done_all: '1'
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1554802472;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2985;}i:1;a:1:{s:2:"id";i:532;}i:2;a:1:{s:2:"id";i:4764;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/03/18/when-to-abort-a-thread/"
 ---
 When is it OK to abort a thread is a question that comes up every so often. Usually everyone jumps on the bandwagon that you should never ever do a thread abort, but I don't agree. Certainly there are times when it's valid and if you understand what you are doing then it's ok to use.

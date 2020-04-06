@@ -24,12 +24,7 @@ meta:
   _syntaxhighlighter_encoded: '1'
   _wpas_done_all: '1'
   _jetpack_dont_email_post_to_subs: '1'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2017/10/05/tracing-high-volume-services/"
 ---
 > This post was originally posted at [engineering.curalate.com](http://engineering.curalate.com/2017/09/26/tracing-services.html)

@@ -20,12 +20,7 @@ meta:
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560455198;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:7777;}i:1;a:1:{s:2:"id";i:4919;}i:2;a:1:{s:2:"id";i:3565;}}}}
   _wpcom_is_markdown: '1'
   _jetpack_dont_email_post_to_subs: '1'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2017/11/08/functors-scala/"
 ---
 A coworker of mine and I frequently talk about higher kinded types, category theory, and lament about the lack of unified types in scala: namely functors. A functor is a fancy name for a thing that can be mapped on. Wanting to abstract over something that is mappable comes up more often than you think. I don't necessarily care that its an Option, or a List, or a whatever. I just care that it has a map.

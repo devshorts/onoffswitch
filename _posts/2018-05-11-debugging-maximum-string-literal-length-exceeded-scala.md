@@ -19,12 +19,7 @@ meta:
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560002911;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2735;}i:1;a:1:{s:2:"id";i:4862;}i:2;a:1:{s:2:"id";i:4068;}}}}
   _syntaxhighlighter_encoded: '1'
   _wpas_done_all: '1'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2018/05/11/debugging-maximum-string-literal-length-exceeded-scala/"
 ---
 Today I ran into a fascinating bug. We use [ficus](https://github.com/iheartradio/ficus) as a HOCON auto parser for scala. It works great, because parsing configurations into strongly typed case classes is annoying. Ficus works by using a macro to invoke implicitly in scope `Reader[T]` classes for data types and recursively builds the nested parser.

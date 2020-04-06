@@ -22,12 +22,7 @@ meta:
   _syntaxhighlighter_encoded: '1'
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1554621603;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3710;}i:1;a:1:{s:2:"id";i:4306;}i:2;a:1:{s:2:"id";i:4737;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2014/03/10/simple-template-engine/"
 ---
 I wanted to talk about templating, since templating is a common thing you run into. Often times you want to cleanly do a string replace on a bunch of text, and sometimes even need minimal language processing to do what you want. For example, Java has a templating engine called Velocity, but lots of languages have libraries that do this kind of work. I thought it'd be fun to create a small templating engine from scratch with F# as an after work exercise.

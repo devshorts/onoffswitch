@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561976764;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3524;}i:1;a:1:{s:2:"id";i:4028;}i:2;a:1:{s:2:"id";i:3232;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/04/24/memory-leaks-images/"
 ---
 I ran into a neat C# memory leak today that I wanted to share. It's not often you get a clear undeniable leak in C# and so I really had fun figuring this one out.

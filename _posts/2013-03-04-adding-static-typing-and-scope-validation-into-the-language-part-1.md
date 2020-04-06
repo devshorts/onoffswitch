@@ -18,12 +18,7 @@ meta:
   _wpas_done_all: '1'
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"7535db1f00326ea7d941a323347758fc";a:2:{s:7:"expires";i:1559692912;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3128;}i:1;a:1:{s:2:"id";i:2735;}i:2;a:1:{s:2:"id";i:3565;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/03/04/adding-static-typing-and-scope-validation-into-the-language-part-1/"
 ---
 Continuing on my [series](http://onoffswitch.net/tag/language-implementation/) discussing the language I wrote, this next post is going to talk about the basics of static typing and scope rules. So far my language implementation follows very closely to [Parr's](http://www.cs.usfca.edu/~parrt/) examples in his book [Language Implementation Patterns](http://www.amazon.com/Language-Implementation-Patterns-Domain-Specific-Programming/dp/193435645X), which is what gave me the inspiration to do this project.

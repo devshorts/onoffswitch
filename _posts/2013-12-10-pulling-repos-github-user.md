@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561055272;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4699;}i:1;a:1:{s:2:"id";i:4737;}i:2;a:1:{s:2:"id";i:4316;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/12/10/pulling-repos-github-user/"
 ---
 I recently had to relinquish my trusty dev machine (my work laptop) since I got a new job, and as such am relegated to using my old mac laptop at home for development until I either find a new personal dev machine or get a new work laptop. For those who don't know, I'm leaving the DC area and moving to Seattle to work for Amazon, so that's pretty cool! Downside is that it's Java and Java kind of sucks, but I can still do f#, haskell, and all the other fun stuff on the side.

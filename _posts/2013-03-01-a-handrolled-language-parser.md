@@ -22,12 +22,7 @@ meta:
   _wpas_done_all: '1'
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561472777;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4131;}i:1;a:1:{s:2:"id";i:4068;}i:2;a:1:{s:2:"id";i:4365;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/03/01/a-handrolled-language-parser/"
 ---
 In my [previous post](http://onoffswitch.net/building-a-custom-lexer/) about building a custom lexer I mentioned that, for educational purposes, I created a simple [toy programming language](https://github.com/devshorts/LanguageCreator) (still unnamed). There, I talked about building a tokenizer and lexer from scratch. In this post I'll discuss building a parser that is responsible for generating an [abstract syntax tree](http://stackoverflow.com/questions/1721553/how-to-construct-an-abstract-syntax-tree) (AST) for my language. This syntax tree can then be passed to other language components such as a scope and type resolver, and finally an interpreter.

@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558791887;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:7777;}i:1;a:1:{s:2:"id";i:4589;}i:2;a:1:{s:2:"id";i:4991;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2016/06/02/unit-testing-dns-failovers/"
 ---
 Something that's come up a few times in my career is the difficulty of validating if and when your code can handle actual DNS changes. A lot of times testing that you have the right JVM settings and that your 3rd party clients can handle it involves mucking with hosts files, nameservers, or stuff like Route53 and waiting around. Then its hard to automate and deterministically reproduce. However, you can hook into the DNS resolution in the JVM to control what gets resolved to what. And this way you can tweak the resolution in a test and see what breaks! I found some info at this [blog post](rkuzmik.blogspot.com/2006/08/local-managed-dns-java_11.html) and cleaned it up a bit for usage in scala.

@@ -19,12 +19,7 @@ meta:
   _syntaxhighlighter_encoded: '1'
   _su_rich_snippet_type: none
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561173373;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4725;}i:1;a:1:{s:2:"id";i:4320;}i:2;a:1:{s:2:"id";i:4348;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/10/14/arrow-operator/"
 ---
 Continuing my journey in functional programming, I decided to try doing the [99 haskell problems](http://www.haskell.org/haskellwiki/99_questions/) to wean my way into haskell. I've found this to be a lot of fun since they give you the answers to each problem and, even though I have functional experience, the _haskell_ way is sometimes very different from what I would have expected.

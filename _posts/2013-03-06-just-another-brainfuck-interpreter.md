@@ -20,12 +20,7 @@ meta:
   _wp_old_slug: a-brainfuck-interpreter
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560277132;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2735;}i:1;a:1:{s:2:"id";i:6;}i:2;a:1:{s:2:"id";i:3016;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/03/06/just-another-brainfuck-interpreter/"
 ---
 <h2>Why?</h2>

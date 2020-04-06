@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1554308616;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3735;}i:1;a:1:{s:2:"id";i:4411;}i:2;a:1:{s:2:"id";i:2735;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2014/02/27/debugging-f-nunit-equals-mixed-type-tuples/"
 ---
 Twitter user [Richard Dalton](https://twitter.com/richardadalton) asked a great question recently:

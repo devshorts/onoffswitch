@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558720432;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4244;}i:1;a:1:{s:2:"id";i:4327;}i:2;a:1:{s:2:"id";i:4348;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2015/08/15/adventures-pretty-printing-json-haskell/"
 ---
 Today I gave atom haskell-ide a whirl and wanted to play with haskell a bit more. I've played with haskell in the past and always been put off by the tooling. To be fair, I still kind of am. I love the idea of the language but the tooling is just not there to make it an enjoyable exploratory experience. I spend half my time in the repl inspecting types, the other half on hoogle, and the 3rd half (yes I know) being frustrated that I can't just type in package names and explore API's in sublime or atom or wherever I am. Now that I'm on a mac, maybe I'll give leksah another try. I tried it a while ago it didn't work well.

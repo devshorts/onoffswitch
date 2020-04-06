@@ -21,12 +21,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558960558;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4463;}i:1;a:1:{s:2:"id";i:4244;}i:2;a:1:{s:2:"id";i:4028;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/08/14/f-class-getter-fun/"
 ---
 I was playing with Neo4J (following a recent post I stumbled upon by [Sergey Tihon](http://sergeytihon.wordpress.com/2013/03/27/using-neo4j-graph-db-with-f/)), and had everything wired up and ready to test out, but when I tried running my code I kept getting errors saying that I hadn't connected to the neo4j database. This puzzled me because I had clearly called connect, but every time I tried to access my connection object I got an error.

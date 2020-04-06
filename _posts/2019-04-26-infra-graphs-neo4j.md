@@ -15,12 +15,7 @@ meta:
   _su_rich_snippet_type: none
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561804019;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4899;}i:1;a:1:{s:2:"id";i:4673;}i:2;a:1:{s:2:"id";i:4167;}}}}
   _wpas_done_all: '1'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2019/04/26/infra-graphs-neo4j/"
 ---
 I spent some time recently mucking around with neo4j attempting to model infrastructure, incidents, teams, users, etc. Basically what does it take to answer questions about organizations.

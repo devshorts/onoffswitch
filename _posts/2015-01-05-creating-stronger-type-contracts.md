@@ -21,12 +21,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561600152;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2735;}i:1;a:1:{s:2:"id";i:4411;}i:2;a:1:{s:2:"id";i:3899;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2015/01/05/creating-stronger-type-contracts/"
 ---
 I've long been annoyed that value types don't have strong semantic information attached to them such that the compiler would barf if I try and pass an value type that isn't semantically the same as what the function wanted. For example, what does the following signature mean other than than taking in 2 ints and returning a bool?

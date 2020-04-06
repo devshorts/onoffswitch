@@ -20,12 +20,7 @@ meta:
   _syntaxhighlighter_encoded: '1'
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561125259;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4737;}i:1;a:1:{s:2:"id";i:1587;}i:2;a:1:{s:2:"id";i:4286;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2012/11/09/dropped-packets-with-promiscuous-raw-sockets/"
 ---
 _This article was originally published at [tech.blinemedical.com](http://tech.blinemedical.com/dropped-packets-with-promiscuous-raw-sockets/)_

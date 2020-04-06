@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560802337;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3392;}i:1;a:1:{s:2:"id";i:289;}i:2;a:1:{s:2:"id";i:4091;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/07/29/strongly-typing-signalr/"
 ---
 I'm a big fan of strong typing. If you can leverage the compiler to give you an error (or warning) before you deploy code, all the better. That means you won't, ideally, push a bug into the field. So I have a big problem with frameworks and libraries that rely on dynamic objects, or even worse, stringly typing thing. Don't get me wrong, sometimes dynamics are the only way to solve the problem, but whenever I run into one I'm always afraid that I'm going to get a runtime error since I don't _really_ know what I'm acting on till later.

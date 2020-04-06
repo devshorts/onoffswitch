@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1555086534;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3392;}i:1;a:1:{s:2:"id";i:289;}i:2;a:1:{s:2:"id";i:2365;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/07/22/signalr-ios-single-domain/"
 ---
 Safari on ios has a limitation that you can only have one concurrent request to a particular domain at a time. Normally this is fine, since once a request completes the next one that is queued up fires off. But what if you are using a realtime persistent connection library like signalR? In this case your one allowed connection is held up with the signalR request. If you're not on a mac or linux and you use windows 7 or earlier you can't use websockets so you're stuck using http. Most suggestions involve buying a second domain, but sometimes thats not possible, especially if your application is a distributable web app that can run on client machines. You can't expect clients to have to buy a second domain just so your realtime push works.

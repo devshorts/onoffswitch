@@ -19,12 +19,7 @@ meta:
   _wpas_done_all: '1'
   _wp_old_slug: fparsec
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558731860;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4131;}i:1;a:1:{s:2:"id";i:4068;}i:2;a:1:{s:2:"id";i:4077;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/05/02/capturing-union-values-fparsec/"
 ---
 I just started playing with [fparsec](http://www.quanttec.com/fparsec/) which is a [parser combinatorics](http://en.wikipedia.org/wiki/Parser_combinator) library that lets you create chainable parsers to parse DSL's. After having built my own parser, lexer, and interpreter, playing with other libraries is really fun, I like seeing how others have done it. Unlike my mutable parser written in C#, with FParsec the idea is that it will encapsulate the underlying stream state and result into a parser object. Since F# is mostly immutable, this is how the underlying modified stream state gets captured and passed as a new stream to the next parser. I actually like this kind of workflow since you don't need to create a grammar which is parsed and creates code for you (which is what ANTLR does). There's something very appealing to have it be dynamic.

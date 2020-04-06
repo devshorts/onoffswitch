@@ -18,12 +18,7 @@ meta:
   _edit_last: '1'
   _syntaxhighlighter_encoded: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561917902;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3615;}i:1;a:1:{s:2:"id";i:3942;}i:2;a:1:{s:2:"id";i:4170;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/07/01/meaning-wtxb/"
 ---
 In machine learning, everyone talks about weights and activations, often in conjunction with a formula of the form `wx+b`. While reading [machine learning in action](http://www.manning.com/pharrington/) I frequently saw this formula but didn't really understand what it meant. Obviously its a line of some sort, but what does the line mean? Where does w come from? I was able to muddle past this for decision trees, and naive bayes, but when I got to support vector machines I was pretty confused. I wasn't able to follow the math and conceptually things got muddled.

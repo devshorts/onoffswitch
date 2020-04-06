@@ -18,12 +18,7 @@ meta:
   _wpas_done_all: '1'
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560791954;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3536;}i:1;a:1:{s:2:"id";i:4365;}i:2;a:1:{s:2:"id";i:3847;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/03/18/merging-two-dictionaries-in-f/"
 ---
 If you ever need to merge two immutable dictionaries (maps) that may share the same key, here is how I did it

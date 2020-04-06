@@ -20,12 +20,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561421346;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4296;}i:1;a:1:{s:2:"id";i:3435;}i:2;a:1:{s:2:"id";i:3565;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2014/05/12/creating-futures/"
 ---
 Futures (and promises) are a fun and useful [design pattern](http://en.wikipedia.org/wiki/Futures_and_promises) in that they help encapsulate asynchronous work into composable objects. That and they help hide away the actual asynchronous execution implementation. It doesn't matter if the future is finally resolved on the threadpool, in a new thread, or in an event loop (like nodejs).

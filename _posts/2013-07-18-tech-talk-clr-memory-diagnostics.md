@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1559337772;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4596;}i:1;a:1:{s:2:"id";i:4463;}i:2;a:1:{s:2:"id";i:3497;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/07/18/tech-talk-clr-memory-diagnostics/"
 ---
 Today's tech talk we discussed the recent release from Microsoft of [ClrMD](http://blogs.msdn.com/b/dotnet/archive/2013/05/01/net-crash-dump-and-live-process-inspection.aspx) that lets you attach and debug processes using an exposed API. You used to be able to do this in WinDbg using the SOS plugin, but now they've wrapped SOS in a managed dll that you can use to inspect CLR process information. The nice thing about this is you can now automate debugging inspections. It's now as easy as

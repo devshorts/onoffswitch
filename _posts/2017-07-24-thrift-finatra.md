@@ -23,12 +23,7 @@ meta:
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1554367279;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4919;}i:1;a:1:{s:2:"id";i:4945;}i:2;a:1:{s:2:"id";i:4991;}}}}
   _wpas_done_all: '1'
   _jetpack_dont_email_post_to_subs: '1'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2017/07/24/thrift-finatra/"
 ---
 > Originally posted on the [curalate engineering blog](http://engineering.curalate.com/2017/07/05/from-thrift-to-finatra.html)

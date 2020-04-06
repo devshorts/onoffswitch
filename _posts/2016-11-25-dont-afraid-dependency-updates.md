@@ -17,12 +17,7 @@ meta:
   _wpcom_is_markdown: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561858553;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4919;}i:1;a:1:{s:2:"id";i:4764;}i:2;a:1:{s:2:"id";i:4028;}}}}
   _wpas_done_all: '1'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2016/11/25/dont-afraid-dependency-updates/"
 ---
 Lots of place I've worked at have had an irrational fear of upgrading their dependencies. I understand why, when you have something that `works` you don't want to rock the boat. You want to focus on building your product, not dealing with potential runtime errors. Your ops team is happy, things are stable. Life is great.

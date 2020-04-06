@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560876621;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4699;}i:1;a:1:{s:2:"id";i:4737;}i:2;a:1:{s:2:"id";i:4394;}}}}
   _wpas_done_all: '1'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2018/05/02/aetr-open-source-workflow-engine/"
 ---
 For the past several years I've been thinking about the idea of an open source workflow execution engine. Something like AWS workflow but simpler. No need to upload python, or javascript, or whatever. Just call an API with a callback url, and when the API completes its step, callback to the coordinator with a payload. Have the coordinator then send that payload to the next step in the workflow, etc.

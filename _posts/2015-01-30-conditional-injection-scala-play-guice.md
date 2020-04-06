@@ -20,12 +20,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1557884187;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4939;}i:1;a:1:{s:2:"id";i:4961;}i:2;a:1:{s:2:"id";i:4919;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2015/01/30/conditional-injection-scala-play-guice/"
 ---
 It's been a crazy year for me. For those who don't know I moved from the east coast to the west coast to work for a rather _large_ softare company in seattle (I'll let you figure which one out) and after a few short weeks realized I made a horrible mistake and left the team. I then found a cool job at a smaller .net startup that was based in SF and met some awesome people and learned a lot. But, I've been poached by an old coworker and am now going to go work at a place that uses more open source things so I decided to kick into gear and investigate scala and play.

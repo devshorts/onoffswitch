@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1559886835;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4892;}i:1;a:1:{s:2:"id";i:3847;}i:2;a:1:{s:2:"id";i:3367;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/06/05/working-long-term-svn-branch/"
 ---
 I work on a reasonably small team and for the most part everyone works in trunk. But it can happen where you need to switch over to a long term feature branch (more than a week or two) that can last sometimes months. The problem here is that your branch can easily diverge from trunk. If the intent is that the feature branch will eventually become the master (trunk) then you should merge the feature branch frequently. For me, this method has worked really well.

@@ -22,12 +22,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561588999;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4844;}i:1;a:1:{s:2:"id";i:4306;}i:2;a:1:{s:2:"id";i:4699;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2015/12/12/class-loaders-hard/"
 ---
 Plugin based systems are really common. Jenkins, Jira, wordpress, whatever. Recently I built a plugin workflow for a system at work and have been mired in the joys of the class loader. For the uninitiated, a class in Java is identified uniquely by the class loader instance it is created from as well as its fully qualified class name. This means that `foo.bar` class loaded by class loader A is _not the same_ as `foo.bar` class loaded by class loader B.

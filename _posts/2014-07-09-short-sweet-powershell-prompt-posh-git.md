@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561303870;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4892;}i:1;a:1:{s:2:"id";i:4631;}i:2;a:1:{s:2:"id";i:4699;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2014/07/09/short-sweet-powershell-prompt-posh-git/"
 ---
 My company has fully switched to git and it's been great. Most people at work use SourceTree as a gui to manage their git workflow, some use only command line, and I use a mixture of posh-git in powershell with tortoise git when I need to visualize things.

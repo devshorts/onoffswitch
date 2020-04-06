@@ -17,12 +17,7 @@ meta:
   _wpas_done_all: '1'
   _su_rich_snippet_type: none
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561511191;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4919;}i:1;a:1:{s:2:"id";i:4905;}i:2;a:1:{s:2:"id";i:4862;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2015/02/04/tiny-types-scala-edition/"
 ---
 Previously I wrote about generating value type wrappers on top of C# primitives for better handling of domain level knowledge. This time I decided to try it out in scala as I'm jumping into the JVM world.

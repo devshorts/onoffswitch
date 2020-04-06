@@ -17,12 +17,7 @@ meta:
   _wp_old_slug: ixd-2013-rhythm-flow-and-style
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1558715686;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4699;}i:1;a:1:{s:2:"id";i:2985;}i:2;a:1:{s:2:"id";i:3500;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/01/29/ixd-2013-rythm-flow-and-style/"
 ---
 _This article was originally published at [tech.blinemedical.com](http://tech.blinemedical.com/ixd-2013-rythm-flow-and-style/)_

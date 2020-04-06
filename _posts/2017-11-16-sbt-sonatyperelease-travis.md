@@ -18,12 +18,7 @@ meta:
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"37550b67d263a3ce789993dc25046c5f";a:2:{s:7:"expires";i:1557076392;s:7:"payload";a:6:{i:0;a:1:{s:2:"id";i:4892;}i:1;a:1:{s:2:"id";i:4939;}i:2;a:1:{s:2:"id";i:4991;}i:3;a:1:{s:2:"id";i:4737;}i:4;a:1:{s:2:"id";i:4327;}i:5;a:1:{s:2:"id";i:4191;}}}}
   _su_rich_snippet_type: none
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2017/11/16/sbt-sonatyperelease-travis/"
 ---
 I figured I'd drop a quick note here for anyone else running into an issue. If you are trying to do a sonatypeRelease via sbt 1.0.3 on travis and getting a

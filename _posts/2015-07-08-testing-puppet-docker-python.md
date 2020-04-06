@@ -20,12 +20,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1556506239;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4699;}i:1;a:1:{s:2:"id";i:4737;}i:2;a:1:{s:2:"id";i:4978;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2015/07/08/testing-puppet-docker-python/"
 ---
 In all the past positions I've been in I've been lucky enough to have a dedicated ops team to handle service deployment, cluster health, and machine managmenent. However, at my new company there is much more of a "self serve" mentality such that each team needs to handle things themselves. On the one hand this is a huge pain in my ass, since really the last thing I want to do is deal with clusters and machines. On the other hand though, because we have the ability to spin up openstack boxes in our data centers at the click of a button, each team has the flexibility to host their own infrastructrure and stack.

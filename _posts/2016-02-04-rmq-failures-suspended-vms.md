@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1546394009;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2635;}i:1;a:1:{s:2:"id";i:4945;}i:2;a:1:{s:2:"id";i:4737;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2016/02/04/rmq-failures-suspended-vms/"
 ---
 My team recently ran into a bizarre RMQ partition failure in a production cluster. RMQ doesn't handle partition failures well, and while you can set up auto recovery (such as suspension of minority groups) you need to manually recover from it. The one time I've encountered this I got a very useful message in the admin managment page indicating that parts of the cluster were in partition failure, but this time things went weird.

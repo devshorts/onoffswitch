@@ -18,12 +18,7 @@ meta:
   _wpas_done_all: '1'
   _edit_last: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560892211;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3285;}i:1;a:1:{s:2:"id";i:1268;}i:2;a:1:{s:2:"id";i:4699;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/04/04/tech-talk-hacking-droid/"
 ---
 Todays tech talk was based off of a blog entry posted [by facebook](https://www.facebook.com/notes/facebook-engineering/under-the-hood-dalvik-patch-for-facebook-for-android/10151345597798920) recently where they described the things they needed to do to get their mobile app running on android OS Froyo (v 2.2).

@@ -18,12 +18,7 @@ meta:
   _wpas_done_all: '1'
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561041570;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3016;}i:1;a:1:{s:2:"id";i:2735;}i:2;a:1:{s:2:"id";i:3128;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/03/05/adding-static-typing-and-scope-validation-part-2-type-inference-and-validation/"
 ---
 This post continues my [series](http://onoffswitch.net/tag/language-implementation/) describing how I solved certain problems while creating a [toy programming language](https://github.com/devshorts/LanguageCreator). Today I'll discuss static typing and type inference.

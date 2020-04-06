@@ -20,12 +20,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560993964;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4316;}i:1;a:1:{s:2:"id";i:4262;}i:2;a:1:{s:2:"id";i:4327;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2014/01/20/daily-programmer/"
 ---
 I've mentioned [r/dailyprogrammer](http://www.reddit.com/r/dailyprogrammer) in [previous posts](http://onoffswitch.net/?s=daily+programmer), since I think they are fun little problems to solve when I have time on my hands. They're also great problem sets to do when learning a new language.

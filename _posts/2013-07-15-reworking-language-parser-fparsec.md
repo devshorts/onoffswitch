@@ -21,12 +21,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560221353;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:2735;}i:1;a:1:{s:2:"id";i:3016;}i:2;a:1:{s:2:"id";i:4365;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/07/15/reworking-language-parser-fparsec/"
 ---
 Since I was playing with fparsec last week, I decided to redo (or mostly) the parser for my homebrew language that I've previously posted about. Using fparsec made the parser surprisingly succinct and expressive. In fact I was able to do most of this in an afternoon, which is impressive considering[my last C# attempt](http://onoffswitch.net/a-handrolled-language-parser/) took 2 weeks to hammer out.

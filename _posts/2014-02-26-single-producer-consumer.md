@@ -20,12 +20,7 @@ meta:
   _edit_last: '1'
   _syntaxhighlighter_encoded: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561845469;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:532;}i:1;a:1:{s:2:"id";i:2985;}i:2;a:1:{s:2:"id";i:7777;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2014/02/26/single-producer-consumer/"
 ---
 When I'm bored, I like to roll my own versions of things that already exist. That's not to say I use them in production, but I find that they are great learning tools. If you read the blog regularly you probably have realized I do this A LOT. Anyways, today is no different. I was thinking about single producer, multiple consumer functions, like an [SNS](http://aws.amazon.com/sns/) Topic, but for your local machine. In reality, the best way to do this would be to publish your event through an Rx stream and consume it with multiple subscribers, but that's no fun. I want to roll my own!

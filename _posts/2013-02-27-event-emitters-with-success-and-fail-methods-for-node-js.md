@@ -19,12 +19,7 @@ meta:
   _wpas_done_all: '1'
   _su_title: ''
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560295314;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3295;}i:1;a:1:{s:2:"id";i:3452;}i:2;a:1:{s:2:"id";i:3128;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/02/27/event-emitters-with-success-and-fail-methods-for-node-js/"
 ---
 When it comes to node.js you hear a lot of hype, good and bad, so I've finally decided to take the plunge and investigate for myself what the fuss is about. So far it's been interesting.

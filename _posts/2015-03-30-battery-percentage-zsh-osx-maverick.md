@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560766546;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4631;}i:1;a:1:{s:2:"id";i:4589;}i:2;a:1:{s:2:"id";i:4463;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2015/03/30/battery-percentage-zsh-osx-maverick/"
 ---
 I'm on osx maverick still at home on my laptop and I spent part of today dicking around customizing my zsh shell. I wanted to be able to show my battery percentage in the shell and it's really pretty easy.

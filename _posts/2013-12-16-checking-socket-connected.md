@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561771227;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4286;}i:1;a:1:{s:2:"id";i:1268;}i:2;a:1:{s:2:"id";i:1587;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/12/16/checking-socket-connected/"
 ---
 Testing if a socket is still open isn't as easy at it sounds. Anyone who has ever dealt with socket programming knows this is hassle. The general pattern is to poll on the socket to see if its still available, usually by sitting in an infinite loop. However, with f# this can be done more elegantly using async and some decoupled functions.

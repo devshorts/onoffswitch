@@ -17,12 +17,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560523888;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4306;}i:1;a:1:{s:2:"id";i:2020;}i:2;a:1:{s:2:"id";i:3565;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2014/08/24/leveraging-message-passing-currying-ruby/"
 ---
 I'm not much of a ruby guy, but I had the inkling to play with it this weekend. The first thing I do when I'm in a new language is try to map constructs that I'm familiar with, from basic stuff like object instantiation, singletons, inheritance, to more complicated paradigms like lambdas and currying.

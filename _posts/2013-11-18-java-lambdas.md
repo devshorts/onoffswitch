@@ -18,12 +18,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560197513;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4627;}i:1;a:1:{s:2:"id";i:4596;}i:2;a:1:{s:2:"id";i:4316;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/11/18/java-lambdas/"
 ---
 I'm not a java person. I've never used it in production, nor have I spent any real time with it outside of my professional work. However, when a language dawns upon lambdas I am drawn to try out their implementation. I've long since despised Java for the reasons of verbosity, lack of real closures or events, type erasure in generics, and an over obsession with anonymous classes, so I've shied away from doing anything in it.

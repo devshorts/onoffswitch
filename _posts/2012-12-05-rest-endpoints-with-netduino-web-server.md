@@ -22,12 +22,7 @@ meta:
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561690990;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4939;}i:1;a:1:{s:2:"id";i:3392;}i:2;a:1:{s:2:"id";i:4919;}}}}
   _oembed_05817a7a6a9145d7919112c8afdc35ce: "{{unknown}}"
   _oembed_44de245a5cb4857f2c9dd76d6025a72f: "{{unknown}}"
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2012/12/05/rest-endpoints-with-netduino-web-server/"
 ---
 _This article was originally published at [tech.blinemedical.com](http://tech.blinemedical.com/rest-endpoints-with-netduino-web-server/)_

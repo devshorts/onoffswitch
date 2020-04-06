@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560848118;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4456;}i:1;a:1:{s:2:"id";i:4919;}i:2;a:1:{s:2:"id";i:3779;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/04/30/debugging-serializationexception-constructor-deserialize-object-type-com-thesilentgroup-fluorine-asobject-found/"
 ---
 Today I was debugging an exception that was occuring when remoting a data object between two .NET processes. I kept getting

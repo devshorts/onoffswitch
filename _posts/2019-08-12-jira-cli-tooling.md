@@ -17,12 +17,7 @@ meta:
   _edit_last: '1'
   _su_title: jira productivity cli
   _su_rich_snippet_type: none
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2019/08/12/jira-cli-tooling/"
 ---
 <!-- wp:paragraph -->

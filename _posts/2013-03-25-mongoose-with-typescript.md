@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561781734;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3295;}i:1;a:1:{s:2:"id";i:4028;}i:2;a:1:{s:2:"id";i:3452;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/03/25/mongoose-with-typescript/"
 ---
 Mongoose is a library for node.js that wraps the mongoDB driver. Since I've been playing with typescript, I wanted to show a short demo of strongly typing mongoose with unit tests run in nodeunit all using typescript.

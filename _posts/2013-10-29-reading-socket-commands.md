@@ -20,12 +20,7 @@ meta:
   _syntaxhighlighter_encoded: '1'
   _edit_last: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561407950;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:1268;}i:1;a:1:{s:2:"id";i:1587;}i:2;a:1:{s:2:"id";i:4737;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/10/29/reading-socket-commands/"
 ---
 A few weeks ago I was working on a sample application that would simulate a complex state machine. The idea is that there is one control room, and many slave rooms, where each slave room has its own state. The control room can dispatch a state advance or state reverse to any room or collection of rooms, as well as query room states, and other room metadata.

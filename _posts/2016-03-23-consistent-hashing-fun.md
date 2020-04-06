@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1554617742;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:4805;}i:1;a:1:{s:2:"id";i:4783;}i:2;a:1:{s:2:"id";i:4699;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2016/03/23/consistent-hashing-fun/"
 ---
 I think [consistent hashing](https://en.wikipedia.org/wiki/Consistent_hashing) is pretty fascinating. It lets you define a ring of machines that shard out data by a hash value. Imagine that your hash space is 0 -\> Int.Max, and you have 2 machines. Well one machine gets all values hashed from 0 -\> Int.Max/2 and the other from Int.Max/2 -\> Int.Max. Clever. This is one of the major algorithms of distributed systems like cassandra and dynamoDB.

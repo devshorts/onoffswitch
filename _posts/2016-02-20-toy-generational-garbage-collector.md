@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1561521171;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3435;}i:1;a:1:{s:2:"id";i:3452;}i:2;a:1:{s:2:"id";i:4699;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2016/02/20/toy-generational-garbage-collector/"
 ---
 Had a little downtime today and figured I'd make a toy generational garbage collector, for funsies. A friend of mine was once asked this as an interview question so I thought it might make for some good weekend practice.

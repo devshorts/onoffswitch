@@ -19,12 +19,7 @@ meta:
   _su_rich_snippet_type: none
   _wpas_done_all: '1'
   _jetpack_related_posts_cache: a:1:{s:32:"8f6677c9d6b0f903e98ad32ec61f8deb";a:2:{s:7:"expires";i:1560668063;s:7:"payload";a:3:{i:0;a:1:{s:2:"id";i:3128;}i:1;a:1:{s:2:"id";i:3803;}i:2;a:1:{s:2:"id";i:2274;}}}}
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
+
 permalink: "/2013/12/02/24-hour-time-ranges/"
 ---
 Dealing with time is hard, it's really easy to make a mistake. Whenever I'm faced with a problem that deals with time I tend to spend an inordinate amount of time making sure I'm doing things right.
