@@ -1,26 +1,19 @@
 ---
 layout: page
-title: License
-date: 2013-04-27 21:33:37.000000000 -07:00
-type: page
-parent_id: '0'
-published: true
-password: ''
-status: publish
-categories: []
-tags: []
-meta:
-  _edit_last: '1'
-  _su_rich_snippet_type: none
-  _wpas_done_all: '1'
-author:
-  login: akropp
-  email: akropp@gmail.com
-  display_name: akropp
-  first_name: ''
-  last_name: ''
-permalink: "/onoff-license/"
+title: About
+permalink: /about/
 ---
+
+I'm just a guy who likes to code. Find me in the  Seattle metro area.
+
+<a href="http://stackoverflow.com/users/310196/devshorts">stack overflow</a>
+
+<a href="https://github.com/devshorts">github</a>
+
+<a href="http://www.linkedin.com/pub/anton-kropp/16/368/80b">linked in</a>
+
+All of the original code published in this blog is available under the following license:
+
 <p>All software posted in this blog and in my github (<a href="http://github.com/devshorts" target="_blank" rel="noopener noreferrer">http://github.com/devshorts</a>) is available through the MIT license below.</p>
 <blockquote><p>The MIT License (MIT)</p>
 <p>Copyright (c) 2013 Anton Kropp</p>
@@ -39,3 +32,4 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER<br />
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,<br />
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN<br />
 THE SOFTWARE.</p></blockquote>
+
