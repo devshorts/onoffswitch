@@ -27,35 +27,43 @@ Localizing an application consists of extracting out user directed text and mana
 
 But, who just uses bare text to display things to the user? Usually you want to have text be a little dynamic. Something like
 
-[code]  
+```
+  
 Hello {user}! Welcome!  
-[/code]
+
+```
 
 Here, `user` will be some sort of dynamic property. To support this, your locale files need a way to handle arguments.
 
 One way of storing contents in a locale file is like this:
 
-[code]  
+```
+  
 ExampleText = Some Text {argName:argType} other text etc  
  = This is on a seperate newline  
 UserLoginText = ...  
-[/code]
+
+```
 
 This consists of an identifier, followed by an equals sign, followed by some text with arguments of the form {x:y}. To make a new line you have a new line with an equals sign and you continue your text. When you reach a string with an identifier, you have a new locale element.
 
 But you can also have comments, like
 
-[code]  
+```
+  
 # this is a comment, ignore me!  
-[/code]
+
+```
 
 And to throw a monkey wrench in the problem, you can also have arguments with no types, of the form `{argName}`.
 
 The end goal, is to be able to reference your locale contents in code, something like
 
-[code]  
+```
+  
 Locale.ExampleText ("foo");  
-[/code]
+
+```
 
 But to get to the point where you can reference this you need to translate your locale files into something workable, kind of like a syntax tree. If you have a working syntax tree of your locale files you can generate strongly typed locale code for you to use in your application.
 
@@ -65,7 +73,8 @@ To parse a locale file of this format I used fparsec. One reason was that it alr
 
 Going with a data first design, I thought about what I wanted to my final output to be and came up with 3 discriminated unions that look like this:
 
-[fsharp]  
+```fsharp
+  
 type Arg =  
  | WithType of string \* string  
  | NoType of string
@@ -80,13 +89,15 @@ type LocaleContents =
 type Locale =  
  | Entry of string \* LocaleContents  
  | IgnoreEntry of LocaleContents  
-[/fsharp]
+
+```
 
 ## Utilities
 
 The next step was to build out some common utilities that I can use. I knew I'd need to be able to parse a phrase, a single word, and know when things are between brackets:
 
-[fsharp]  
+```fsharp
+  
 (\*  
  Utilities  
 \*)
@@ -103,7 +114,8 @@ let singleWord = many1Chars (satisfy isDigit \<|\> satisfy isLetter \<|\> satisf
 
 (\* utility method to set between parsers space agnostic \*)  
 let between x y p = pstring x \>\>. regSpace \>\>. p .\>\> regSpace .\>\> pstring y  
-[/fsharp]
+
+```
 
 Fparsec comes with a lot of great functions and parser combinators to create robust parsers. The idea is to combine parser functions from smaller parsers into larger parsers. I liked working with it because it felt like dealing directly with a grammar.
 
@@ -111,7 +123,8 @@ Fparsec comes with a lot of great functions and parser combinators to create rob
 
 Now that I was able to parse words, phrases, and I could seperate out newlines from spaces, lets tackle an argument:
 
-[fsharp]  
+```fsharp
+  
 (\*  
  Arguments of {a:b} or {a}  
 \*)
@@ -123,7 +136,8 @@ let argumentNoType = singleWord |\>\> NoType
 let argumentWithType = singleWord .\>\>.? (argDelim \>\>. singleWord) |\>\> WithType
 
 let arg = (argumentWithType \<|\> argumentNoType) |\> between "{" "}" |\>\> Argument  
-[/fsharp]
+
+```
 
 The `.>>.?` combinator says to apply both combinators results as a tuple, but if it fails to backtrack to the state of the previous parser. Also, the `` combinator lets you apply parsers as alternatives, so either of the parsers can be applied.
 
@@ -131,14 +145,17 @@ The `.>>.?` combinator says to apply both combinators results as a tuple, but if
 
 Next up is text elements. This is the contents after the = of the identifier, but not including arguments. For example, if our locale entry is
 
-[code]  
+```
+  
 UserLogin = Hey! Whats up?  
  = new lineezzz  
-[/code]
+
+```
 
 We want to match on "Hey! Whats up?", followed by an explict newline, followed by "new lineeezz"
 
-[fsharp]  
+```fsharp
+  
 (\*  
  Text Elements  
 \*)
@@ -148,7 +165,8 @@ let textElement = phrase |\>\> Text
 let newLine = (unicodeNewline \>\>? regSpace \>\>? pstring "=") \>\>% NewLine
 
 let line = many (regSpace \>\>? (arg \<|\> textElement \<|\> newLine)) |\>\> Line  
-[/fsharp]
+
+```
 
 Remembering that a phrase is any text except for a start bracket and a newline, we can parse all text up to an argument. New lines are a new line, followed by some space (maybe), followed by an equal sign. Since the newline doesn't contain any data we care about from the parser we can ignore the output and just assign the result to the union type `NewLine` using the `>>%` operator.
 
@@ -158,7 +176,8 @@ But a line is an aggregation of new lines, arguments, and phrases, so we can use
 
 Since we have arguments, new lines, and text set up, we can finally put it all together. What I need now is to match when we have an identifier ("UserLogin"), an equals sign, followed by a line.
 
-[fsharp]  
+```fsharp
+  
 (\*  
  Entries  
 \*)
@@ -168,7 +187,8 @@ let delim = regSpace \>\>. pstring "=" .\>\> regSpace
 let identifier = regSpace \>\>. singleWord .\>\> delim
 
 let localeElement = unicodeSpaces \>\>? (identifier .\>\>. line .\>\> skipRestOfLine true) |\>\> Entry  
-[/fsharp]
+
+```
 
 This gives you a tuple of identifier \* line, representing your entire locale element.
 
@@ -176,7 +196,8 @@ This gives you a tuple of identifier \* line, representing your entire locale el
 
 But we also have to account for comments. Thankfully those are pretty easy
 
-[fsharp]  
+```fsharp
+  
 (\*  
  Comments  
 \*)
@@ -184,7 +205,8 @@ But we also have to account for comments. Thankfully those are pretty easy
 let comment = pstring "#" \>\>. restOfLine false |\>\> Comment
 
 let commentElement = unicodeSpaces \>\>? comment |\>\> IgnoreEntry  
-[/fsharp]
+
+```
 
 This says if you match a "#" then take the rest of the line (but leave the newline since other parsers will handle that). We might as well maintain the comment information so we can pipe that result to the `IgnoreEntry` union type.
 
@@ -192,7 +214,8 @@ This says if you match a "#" then take the rest of the line (but leave the newli
 
 And now we just have to piece together comments, locale elements, and run the parser
 
-[fsharp]  
+```fsharp
+  
 (\*  
  Full Locale  
 \*)
@@ -204,22 +227,26 @@ let test input = match run locale input with
  | Failure(r,\_,\_) -\>  
  Console.WriteLine r  
  raise (Error(r))  
-[/fsharp]
+
+```
 
 ## Example
 
 Lets try it out. Here is my sample locale:
 
-[code]  
+```
+  
 UserLogin = {user}! Whats up!  
  = You rock, thanks for logging
 
 UserLogout = {firstName:string}, {lastName:string}...why you gotta go? We were just getting to know you  
-[/code]
+
+```
 
 And running it in fsi
 
-[fsharp]  
+```fsharp
+  
 \> test "UserLogin = {user}! Whats up!  
  = You rock, thanks for logging
 
@@ -231,7 +258,8 @@ val it : Locale list =
  [Argument (WithType ("firstName","string")); Text ", ";  
  Argument (WithType ("lastName","string"));  
  Text "...why you gotta go? We were just getting to know you "])]  
-[/fsharp]
+
+```
 
 And now its easy to iterate and manipulate the data!
 

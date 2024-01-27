@@ -28,7 +28,8 @@ The issue is that I ran into an endianess problem when writing values byte by by
 
 What happens if I write 65297 (0xFF11) using C++
 
-[c]  
+```cpp
+  
 #include "stdafx.h"  
 #include "fstream"
 
@@ -42,11 +43,13 @@ fwrite(buffer, 1, sizeof(buffer), \_stream);
 
 fclose(\_stream);  
 }  
-[/c]
+
+```
 
 And read it in using the following C# code
 
-[csharp]  
+```csharp
+  
 public void ReadBinary()  
 {  
  using (var reader = new BinaryReader(new FileStream(@"test2.out", FileMode.Open)))  
@@ -68,16 +71,19 @@ Console.WriteLine();
 Console.WriteLine("{0:X}", val);  
  }  
 }  
-[/csharp]
+
+```
 
 What would you expect I get? You might think we get the same thing both times, a 16 bit unsigned integer (2 bytes) and reading two bytes from the file should be the same right?
 
 Actually, I got
 
-[code]  
+```
+  
 FF11 \<-- reading in two bytes  
 11FF \<-- reading in a two byte short  
-[/code]
+
+```
 
 What gives?
 
@@ -93,7 +99,8 @@ If you do happen to need to write byte by byte, and you want to read values in d
 
 Here is a fixed version
 
-[csharp]  
+```csharp
+  
 using (var reader = new EndianBinaryReader(new BigEndianBitConverter(), new FileStream(@test2.out", FileMode.Open)))  
 {  
  foreach (var b in reader.ReadBytes(2))  
@@ -110,12 +117,15 @@ var val = reader.ReadUInt16();
 Console.WriteLine("{0:X}", val);
 
 }  
-[/csharp]
+
+```
 
 Which spits out
 
-[code]  
+```
+  
 FF11  
 FF11  
-[/code]
+
+```
 

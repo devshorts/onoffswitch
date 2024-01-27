@@ -33,7 +33,8 @@ In general, class loaders are heirarchical. They ask their parent if a class has
 
 An example can be found [here](http://tech.puredanger.com/2006/11/09/classloader/) and copied for the sake of internet completeness:
 
-[java]  
+```java
+  
 import java.net.URL;  
 import java.net.URLClassLoader;  
 import java.net.URLStreamHandlerFactory;  
@@ -95,7 +96,8 @@ if (resource != null) {
 return super.getResource(name);  
  }  
 }  
-[/java]
+
+```
 
 But this is just the tip of the fun iceberg. If all your libraries play nice then you may not notice anything. But I recently noticed using the apache xml-rpc library that I would get a SAXParserFactory class def not found exception, specifically bitching about instantiating the sax parser factory. I'm not the only one apparenlty, [here is a discussion](https://answers.atlassian.com/questions/104121/im-blocked-help-cannot-be-cast-to-javax.xml.parsers.saxparserfactory) about a JIRA plugin that wasn't happy. After much code digging I found that the classloader being used was the one bound to the threads current context.
 
@@ -111,7 +113,8 @@ This means that whenever I'm delegating work to my plugins I need to be smart ab
 
 The solution here was a simple class modeled after .NET's disposable pattern using Java's try/finally auto closeable.
 
-[java]  
+```java
+  
 public class ThreadCurrentClassLoaderCapture implements AutoCloseable {  
  final ClassLoader originalClassLoader;
 
@@ -126,11 +129,13 @@ Thread.currentThread().setContextClassLoader(newClassLoader);
  Thread.currentThread().setContextClassLoader(originalClassLoader);  
  }  
 }  
-[/java]
+
+```
 
 Which is used before each and every invocation into the interface of the plugin (where `connection` is the plugin reference)
 
-[java]  
+```java
+  
 @Override  
 public void start() throws Exception {  
  captureClassLoader(connection::start);  
@@ -151,7 +156,8 @@ private void captureClassLoader(ExceptionRunnable runner) throws Exception {
  runner.run();  
  }  
 }  
-[/java]
+
+```
 
 However, this isn't the only issue. Imagine a scenario where you support both class path loaded plugins AND remote loaded plugins (via shaded uber-jar). And lets pretend that on the classpath is a jar with the same namespaces and classes as that in an uberjar. To be more succinct, you have a delay loaded shared library on the class path, and a version of that library that is shaded loaded via the plugin mechanism.
 
@@ -159,7 +165,8 @@ Technically there shouldn't be any issues here. The class path plugin gets all i
 
 Look at this code:
 
-[java]  
+```java
+  
 AccessClassLoader loader = AccessClassLoader.get(type);  
 synchronized (loader) {  
  try {  
@@ -168,7 +175,8 @@ synchronized (loader) {
  String accessClassNameInternal = accessClassName.replace('.', '/');  
  String classNameInternal = className.replace('.', '/');  
  ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE\_MAXS);  
-[/java]
+
+```
 
 Which is a snippet from reflectasm as its generating a runtime byte code emitter that can access fields for you. It creates a class name like `your.class.nameMethodAccess`. If the class name isn't found, it generates the bytecode and then writes it into the owning classes class loader.
 

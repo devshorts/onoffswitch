@@ -45,27 +45,32 @@ Moffett also worked through an example leveraging CSS inheritance to control vis
 
 Photos aren't visible:
 
-[html]  
+```html
+  
 \<div\>  
  \<div class="photos"\>  
  // some photos  
  \</div\>  
 \</div\>  
-[/html]
+
+```
 
 Photos are visible:
 
-[html]  
+```html
+  
 \<div class="showPhotos"\>  
  \<div class="photos"\>  
  // some photos  
  \</div\>  
 \</div\>  
-[/html]
+
+```
 
 The css for this example would look like this:
 
-[css]  
+```css
+  
 .photos {  
  display:none;  
 }
@@ -73,7 +78,8 @@ The css for this example would look like this:
 .showPhotos .photos{  
  display:block;  
 }  
-[/css]
+
+```
 
 By default the photos div isn't visible, however if we added the `showPhotos` class to the parent, the parents display property will override the `photos` display setting it to `block`. By removing the `showPhotos` class we can hide the element since the photos display element goes back to the default. This way you can control visibility and state by toggling items at the parent level instead of the child level. Carlo also brought up in the seminar that by doing it this way you are setting it up for using css transitions and animations since you can now control state information just with css.
 

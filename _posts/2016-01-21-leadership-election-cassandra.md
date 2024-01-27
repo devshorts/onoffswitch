@@ -30,26 +30,31 @@ The idea is that a user will try and claim a slot for a period of time in a lead
 
 To make this easier, I've wrapped this algorithm in a java library available [from paradoxical](https://github.com/paradoxical-io/cassandra.leadership). For the impatient
 
-[java]  
+```java
+  
 \<dependency\>  
  \<groupId\>io.paradoxical\</groupId\>  
  \<artifactId\>cassandra-leadership\</artifactId\>  
  \<version\>1.0\</version\>  
 \</dependency\>  
-[/java]
+
+```
 
 The gist here is that you need to provide a schema similar to
 
-[code]  
+```
+  
 CREATE TABLE leadership\_election (  
  group text PRIMARY KEY,  
  leader\_id text  
 );  
-[/code]
+
+```
 
 Though the actual column names can be custom defined. You can define a leadership election factory using Guice like so
 
-[java]  
+```java
+  
 public class LeadershipModule extends AbstractModule {  
  @Override  
  protected void configure() {  
@@ -60,7 +65,8 @@ bind(LeadershipStatus.class).to(LeadershipStatusImpl.class);
 bind(LeadershipElectionFactory.class).to(CassandraLeadershipElectionFactory.class);  
  }  
 }  
-[/java]
+
+```
 
 - `LeadershipStatus` is a class that lets you query who is leader for what "group". For example, you can have multiple workers competing for leadership of a certain resource. 
 - `LeadershipSchema` is a class that defines what the column names in your schema are named. By default if you use the sample table above, the Default schema maps to that
@@ -68,7 +74,8 @@ bind(LeadershipElectionFactory.class).to(CassandraLeadershipElectionFactory.clas
 
 Once we have a leader election we can try and claim leadership:
 
-[java]  
+```java
+  
 final LeadershipElectionFactory factory = new CassandraLeadershipElectionFactory(session);
 
 // create an election processor for a group id  
@@ -83,7 +90,8 @@ assertThat(leadership.tryClaimLeader(user1, Duration.ofSeconds(2))).isPresent();
 Thread.sleep(Duration.ofSeconds(3).toMillis());
 
 assertThat(leadership.tryClaimLeader(user2, Duration.ofSeconds(3))).isPresent();  
-[/java]
+
+```
 
 When you claim leadership you claim it for a period of time and if you get it you get a leadership token that you can heartbeat on. And now you have leadership!
 

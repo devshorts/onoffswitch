@@ -98,7 +98,8 @@ return x.Equals(y);
 
 That last line tipped me off. So lets look at some tests now:
 
-[fsharp]  
+```fsharp
+  
 \> z;;
 
 val it : int [] \* int = ([|1|], 1)
@@ -114,13 +115,15 @@ val it : bool = false
 \> z = p;;
 
 val it : bool = true  
-[/fsharp]
+
+```
 
 So that makes sense, there's no custom equality comparer for tuples, and since the references are different the obj equals fails. But why do the other things Richard said hold true then?
 
 Well arrays have their own custom comparer that compares contents, that much is visible in the NUnit source. And tuples look to generate the same hash code IF they have value types in them, which you can test in fsi.
 
-[fsharp]  
+```fsharp
+  
 \> let ref1 = ([], 2);;
 
 val ref1 : 'a list \* int
@@ -136,11 +139,13 @@ val it : int = 2
 \> ref2.GetHashCode();;
 
 val it : int = 2  
-[/fsharp]
+
+```
 
 But if a tuple contains a reference type
 
-[fsharp]  
+```fsharp
+  
 \> let ref3 = ([||], 1);;
 
 val ref3 : 'a [] \* int
@@ -156,13 +161,15 @@ val it : int = -1869554978
 \> ref4.GetHashCode();;
 
 val it : int = -259699334  
-[/fsharp]
+
+```
 
 Suddenly they aren't equal! Arrays, being a built in .NET primitive, follow [these semantics](http://stackoverflow.com/questions/720177/default-implementation-for-object-gethashcode) for generating a hash code. Basically, they return a different value per each instance of the object in the app domain.
 
 Now why does the f# `=` operator work? From the [source](https://github.com/fsharp/fsharp/blob/master/src/fsharp/FSharp.Core/prim-types.fs#L1975), it looks like they have created custom comparators for f# types which does structural equality:
 
-[fsharp]  
+```fsharp
+  
 // Note: because these FastEqualsTupleN functions are devirtualized by (=), they have PER semantics  
 let inline FastEqualsTuple2 (comparer:System.Collections.IEqualityComparer) (x1,x2) (y1,y2) =  
  GenericEqualityWithComparerFast comparer x1 y1 &&  
@@ -176,7 +183,8 @@ let inline FastEqualsTuple3 (comparer:System.Collections.IEqualityComparer) (x1,
 // .... etc ...
 
 let inline (=) x y = GenericEquality x y  
-[/fsharp]
+
+```
 
 Neat! I love it when things make sense.
 

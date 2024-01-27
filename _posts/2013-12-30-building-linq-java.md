@@ -61,7 +61,8 @@ So, I decided to try my hand and rebuilding LINQ in Java 8. For the impatient, t
 
 The basic idea here is to create an iterator for each type of processing you want to do. If you want to do a map function, you should create an iterator that wraps a source. When the iterator consumes from the underlying source it will emit a projected element. How do you do this? Well, you can use a fluent API that returns a new enumerable class that wraps a specific iterator. For example
 
-[java]  
+```java
+  
 private Function\<Iterable\<TSource\>, Iterator\<TSource\>\> iteratorGenerator;
 
 public static \<TSource\> Enumerable\<TSource\> init(Iterable\<TSource\> source){  
@@ -103,7 +104,8 @@ protected void reset(){
  return (TSource)source.next();  
  }  
 }  
-[/java]
+
+```
 
 Lets first look at the underlying iterator. It does nothing other than iterate over the source. That's pretty simple.
 
@@ -113,7 +115,8 @@ The thing that wraps it is a `Enumerable` class that takes a function that, when
 
 Let's look at a simple iterator that takes only N elements.
 
-[java]  
+```java
+  
 public class TakeIterator\<TSource\> extends EnumerableIterator\<TSource\> {  
  private int takeNum;
 
@@ -133,11 +136,13 @@ public TakeIterator(Iterable\<TSource\> results, int n) {
  return source.next();  
  }  
 }  
-[/java]
+
+```
 
 And to create an instance of enumerable that uses this
 
-[java]  
+```java
+  
 public Enumerable\<TSource\> take(int n){  
  return enumerableWithIterator(source -\> new TakeIterator\<\>(source, n));  
 }
@@ -145,7 +150,8 @@ public Enumerable\<TSource\> take(int n){
 private \<TResult\> Enumerable\<TResult\> enumerableWithIterator(Function\<Iterable\<TSource\>, Iterator\<TResult\>\> generator){  
  return new Enumerable\<\>(\_ig -\> generator.apply(this));  
 }  
-[/java]
+
+```
 
 Basically I return a new enumerable with a lazy evaluated function that gives the iterator its underlying Iterator source. By returning a new enumerable each time we can effectively chain the iterators together. Nothing is evaluated until someone tries to get the next value.
 

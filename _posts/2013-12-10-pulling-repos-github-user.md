@@ -29,7 +29,8 @@ As any good engineer does, I did a quick google and found that someone had writt
 
 So, here is the updated script:
 
-[ruby]  
+```ruby
+  
 #!/usr/bin/env ruby
 
 require "json"  
@@ -46,7 +47,8 @@ puts "discovered repository: #{repo\_url} ... backing up ..."
 
 system "git clone #{repo\_url}"  
 }  
-[/ruby]
+
+```
 
 Unlike the original script, this will clone to the current directory you are in using the same name of each repo (so no renaming it during the clone).
 

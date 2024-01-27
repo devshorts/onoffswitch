@@ -26,24 +26,30 @@ permalink: "/2015/01/05/creating-stronger-type-contracts/"
 ---
 I've long been annoyed that value types don't have strong semantic information attached to them such that the compiler would barf if I try and pass an value type that isn't semantically the same as what the function wanted. For example, what does the following signature mean other than than taking in 2 ints and returning a bool?
 
-[code]  
+```
+  
 IsLoggedIn :: int -\> int -\> bool  
-[/code]
+
+```
 
 What I'd really like the signature to look like is
 
-[code]  
+```
+  
 IsLoggedIn :: UserId -\> SessionId -\> bool  
-[/code]
+
+```
 
 In F# you can do this sort of with type aliases and augmenting the signature with the type information. However, its just editor magic, it doesn't actually compile to anything that would stop you from accidentally calling a function with the arguments reversed. An int is an int is an int, right?
 
-[code]  
+```
+  
 var userId = 1  
 var sessionId = 2
 
 IsLoggedIn(sessionId, userId)  
-[/code]
+
+```
 
 This is perfectly valid to the compiler and means you won't catch it until its unit tested, peer reviewed (if everyone is paying attention), or found during runtime. I'd like to have this caught at compile time.
 
@@ -51,7 +57,8 @@ This is perfectly valid to the compiler and means you won't catch it until its u
 
 Instead, what if we wrapped important value types into their own structs? Something like this:
 
-[csharp]  
+```csharp
+  
 public struct UserId  
 {  
  private readonly Int32 \_int;
@@ -91,7 +98,8 @@ public static implicit operator int(SessionId value)
  return value.\_int;  
  }  
 }  
-[/csharp]
+
+```
 
 Structurally its exactly the same as an int, and it doesn't cost you anything to use it. But, now the compiler will fail if you try and pass this
 
@@ -103,14 +111,17 @@ Now there is a problem though of project boundaries. What I mean is when your da
 
 First, lets augment the strong inheritance heirarchy. I have interfaces that look like:
 
-[csharp]  
+```csharp
+  
 public interface IStrongType\<out T\> : IAcceptStrongTypeVisitor  
 {  
  T UnderlyingValue();  
 }  
-[/csharp]
 
-[csharp]  
+```
+
+```csharp
+  
 public interface IInt32 : IStrongType\<int\>  
 {  
  string ToString(string format);
@@ -119,9 +130,11 @@ string ToString(string format, IFormatProvider provider);
 
 string ToString(IFormatProvider provider);  
 }  
-[/csharp]
 
-[csharp]  
+```
+
+```csharp
+  
 public interface IStrongTypeVistor\<out TResult\>  
 {  
  TResult Visit(IGuid data);  
@@ -130,7 +143,8 @@ public interface IStrongTypeVistor\<out TResult\>
  TResult Visit(IFloat data);  
  TResult Visit(IDouble data);  
 }  
-[/csharp]
+
+```
 
 Now I can have strong types implement their corresponding value type interfaces (I want a strong int to have the same methods as a regular int) as well as visit on top of them.
 
@@ -138,7 +152,8 @@ Now I can have strong types implement their corresponding value type interfaces 
 
 The first order of business is serializing to and from JSON. To do that I've created a json converter that knows how to cast and get the underlying value of a strong type
 
-[csharp]  
+```csharp
+  
 public class PrimitiveJsonConverter\<T\> : JsonConverter  
  where T : struct  
 {  
@@ -161,10 +176,12 @@ public override bool CanConvert(Type objectType)
  return typeof(T).IsAssignableFrom(objectType);  
  }  
 }  
-[/csharp]
+
+```
 
 And a utility extension method to reflectively invoke the explicit cast operator on a type  
-[csharp]  
+```csharp
+  
 public static object ExplicitCastTo(this object obj, Type type)  
 {  
  var castOperator = type.GetMethod("op\_Explicit", new[] { obj.GetType() });
@@ -176,11 +193,13 @@ if (castOperator == null)
 
 return castOperator.Invoke(null, new[] { obj });  
 }  
-[/csharp]
+
+```
 
 Now a strong type will actually look like this:
 
-[csharp]  
+```csharp
+  
 [Serializable]  
 [JsonConverter(typeof(IntCaster))]  
 public struct SessionId : IInt32  
@@ -232,7 +251,8 @@ public string ToString(IFormatProvider provider)
  return \_int.ToString(provider);  
  }  
 }  
-[/csharp]
+
+```
 
 ## Handling WCF
 
@@ -244,7 +264,8 @@ Web Api exposes a way to hook into the parameter/object binding as things come i
 
 First I'll show the parameter binder base class.
 
-[csharp]  
+```csharp
+  
 public class PrimitiveBinder\<T\> : HttpParameterBinding where T : struct  
 {  
  public PrimitiveBinder(HttpParameterDescriptor descriptor)  
@@ -265,13 +286,15 @@ var tsc = new TaskCompletionSource\<object\>();
  return tsc.Task;  
  }  
 }  
-[/csharp]
+
+```
 
 You can see that it converts the string representation into the raw value type (which is T), then it casts the raw value type into the type of the parameter
 
 Each strong type wrapper will have its own implementation of the binder where it passes in the underlying value type of T. As an example, here is int:
 
-[csharp]  
+```csharp
+  
 public class IntBinder : PrimitiveBinder\<int\>  
 {  
  public IntBinder(HttpParameterDescriptor descriptor)  
@@ -279,11 +302,13 @@ public class IntBinder : PrimitiveBinder\<int\>
  {  
  }  
 }  
-[/csharp]
+
+```
 
 When the application boots up it calls the registration on the http config
 
-[csharp]  
+```csharp
+  
 public static void RegisterStrongTypes(HttpConfiguration config)  
 {  
  config.ParameterBindingRules.Add(FindDescriptor);  
@@ -308,25 +333,30 @@ if (typeof(IFloat).IsAssignableFrom(descriptor.ParameterType))
 
 return null;  
 }  
-[/csharp]
+
+```
 
 Now web api knows what to do based on the tagged interface of the strong type (in the int example, they are all of IInt32 interfaces).
 
 As an example, if this is our method on the controller
 
-[csharp]  
+```csharp
+  
 [Route("int/{test}"), HttpGet]  
 public IntExample Test(IntExample test)  
 {  
  return test;  
 }  
-[/csharp]
+
+```
 
 We can pass in an int
 
-[code]  
+```
+  
 localhost/api/int/1  
-[/code]
+
+```
 
 And get the same value echoed back out to us without having to add any annotations to either the controller, the method, or the parameters.
 
@@ -336,7 +366,8 @@ For the project I work on, we also use dapper as our micro ORM. This is great si
 
 This is where the visitor interface comes into play. On application load, we can leverage a registration function that tells dapper what to do for the specific types. The one thorn here is that dapper can't map an interface type to a type handler, it needs to be for each type explicity. Thats OK since we can reflectively find all types that implement the root IStrongType<t> interface and register them automatically</t>
 
-[csharp]  
+```csharp
+  
 internal class StrongTypeMapper : SqlMapper.ITypeHandler  
 {  
  public void SetValue(IDbDataParameter parameter, object value)  
@@ -385,18 +416,21 @@ public DbType Visit(IAcceptStrongTypeVisitor visitor)
  return visitor.Accept(this);  
  }  
 }  
-[/csharp]
+
+```
 
 And the initializer call:
 
-[csharp]  
+```csharp
+  
 public static void InitTypeMappings()  
 {  
  Assembly.GetExecutingAssembly()  
  .FindStrongTypes()  
  .ForEach(i =\> SqlMapper.AddTypeHandler(i, new StrongTypeMapper()));  
 }  
-[/csharp]
+
+```
 
 Where `FindStrongTypes` finds all the types that implement the generic interface of IStrongType<t>.</t>
 

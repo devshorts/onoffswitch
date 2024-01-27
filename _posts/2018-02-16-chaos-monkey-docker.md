@@ -32,7 +32,8 @@ This is actually pretty easy though with a little docker container we call `The 
 
 Here's The Beast:
 
-[ruby]  
+```ruby
+  
 #!/usr/bin/env ruby
 
 require 'json'  
@@ -88,13 +89,15 @@ quips = [
 ]
 
 puts "#{quips[prng.rand(0..quips.length-1)]}"  
-[/ruby]
+
+```
 
 Beast supports a regex of ignored images (so critical images like the ecs\_agent and itself) can be marked as ignore. This can also be used to update the beast to allow it to ignore services temporarily/etc.
 
 We deploy The Beast with terraform, the general task definition looks like:
 
-[code]  
+```
+  
 [  
  {  
  "name": "the-beast",  
@@ -120,11 +123,13 @@ We deploy The Beast with terraform, the general task definition looks like:
  ]  
  }  
 ]  
-[/code]
+
+```
 
 And the terraform:
 
-[code]  
+```
+  
 resource "aws\_ecs\_task\_definition" "beast\_rule" {  
  family = "beast-service"  
  container\_definitions = "${data.template\_file.task\_definition.rendered}"
@@ -167,11 +172,13 @@ resource "aws\_cloudwatch\_event\_rule" "beast\_scheduled\_job" {
 resource "aws\_cloudwatch\_log\_group" "beast\_log\_group" {  
  name = "${var.log-group}"  
 }  
-[/code]
+
+```
 
 We can log to cloudwatch and correlate back information if a service was killed by the best as well. It's important to note that you need to mount the docker socket for beast to work, since it needs docker to run. A sample dockerfile looks like:
 
-[code]  
+```
+  
 FROM ubuntu:xenial
 
 RUN apt-get update && apt-get install -y ruby-full docker.io build-essential
@@ -183,7 +190,8 @@ ADD beast.rb /app/beast.rb
 RUN chmod +x /app/beast.rb
 
 ENTRYPOINT "/app/beast.rb"  
-[/code]
+
+```
 
 It's bare bones, but it works, and the stupid quips at the end always make me chuckle.
 

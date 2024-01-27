@@ -31,7 +31,8 @@ At this point you have your unique identifier along with their connectionID, but
 
 I like to keep the hub code simple and use it only as an incoming facade. I hand off every request to an internal singleton that I can then leverage and put all the business logic in. This keeps the hub clean.
 
-[csharp]  
+```csharp
+  
 [HubName("hub")]  
 public class ServerHub : Hub, IConnected, IDisconnect  
 {  
@@ -65,13 +66,15 @@ public Task Disconnect()
  return Instance.Disconnect(Context.ConnectionId);  
  }  
 }  
-[/csharp]
+
+```
 
 ## Hub Processor
 
 I've put all the business logic of the hub processing into a hub processor singleton that all instances of the hub can access. When a hub is initialized it calls an Initialize function on the singleton which is only used to force lazy creation on the singleton:
 
-[csharp]  
+```csharp
+  
 public class HubProcessor : HubProcessorBase\<AusUpdaterHub\>  
 {  
  #region Data
@@ -98,11 +101,13 @@ public void Initialize()
 
 // ... business logic handed off from the hub  
 }  
-[/csharp]
+
+```
 
 The HubProcessor inherits from a base class which only exposes a helper method to get the context for a current hub. This is so we can re-use the base class elsewhere, or if we want to create our own [hub context wrappers](https://github.com/blinemedical/SignalRToAs3) we can do that in the base class without affecting how the hub treats a client.
 
-[csharp]  
+```csharp
+  
 public class HubProcessorBase\<T\> : IDisposable where T: Hub  
 {  
  protected IHubContext Context  
@@ -118,13 +123,15 @@ protected override void Dispose()
  // for inheritance  
  }  
 }  
-[/csharp]
+
+```
 
 ## Connect
 
 When a client connects, we don't know anything about them other than their connection ID. If we're not using MVC3 then we'll need the client to tell us who they are and give us some meaningful information. The expectation is that they will register themselves when they successfully connect (which they can know about client side).
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// Called by a client when they connect and register  
 /// \</summary\>  
@@ -155,7 +162,8 @@ public void Register(HubClientPayload payload, string connectionId)
  Log.Error(this, "Error registering on hub", ex);  
  }  
 }  
-[/csharp]
+
+```
 
 When a client registers on the hub, the hub passes the input argument (the client payload, which contains unique identifying information) as well as the connectionID to the hub processor. Now we have a thread safe dictionary that tracks the users unique identifier along with all associated connectionIDs. This way if the same user is open in multiple tabs, or across multiple .net clients, we can have a central list of connectionIDs to act on.
 
@@ -163,7 +171,8 @@ When a client registers on the hub, the hub passes the input argument (the clien
 
 When a client disconnects we'll execute the disconnect function on the singleton which will remove the connection from the connected client list
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// Invoked by SignalR when a disconnection is detected  
 /// \</summary\>  
@@ -197,13 +206,15 @@ public Task Disconnect(string connectionId)
 
 return null;  
 }  
-[/csharp]
+
+```
 
 ## Reconnections
 
 Now, what happens if our server goes down but clients are still up? When they come online they'll do a reconnect, not an initial connect. When clients reconnect we should just invoke back to them to re-register themselves. This way we can quickly rebuild our tracker dictionary of who is out there. You might want to persist the dictionary and validate who is still connected by the reconnection message, but what happens if a client is slow to reconnect? At what point do we invalidate disconnected clients? I think it's safer to have everyone re-register. You can obviously throttle this by having the re-registration synchronized or batched off if you have a huge number of connected clients.
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// Invoked by SignalR when a client reconnects to the server  
 /// \</summary\>  
@@ -221,13 +232,15 @@ public Task Reconnect(string connectionId)
 
 return null;  
 }  
-[/csharp]
+
+```
 
 ## Invoking
 
 At this point we have a dictionary keyed off our internal user unique identifier. To do any work all we have to do is lock the registeredClients dictionary, get the list of connectionID's associated to who we want, and execute them on the context. For example:
 
-[csharp]  
+```csharp
+  
 private void SendTextToUser(string uniqueID, string text)  
 {  
  DispatchToClient(connection =\> connection.sendText(text), uniqueID);  
@@ -260,7 +273,8 @@ private List\<dynamic\> GetConnections(string uniqueID)
  }  
  return connections;  
 }  
-[/csharp]
+
+```
 
 ## Conclusion
 

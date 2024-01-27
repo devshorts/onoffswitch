@@ -43,28 +43,34 @@ In an effort to make doing the right thing the easy thing, our team set out to b
 
 One of the first things we did was expose what we call the ‘with’ syntax. The ‘with’ syntax builds a formatted key value pair, which by default is “key=value;”, and allows logging statements to be more human readable. For example:
 
-[java]  
+```java
+  
 logger.with(“first-name”, “GoDaddy”)  
  .with(“last-name”, “Developers!”)  
  .info(“Logging is fun”);  
-[/java]
+
+```
 
 Using the default logging formatter this log statement outputs:
 
 Logging is fun; first-name=“GoDaddy”; last-name=”Developers!”.  
 We can build on this to support deep object logging as well. A good example is to log the entire object from an incoming request. Instead of relying on the .toString() of the object to be its loggable representation, we can crawl the object using reflectasm and format it globally and consistently. Let’s look at an example of how a full object is logged.
 
-[java]  
+```java
+  
 Logger logger = LoggerFactory.getLogger(LoggerTest.class);  
 Car car = new Car(“911”, 2015, “Porsche”, 70000.00, Country.GERMANY, new Engine(“V12”));  
 logger.with(car).info(“Logging Car”);  
-[/java]
+
+```
 
 Like the initial string ‘with’ example, the above log line produces:
 
-[java]  
+```java
+  
 14:31:03.943 [main] INFO com.godaddy.logger.LoggerTest – Logging Car; cost=70000.0; country=GERMANY; engine.name=”V12”; make=”Porsche”; model=”911”; year=2015  
-[/java]
+
+```
 
 All of the car objects info is cleanly logged in a consistent way. We can easily search for a model property in our logs and we won’t be at the whim of spelling errors of forgetful developers. You can also see that our logger nests object properties in dot object notation like “engine.name=”V12””. To accomplish the same behavior using SLF4J, we would need to do something akin to the following:
 
@@ -72,23 +78,29 @@ Use the Car’s toString functionality:
 
 Implement the Car object’s toString function:
 
-[java]  
+```java
+  
 String toString() {  
  Return “cost=” + cost + “; country=” + country + “; engine.name=” + (engine == null ? “null” : engine.getName()) … etc.  
 }  
-[/java]
+
+```
 
 Log the car via it’s toString() function:
 
-[java]  
+```java
+  
 logger.info(“Logging Car; {}”, car.toString());  
-[/java]
+
+```
 
 Use String formatting
 
-[java]  
+```java
+  
 logger.info("Logging Car; cost={}; country={};e.name=\"{}\"; make=\"{}\"; model=\"{}\"; " + "year={}; test=\"{}\"", car.getCost(), car.getCountry(), car.getEngine() == null ? null : car.getEngine().getName(), car.getMake(), car.getModel(), car.getYear());  
-[/java]
+
+```
 
 Our logger combats these unfortunate scenarios and many others by allowing you to set the recursive logging level, which defines the amount of levels deep into a nested object you want to have logged and takes into account object cycles so there isn’t infinite recursion.
 
@@ -96,7 +108,8 @@ Our logger combats these unfortunate scenarios and many others by allowing you t
 
 The GoDaddy Logger provides annotation based logging scope support giving you the ability to prevent fields/methods from being logged with the use of annotations. If you don’t want to skip the entity completely, but would rather provide a hashed value, you can use an injectable hash processor to hash the values that are to be logged. Hashing a value can be useful since you may want to log a piece of data consistently but you may not want to log the actual data value. For example:
 
-[java]  
+```java
+  
 import lombok.Data;  
   @Data  
  public class AnnotatedObject {  
@@ -115,22 +128,27 @@ import lombok.Data;
  return "1234-5678-9123-4567";  
  }  
 }  
-[/java]
+
+```
 
 If we were to log this object:
 
-[java]  
+```java
+  
 AnnotatedObject annotatedObject = new AnnotatedObject();  
 annotatedObject.setAnnotatedLogSkip(“SKIP ME”);  
 annotatedObject.setNotAnnotated(“NOT ANNOTATED”);   
 logger.with(annotatedObject).info(“Annotation Logging”);  
-[/java]
+
+```
 
 The following would be output to the logs:
 
-[java]  
+```java
+  
 09:43:13.306 [main] INFO com.godaddy.logging.LoggerTest – Annotating Logging; creditCardNumber=”5d4e923fe014cb34f4c7ed17b82d6c58; notAnnotated=”NOT ANNOTATED”; notAnnotatedMethod=”Not Annotated”  
-[/java]
+
+```
 
 Notice that the annotatedLogSkip value of “SKIP ME” is not logged. You can also see that the credit card number has been hashed. The GoDaddy Logger uses Guava’s MD5 hashing algorithm by default which is not cryptographically secure, but definitely fast. And you’re able to provide your own hashing algorithm when configuring the logger.
 
@@ -138,12 +156,14 @@ Notice that the annotatedLogSkip value of “SKIP ME” is not logged. You can a
 
 One of the more powerful things of the logger is that the ‘with’ syntax returns a new immutable captured logger. This means you can do something like this:
 
-[java]  
+```java
+  
 Logger contextLogger = logger.with(“request-id”, 123);  
 contextLogger.info(“enter”);   
 // .. Do Work   
 contextLogger.info(“exist”);  
-[/java]
+
+```
 
 All logs generated off the captured logger will include the captured with statements. This lets you factor out common logging statements and cleans up your logs so you see what you really care about (and make less mistakes).
 

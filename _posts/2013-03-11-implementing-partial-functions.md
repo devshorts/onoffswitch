@@ -25,21 +25,26 @@ This next section I had a lot of fun with, and originally I didn't plan on imple
 
 First let's look at what a partial function looks like in my language. I took an F# approach where any function whose argument count is less than the declared count becomes a new function (even though F# functions are curried by default but mine are not). For example, in [ML type notation](http://en.wikibooks.org/wiki/Standard_ML_Programming/Types) you could have a function of type
 
-[fsharp]  
+```fsharp
+  
 'a -\> 'b -\> 'c  
-[/fsharp]
+
+```
 
 Which means that it takes something of type a and type b as arguments, and returns a type c. If we pass this function only a `'a` then it'll return to us a new function of type
 
-[fsharp]  
+```fsharp
+  
 'b -\> 'c  
-[/fsharp]
+
+```
 
 Since the first argument has been captured.
 
 Here is an example from one of my unit tests to drive the point home
 
-[csharp]  
+```csharp
+  
 void func(string printer, int y){  
  print printer;  
  print y;  
@@ -56,24 +61,28 @@ partial(2);
 var otherPartial = func('girl');
 
 otherPartial(3);  
-[/csharp]
+
+```
 
 The `partial` variable is a function who now expects only 1 argument (since the first string argument to `func` was already applied). This outputs
 
-[code]  
+```
+  
 guy  
 1  
 guy  
 2  
 girl  
 3  
-[/code]
+
+```
 
 ## Manipulating the syntax tree
 
 If a function invoke AST has fewer arguments than the corresponding method symbol it's paired with then it needs to be partially applied. _[Note: I should mention that partial functions and currying are[not technically](http://stackoverflow.com/a/10443057/310196) the same, even though in practice the terminology is interchangeable. I only realized this after I named all the functions, so even if things are called "curry" this and "curry" that, it really means "partially apply"]_
 
-[csharp]  
+```csharp
+  
 public void Visit(FuncInvoke ast)  
 {  
  if (ast.CallingScope != null)  
@@ -104,17 +113,20 @@ ast.ConvertedExpression = curriedMethod;
  ast.AstSymbolType = ResolveType(ast.FunctionName, ast.CurrentScope);  
  }  
 }  
-[/csharp]
+
+```
 
 What I end up doing is creating new hidden syntax tree that represents a closed on syntax tree. In the example above we'll end up with an anonymous function that looks like this:
 
-[csharp]  
+```csharp
+  
 void anonymous1(int y){  
  string printer = 'guy';  
  print printer;  
  print y;  
 }  
-[/csharp]
+
+```
 
 The captured argument becomes a variable declaration of the same name as the argument name with the value that was captured! At this point the rest of the code works as is, because what does it care if it was defined this way by the user or by tree manipulation? It doesn't. There is one caveat. I created the concept of "converted expressions" for syntax trees. This means that what used to be a type inferred variable declaration, should now be treated as a method declaration. This is important. `partial` (in our original example) is no longer a variable, it is now a method. When I go to interpret this syntax tree, and use type definitions, I first need to check if the tree has been converted to something else (via the converted expression property).
 
@@ -129,7 +141,8 @@ Building the actual partial function isn't that hard.
 
 From here on out we can treat this method just like any other regularly declared method. The `MethodSymbol` type of the original method has a reference to its source syntax tree. This way we can get access back to the data that this method symbol contains
 
-[csharp]  
+```csharp
+  
 private LambdaDeclr CreateCurriedMethod(FuncInvoke ast, MethodSymbol functionType)  
 {  
  var srcMethod = functionType.MethodDeclr;
@@ -177,5 +190,6 @@ SetScope(curriedMethod);
 
 return curriedMethod;  
 }  
-[/csharp]
+
+```
 

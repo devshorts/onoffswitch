@@ -25,7 +25,8 @@ In an [earlier post](http://onoffswitch.net/adding-static-typing-and-scope-valid
 
 Here is what I mean by forward references. `func` is declared after it's being referenced
 
-[csharp]  
+```csharp
+  
 string item = func();
 
 string func(){  
@@ -33,7 +34,8 @@ string func(){
 }
 
 print item;  
-[/csharp]
+
+```
 
 If we iterate over the program only once from the top down using our visitor pattern based scope builder, when we try and resolve the `func` method invocation symbol we'll get an error (it hasn't been defined yet).
 
@@ -45,7 +47,8 @@ But what if instead of iterating over the tree once, we iterate over it twice? T
 
 Since I'm going to iterate over the tree twice, I need a way to persist scopes across each iteration regardless of the context of the scope builder. For that, I added a property on the syntax tree base class to track what its current scope is. Every syntax tree will contain a reference to the scope it came from.
 
-[csharp]  
+```csharp
+  
 public abstract class Ast : IAcceptVisitor  
 {  
  // ...
@@ -54,7 +57,8 @@ public Scope CurrentScope { get; set; }
 
 // ...  
 }  
-[/csharp]
+
+```
 
 The trick here is that I'm leveraging the fact that, in C#, classes are reference types. For those more familiar with C++ this would be like sharing a pointer across multiple syntax trees all pointing to the same scope object. This means that when one syntax tree defines symbols to the current scope, any other syntax elements that have already been processed, and share the same pointer, will also see the newly added elements. Because of this, when the scope builder is all done, each node in the tree knows what else it can see.
 
@@ -62,9 +66,11 @@ The trick here is that I'm leveraging the fact that, in C#, classes are referenc
 
 Going with the example above
 
-[csharp]  
+```csharp
+  
 string item = func();  
-[/csharp]
+
+```
 
 In the first pass we'll do something like this
 
@@ -76,16 +82,19 @@ In the first pass we'll do something like this
 
 Now the scope definitions table looks like this, with all fields defined
 
-[code]  
+```
+  
 item - string  
 func - method (returns string)  
-[/code]
+
+```
 
 ## Persist the scope on the syntax tree
 
 Let's look at how to set the scope on an ast
 
-[csharp]  
+```csharp
+  
 private void SetScope(Ast ast)  
 {  
  if (ast.CurrentScope == null)  
@@ -105,7 +114,8 @@ if (ast.Global != null && ast.Global.Symbols.Count \< Global.Symbols.Count)
  ast.Global = Global;  
  }  
 }  
-[/csharp]
+
+```
 
 There are a couple conditions here. First, if the current scope object is null, set it. This should happen on the first pass. Also attach the global scope so that each syntax tree (even if it comes from a class) can look into the global scope. I mentioned in an earlier post that the syntax tree is the master repo of program related metadata and we're starting to see that here. The two other if statements are safety checks to make sure that if the current scope has more symbols defined than what the syntax tree sees, make sure to update the syntax trees internal scope blocks. This way we always make sure to have the most up to date symbol defintions.
 
@@ -115,7 +125,8 @@ Once we have the scope set, we can do the second pass on the syntax tree. This w
 
 First let's look at how the first and second passes are invoked. I invoke them as part of the `Start` method of the interpreter, so this happens automatically anytime I interpret a program:
 
-[csharp]  
+```csharp
+  
 var scopeBuilder = new ScopeBuilderVisitor();
 
 var resolver = new ScopeBuilderVisitor(true);
@@ -123,11 +134,13 @@ var resolver = new ScopeBuilderVisitor(true);
 scopeBuilder.Start(ast);
 
 resolver.Start(ast);  
-[/csharp]
+
+```
 
 The `true` passed to the visitor's constructor tells the second pass resolver to resolve types. With regards to our example that I showed above
 
-[csharp]  
+```csharp
+  
 string item = func();
 
 string func(){  
@@ -135,11 +148,13 @@ string func(){
 }
 
 print item;  
-[/csharp]
+
+```
 
 The first time when we hit the variable declaration we'll go through the variable declaration part of the visitor:
 
-[csharp]  
+```csharp
+  
 public void Visit(VarDeclrAst ast)  
 {  
  // ...
@@ -153,11 +168,13 @@ SetScope(ast);
 
 // ...  
 }  
-[/csharp]
+
+```
 
 Where the variable value is a syntax tree representing a method invocation (`func`). When the variable value is visited, the function invoke visitor method will do this:
 
-[csharp]  
+```csharp
+  
 public void Visit(FuncInvoke ast)  
 {  
  // ...
@@ -171,13 +188,15 @@ SetScope(ast);
 
 // ...  
 }  
-[/csharp]
+
+```
 
 Notice that second parameter, the `ast.CurrentScope`, which is the trees persisted scope. This is the scope reference from the FIRST pass, and we only ever set it on the first pass, meaning that at this point the variables are all declared.
 
 `ResolveType` then looks like this.
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// Resolve the target ast type from the current scope, OR give it a scope to use.  
 /// Since things can be resolved in two passes (initial scope and forward reference scope)  
@@ -245,26 +264,32 @@ throw new UndefinedElementException(String.Format("Undefined element {0}",
 
 return null;  
 }  
-[/csharp]
+
+```
 
 The basic gist is first try to resolve the type from the current scope (which gets reset every time the scope builder runs over the tree. So even on the second pass, the first line will fail, and thats what we want).
 
 `Current` contains the following:
 
-[code]  
+```
+  
 item - string  
-[/code]
+
+```
 
 `func` isn't defined yet. `Current` gets reset each time the scope builder is instantiated, so even though this is the second pass this scope reference still fails. That's OK. If we are resolving types (i.e. the second pass), we can try an alternate scope. We can either pass in an alternate scope, or also use the syntax trees previous scope. For each alternate scope we try and find the symbol we want. If we use the previously constructed ast scope, which contains
 
-[code]  
+```
+  
 item - string  
 func - method - string  
-[/code]
+
+```
 
 it would have the `func` symbol defined as a method with return string. Other alternate scopes can be like the global scope, which we would try if we are within the context of a class. This makes sense because if you are doing this:
 
-[csharp]  
+```csharp
+  
 class first{  
  var secondInstance = new second();  
 }
@@ -272,16 +297,19 @@ class first{
 class second{  
  int x = 0;  
 }  
-[/csharp]
+
+```
 
 When you are inside of the `first` class and vising the variable declaration, the `second` class is defined in the global scope, NOT the current class scope. This means resolving the class name from the classes scope will fail, but if we give it an alternate (the global scope) then it will succeed.
 
 Anyways, if we resolve as a forward reference, then we need to determine if we're _allowed_ to see it as a forward reference. Everything at this point is resolvable (since we've populated the persisted scope reference from the first pass). Method symbols and class symbols are always allowed, and scopes can optionally define forward reference allowance if they need to. But regular statements aren't allowed to be forward references. We still want this to fail:
 
-[csharp]  
+```csharp
+  
 int x = y;  
 int y = 0;  
-[/csharp]
+
+```
 
 After all of the resolving, if we still don't have the type, or we weren't allowed to see it as a forward reference, then we've encountered an error and we have to bail.
 
@@ -291,7 +319,8 @@ _[Note: I mentioned that I implemented runtime dynamic typing and you can see pa
 
 If we did manage to resolve the type, the next step is to go back and update the type reference in the asts scope declaration:
 
-[csharp]  
+```csharp
+  
 private void DefineToScope(Ast ast, Symbol symbol)  
 {  
  if (ast.CurrentScope != null && ast.CurrentScope.Symbols.ContainsKey(symbol.Name))  
@@ -305,7 +334,8 @@ private void DefineToScope(Ast ast, Symbol symbol)
 
 Current.Define(symbol);  
 }  
-[/csharp]
+
+```
 
 Notice that first if statement. What this is saying is that if we have some defined symbol in the scope, but that defined symbol does NOT have a type, then redefine the symbol. All this is doing is filling in the gaps in the `ast.CurrentScope` so we can use that as the master scope repository later in the interpreter.
 

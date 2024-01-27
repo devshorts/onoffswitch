@@ -21,11 +21,13 @@ permalink: "/2015/01/05/quickly-associate-file-types-default-program/"
 ---
 I use JuJuEdit to open all my log files since it starts up fast, is pretty bare bones, but better than notepad. The way my log4net appender is set up is that log files are kept for 10 days and get a `.N` appended to them for each backup. I.e.
 
-[code]  
+```
+  
 FooLog.log  
 FooLog.log.1  
 FooLog.log.2  
-[/code]
+
+```
 
 Etc.
 
@@ -35,14 +37,16 @@ You can associate an extension (like `.2`) with a "file type" (which doesn't rea
 
 For example:
 
-[code]  
+```
+  
 \>ftype logfile="C:\Program Files (x86)\Jujusoft\JujuEdit\JujuEdit.exe" %1  
 \>assoc .3=logfile  
 \>assoc .4=logfile  
 \>assoc .5=logfile  
 \>assoc .6=logfile  
 ...  
-[/code]
+
+```
 
 And now they all open with juju edit. If i ever want to change it I just re-run ftype and all my log files will now open with another program
 

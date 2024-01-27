@@ -26,17 +26,20 @@ Today I ran into a fascinating bug. We use [ficus](https://github.com/iheartradi
 
 I went to create a test for a new custom field I added to our config:
 
-[scala]  
+```scala
+  
 class ProductConfigTests extends FlatSpec {  
  "Configs" should "be valid in QA" in {  
  assert(ConfigLoader.verify(ProductsConfig, Environment.QA).isSuccess)  
  }  
 }  
-[/scala]
+
+```
 
 Our config verifier just invokes the hocon parser and makes sure it doesn't throw an error. `ProductsConfig` has a lot of fields to it, and I recently added a new one. Suddenly the test broke with the following error:
 
-[code]  
+```
+  
 error] Error while emitting com/services/products/service/tests/ConfigTests  
 [error] Maximum String literal length exceeded  
 [error] one error found  
@@ -54,7 +57,8 @@ java.lang.IllegalArgumentException: Maximum String literal length exceeded
  at scala.tools.asm.tree.InsnList.accept(InsnList.java:162)  
  at scala.tools.asm.tree.MethodNode.accept(MethodNode.java:820)  
  at scala.tools.asm.tree.MethodNode.accept(MethodNode.java:730)  
-[/code]
+
+```
 
 Wat?
 
@@ -66,7 +70,8 @@ I can def see that there is some sort of class being written with a large const 
 
 I went to another service that has a test exactly like this for its config and used [cfr](http://www.benf.org/other/cfr/) to decompile the generated scala files:
 
-[code]  
+```
+  
 antonkropp at combaticus in ~/src/curalate/queue-batcher/server/target/scala-2.12/test-classes/com/curalate/services/queuebatcher/service/tests (devx/minimize-io-calls)  
 $ ls  
 total 1152  
@@ -104,7 +109,8 @@ drwxr-xr-x 4 antonkropp staff 128 May 9 13:23 db
 drwxr-xr-x 9 antonkropp staff 288 May 9 13:23 modules
 
 $ java -jar ~/tools/cfr.jar ConfigTests.class  
-[/code]
+
+```
 
 1000 lines later, I can see
 
@@ -116,21 +122,26 @@ I checked the ficus source code and its not it, so it must be something with the
 
 Turns out `assert` is a macro from scalatest:
 
-[scala]  
+```scala
+  
 def assert(condition: Boolean)(implicit prettifier: Prettifier, pos: source.Position): Assertion = macro AssertionsMacro.assert  
-[/scala]
+
+```
 
 Where the macro  
-[scala]  
+```scala
+  
 def assert(context: Context)(condition: context.Expr[Boolean])(prettifier: context.Expr[Prettifier], pos: context.Expr[source.Position]): context.Expr[Assertion] =  
  new BooleanMacro[context.type](context, "assertionsHelper").genMacro[Assertion](condition, "macroAssert", context.literal(""), prettifier, pos)
 
-[/scala]  
+
+```  
 Is looking for an implicit position.
 
 Position is from scalactic which comes with scalatest
 
-[scala]  
+```scala
+  
 case class Position(fileName: String, filePathname: String, lineNumber: Int)
 
 /\*\*  
@@ -149,13 +160,15 @@ import scala.language.experimental.macros
  \*/  
  implicit def here: Position = macro PositionMacro.genPosition  
 }  
-[/scala]
+
+```
 
 And here we can ascertain that the macro expansion of the ficus config parser is being captured by the position file macro and auto compiled into the _assert_ statement!
 
 Changing the test to be
 
-[scala]  
+```scala
+  
 class ProductConfigTests extends FlatSpec {  
  "Configs" should "be valid in QA" in {  
  validate(ConfigLoader.verify(ProductsConfig, Environment.QA).isSuccess)  
@@ -178,7 +191,8 @@ class ProductConfigTests extends FlatSpec {
  assert(block)  
  }  
 }  
-[/scala]
+
+```
 
 Now makes the test pass. What a day.
 

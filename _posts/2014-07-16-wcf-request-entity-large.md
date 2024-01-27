@@ -26,19 +26,23 @@ My issue was that I had at some point refactored the namespaces where my service
 
 So where I had this:
 
-[code]  
+```
+  
 \<service name="Foo.Bar.Service"\>  
  \<endpoint address="" binding="basicHttpBinding" bindingConfiguration="LargeHttpBinding" contract="Foo.Bar.v1.Service.IService"/\>  
 \</service\>  
-[/code]
+
+```
 
 I needed
 
-[code]  
+```
+  
 \<service name="Foo.Bar.Implementation.Service"\>  
  \<endpoint address="" binding="basicHttpBinding" bindingConfiguration="LargeHttpBinding" contract="Foo.Bar.v1.Service.IService"/\>  
 \</service\>  
-[/code]
+
+```
 
 How WCF managed to work when the service name was pointing to a non-existent class, I have no idea. But it did.
 

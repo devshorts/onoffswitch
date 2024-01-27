@@ -28,7 +28,8 @@ Today I ran into a situation where I needed to be able to calculate durations an
 
 It took a bit of thinking but here is what I got. First, checking if a time is in the 24 hour range. Here we need to know what kind of range boundaries we have. The first check checks a normal boundary, where the start time is less than the end time. If that's the case then we can do a pretty easy range check. The second case checks if the range is an overnight boundary condition. In that case it needs to know if the current time is greater than the start OR if the current time is less than the end. But that OR can only work if the range is in overnight mode.
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// Checks if the current time falls within a 24 hour range  
 /// the date/year/month etc of the comparison dates WILL not be checked  
@@ -56,11 +57,13 @@ if (dtStart.TimeOfDay \> dtEnd.TimeOfDay && (time.TimeOfDay \< dtEnd.TimeOfDay |
 return false;  
 }
 
-[/csharp]
+
+```
 
 To be paranoid, here is a unit test for it
 
-[csharp]  
+```csharp
+  
 [TestCase(15, 3, true)]  
 [TestCase(15, 16, false)]  
 [TestCase(2, 1, true)]  
@@ -74,11 +77,13 @@ var n = new DateTime(1999, 12, 9, 17, 0, 29);
 
 Assert.True(n.IsIn24HourRange(dtStart, dtEnd) == valid);  
 }  
-[/csharp]
+
+```
 
 Next up is calculating the time offset from one of these generic times. Since the time that is passed in has no relevant date information, you can't just do a simple subtraction on the times. You first have to normalize the time to be relative to the date.
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// Determines the time range from the time to the the 24 hour time.  
 ///  
@@ -102,11 +107,13 @@ return newTime - time;
 
 return normalizedTime - time;  
 }  
-[/csharp]
+
+```
 
 The trim function can truncate a date to different granularities:
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// Usage:  
 /// DateTime.Now.Trim(TimeSpan.TicksPerDay));  
@@ -122,13 +129,15 @@ public static DateTime Trim(this DateTime date, long roundTicks)
 {  
  return new DateTime(date.Ticks - date.Ticks % roundTicks);  
 }  
-[/csharp]
+
+```
 
 Again this involves an overnight boundary check. If the current time is greater than the passed in time, then it means the passed in time is in the next day. At that point we need to just add a day to the truncated (normalized) date and perform a timespan difference. Otherwise, it's all part of the current day and we can do a regular difference.
 
 As usual, here's the unit test
 
-[csharp]  
+```csharp
+  
 [TestCase(18, 60)]  
 [TestCase(2, 540)]  
 [TestCase(17, 0)]  
@@ -143,5 +152,6 @@ var n = new DateTime(1999, 12, 9, 17, 0, 0);
 
 Assert.True(n.DurationFrom24HourRange(dtStart) == time);  
 }  
-[/csharp]
+
+```
 

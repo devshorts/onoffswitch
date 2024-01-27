@@ -32,7 +32,8 @@ For a really great visualization checkout this [msdn article](http://blogs.msdn.
 
 And now on to the code! First lets start with what is an object
 
-[java]  
+```java
+  
 @Data  
 @EqualsAndHashCode(of = "id")  
 public class Node {  
@@ -52,22 +53,26 @@ public void removeReference(Node node) {
  references.removeIf(i -\> i.getId().equals(node.getId()));  
  }  
 }  
-[/java]
+
+```
 
 For the purposes of the toy, its just some node with some unique id.
 
 Lets also define an enum of the different generations we'll support and their ordinal values
 
-[java]  
+```java
+  
 public enum Mode {  
  Gen0,  
  Gen1  
 }  
-[/java]
+
+```
 
 Next, lets make an allocator who can allocate new nodes. This would be like a `new` syntax behind the scenes
 
-[java]  
+```java
+  
 public class Allocator {  
  @Getter  
  private Set\<Node\> gen0 = new HashSet\<\>();
@@ -95,11 +100,13 @@ public Mode locateNode(Node tag) {
 return Mode.Gen0;  
  }  
  ....  
-[/java]
+
+```
 
 At this point we can allocate a new node, and assign nodes references.
 
-[java]  
+```java
+  
 final Allocator allocator = new Allocator();
 
 final Node root = allocator.newNode();
@@ -107,11 +114,13 @@ final Node root = allocator.newNode();
 root.addReference(allocator.newNode());  
 root.addReference(allocator.newNode());  
 root.addReference(allocator.newNode());  
-[/java]
+
+```
 
 Still haven't actually collected anything though yet. So lets write a garbage collector
 
-[java]  
+```java
+  
 public class Gc {  
  private final Allocator allocator;
 
@@ -139,13 +148,15 @@ marker.mark(root);
 root.getReferences().forEach(ref -\> mark(ref, marker, mode));  
  }  
 }  
-[/java]
+
+```
 
 The GC dos a DFS on the root object reference and marks all visible nodes with some marker builder (yet to be shown). If the generational heap that the node lives in is less than or equal to the mode we are on, we'll mark it, otherwise just skip it. This works because later we'll only prune from generation heaps according to the mode
 
 Now comes the fun part, and its the marker
 
-[java]  
+```java
+  
 public static class Marker {
 
 private final Set\<String\> marks;  
@@ -180,13 +191,15 @@ switch (mode) {
  }  
  }  
 }  
-[/java]
+
+```
 
 All we do here is when we mark, tag the node in a set. When we go to sweep, go through the generations less than or equal to the current and remove unmarked nodes, as well as promote the surviving nodes to the next heap!
 
 Still missing two last functions in the allocator which are promote and the marker builder
 
-[java]  
+```java
+  
 public Marker markBuilder(final Mode mode) {  
  return new Marker(this, mode);  
 }
@@ -201,12 +214,14 @@ private void promote(final Mode mode) {
  break;  
  }  
 }  
-[/java]
+
+```
 
 Now we can put it all together and write some tests:
 
 Below you can see the promotion in action.  
-[java]  
+```java
+  
 final Allocator allocator = new Allocator();
 
 final Gc gc = new Gc(allocator);
@@ -230,24 +245,28 @@ gc.collect(root, Mode.Gen0);
 
 assertThat(allocator.getGen0().size()).isEqualTo(0);  
 assertThat(allocator.getGen1().size()).isEqualTo(7);  
-[/java]
+
+```
 
 Nothing can be collected since all nodes have references, but we've cleared the gen0 and moved all nodes to gen1
 
-[java]  
+```java
+  
 root.removeReference(removable);
 
 gc.collect(root, Mode.Gen1);
 
 assertThat(allocator.getGen0().size()).isEqualTo(0);  
 assertThat(allocator.getGen1().size()).isEqualTo(4);  
-[/java]
+
+```
 
 Now we can actually remove the reference and do a gen1 collection. You can see now that the gen1 heap size went down by 3 (so the removable node, plus its two children) since those nodes are no longer reachable
 
 And just for fun, lets show that gen1 collection works as well
 
-[java]  
+```java
+  
 final Node gen1Remove = allocator.newNode();
 
 root.addReference(gen1Remove);
@@ -263,7 +282,8 @@ gc.collect(root, Mode.Gen1);
 
 assertThat(allocator.getGen0().size()).isEqualTo(0);  
 assertThat(allocator.getGen1().size()).isEqualTo(4);  
-[/java]
+
+```
 
 And there you have it, a toy generational garbage collector :)
 

@@ -43,7 +43,8 @@ Where our "/data" folder will get mapped to "/etc/puppet".
 
 We use a custom [facter](https://puppetlabs.com/facter) to identify nodes in our environments. Instead of setting up our site.pp manifest with actual node matching, everyone has a custom role and our site delegates what to do based on that role:
 
-[code]  
+```
+  
 $rmq\_master = "..."  
 $salt\_master = "..."  
 $sensu\_host = "..."
@@ -111,11 +112,13 @@ class { "domains::monitoring::elk::server" :
  }  
  }  
 }  
-[/code]
+
+```
 
 With the exceptions of the master hostnames that we need to know about we can now spin up new machines, link them to puppet, and they become who they are. We store the role files in /etc/.config/role on the agents and our facter looks like this
 
-[ruby]  
+```ruby
+  
 # node\_role.rb  
 require 'facter'  
 Facter.add(:node\_role) do  
@@ -124,7 +127,8 @@ Facter.add(:node\_role) do
  Facter::Core::Execution.exec('cat /etc/.config/role')  
  end  
 end  
-[/ruby]
+
+```
 
 Linking them up to puppet is easy too, we [wrote some scripts](https://gist.github.com/devshorts/e3d89b4e5dce9f145439) to help bootstrap machines since we don't want to have manually install puppet on each box, then configure its puppet.conf file to point to a master, etc. We want to just from our shell spin up new VM's in our openstack instance, and create new roles quickly. And by adding on zsh autocompletion we can get a really nice experience:
 
@@ -140,7 +144,8 @@ You can run arbitrary commands on machines too, or you can write your own custom
 
 Leveraging salt, we can deploy our puppet scripts continuously trigged from a git repo change. When you commit into github a jenkins job is trigged. The jenkins job runs the puppet syntax validator on each puppet file:
 
-[code]  
+```
+  
 #!/usr/bin/env bash
 
 pushd data
@@ -157,7 +162,8 @@ if [$? -ne 0]; then
 done;
 
 popd  
-[/code]
+
+```
 
 If that succeeds it dispatches a command to salt with a nodegroup of the puppet master. All this does is [execute a remote command](https://wiki.jenkins-ci.org/display/JENKINS/saltstack-plugin) (via the salt REST api) on the puppet master machine (or group of machines, we really dont care) and it checks out the git repo at a particular commit into a temp folder, blows out the environment and custom modules folders in /etc/puppet and then copies over the new files.
 
@@ -173,7 +179,8 @@ We built a base docker image for java services and then bundle our config, jar, 
 
 Here is an example of the templated dockerfile which will generates our docker image. The `--RPM_SRC--` and `--RPM_NAME--` placeholders get replaced during build
 
-[code]  
+```
+  
 FROM artifactory/java-base
 
 # add the rpm  
@@ -186,7 +193,8 @@ RUN yum -y install /rpms/--RPM\_NAME--
 
 # set the service to run  
 ENV SERVICE\_RUN /data/bin/service  
-[/code]
+
+```
 
 And below you can see the different jenkins promotion steps here. The first star is artifacting the docker image, and the second is deploying it to puppet via salt:
 
@@ -196,7 +204,8 @@ Once we artifact the docker image, it's pushed out to artifactory. All our image
 
 Nodes store a json payload of their docker app arguments, the container version, and some other metadata, so that they know what they are currently running. They also report this json payload back to puppet, and puppet can determine if their currently running git\_sha is the same as the expected one. This way we know all their runtime arguments that were passed, etc. If anything is different then puppet stops the current container, and loads on the new one. All our containers are named, since it makes managing this easier (vs using anonymous container names). When we do update an application to the newest version we write that json back to disk in a known location. Here is the factor that collects all the docker version information for us:
 
-[ruby]  
+```ruby
+  
 # Build a hash of all the different app jsons, located in /etc/.config/versions  
 # there could be many docker applications running on this machine, which is why we bundle them all up together  
 require 'facter'  
@@ -219,7 +228,8 @@ if File.exist?(path)
 node\_information  
  end  
 end  
-[/ruby]
+
+```
 
 To ensure reboot tolerance and application restart tolerance our base docker image runs an instance of monit which is the foreground process for our application. We also make sure all docker containers are started with `--restart always` and that the docker service is set to start on reboot.
 

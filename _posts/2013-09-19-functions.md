@@ -27,15 +27,18 @@ Just wanted to share a couple little functions that I was playing with since it 
 
 First, folding. I wanted to be able to get all the characters up until white space. For example:
 
-[fsharp]  
+```fsharp
+  
 let (++) a b = a.ToString() + b.ToString()
 
 let upToSpaces str = foldTill Char.IsWhiteSpace (++) "" str  
-[/fsharp]
+
+```
 
 Which led me to write the following fold function. Granted it's not lazy evaluated, but for me that was OK.
 
-[fsharp]  
+```fsharp
+  
 let foldTill check predicate seed list=  
  let rec foldTill' acc = function  
  | [] -\> acc  
@@ -43,18 +46,22 @@ let foldTill check predicate seed list=
  | false -\> foldTill' (predicate acc h) t  
  | true -\> acc  
  foldTill' seed list  
-[/fsharp]
+
+```
 
 Running this gives
 
-[fsharp]  
+```fsharp
+  
 \> upToSpaces "abcdef gh";;  
 val it : string = "abcdef"  
-[/fsharp]
+
+```
 
 Here's a more general way of doing it for sequences. Granted it has mutable state, but its hidden in the function and never leaks. This is very similar to how fold is implemented in [F# core](https://github.com/fsharp/fsharp/blob/master/src/fsharp/FSharp.Core/seq.fs#L1042), I just added the extra check before it calls into the fold predicate
 
-[fsharp]  
+```fsharp
+  
 let foldTill check predicate seed (source:seq\<'a\>) =  
  let finished = ref false  
  use e = source.GetEnumerator()  
@@ -64,7 +71,8 @@ let foldTill check predicate seed (source:seq\<'a\>) =
  | false -\> state \<- predicate state e.Current  
  | true -\> finished := true  
  state  
-[/fsharp]
+
+```
 
 Anyways, fun!
 

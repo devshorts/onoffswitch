@@ -30,19 +30,23 @@ Still, the version I have works great for my purposes and I can't complain. Howe
 
 As an example, you can (or used to, since I know SignalR has changed a lot since the version that I have), do this to create a hub proxy connection:
 
-[csharp]  
+```csharp
+  
 var Connection = new HubConnection(Url);
 
 var Hub = Connection.CreateProxy("hubName");
 
 Hub.On\<string\>("DynamicMethodCall", DynamicMethodReference);  
-[/csharp]
+
+```
 
 So when the server invokes
 
-[csharp]  
+```csharp
+  
 client.DynamicMethodCall("foo");  
-[/csharp]
+
+```
 
 Your client will get `foo` passed to the `DynamicMethodReference` function.
 
@@ -56,45 +60,55 @@ In addition, when you work in a large application it's always a good idea to sep
 
 To solve this problem, I wanted to send an [encapsulated object](http://en.wikipedia.org/wiki/Command_pattern) that contained my data and code to do the work I wanted. For example, what I wanted to end up with was:
 
-[csharp]  
+```csharp
+  
 var Connection = new HubConnection(Url);
 
 var Hub = Connection.CreateProxy("hubName");
 
 Hub.On\<RemoteCommand\>("RemoteCommand", RemoteCommadHandler);  
-[/csharp]
+
+```
 
 Where `RemoteCommand` would be an abstract base class. This would let me focus on my business logic and not my interconnect logic. If I wanted to invoke an echo on a client I could do this:
 
-[csharp]  
+```csharp
+  
 public class EchoCommand : RemoteCommand  
 {  
  public override void Execute(){  
  Console.WriteLine("Echoecho!");  
  }  
 }  
-[/csharp]
+
+```
 
 And to send it from the server would look like this
 
-[csharp]  
+```csharp
+  
 client.RemoteCommand(new EchoCommand());  
-[/csharp]
+
+```
 
 Later, if I had something else I wanted to invoke all I'd need to do is make a new command and dispatch it on the client again.
 
-[csharp]  
+```csharp
+  
 public class LogMeCommand : RemoteCommand  
 {  
  public override void Execute(){  
  Log.Debug("log me happened!");  
  }  
 }  
-[/csharp]
 
-[csharp]  
+```
+
+```csharp
+  
 client.RemoteCommand(new LogMeCommand ());  
-[/csharp]
+
+```
 
 ## But...
 
@@ -106,14 +120,16 @@ To test this theory out I manually serialized json on the server side, sent a st
 
 Next step was to find out how to replace the JSON serializer in an old SignalR version. The SignalR dev's theoretically made SignalR extremely extensible. They've exposed a dependency injection hook to register your own serializer. All they claim you had to do was add
 
-[csharp]  
+```csharp
+  
 GlobalHost.DependencyResolver.Register(  
  typeof (IJsonSerializer),  
  () =\> JsonSerializer.Create(new JsonSerializerSettings  
  {  
  TypeNameHandling = TypeNameHandling.All  
  }));  
-[/csharp]
+
+```
 
 In the `Application_Start` function of your site (or wherever your app start may be). But, this didn't work for me. Not sure what I was doing wrong, but my endpoints that needed to serialize this base class never got hit. Other endpoints that had basic types for the hub argument worked fine.
 
@@ -123,15 +139,18 @@ Eventually I settled back on my hacky way of doing it, but at least the hack is 
 
 When sending out I do
 
-[csharp]  
+```csharp
+  
 var serializer = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.All };  
 var str = JsonConvert.SerializeObject(command, serializer);  
 client.RemoteCommand(str);  
-[/csharp]
+
+```
 
 And when receiving I do
 
-[csharp]  
+```csharp
+  
 Hub.On\<string\>("RemoteCommand", item =\>  
  {  
  var rcmd = JsonConvert.DeserializeObject\<RemoteCommand\>(  
@@ -142,7 +161,8 @@ Hub.On\<string\>("RemoteCommand", item =\>
  });  
  RemoteCommandRequest(rcmd);  
  });  
-[/csharp]
+
+```
 
 And now everything works great.
 

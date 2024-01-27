@@ -24,17 +24,21 @@ permalink: "/2013/04/30/debugging-serializationexception-constructor-deserialize
 ---
 Today I was debugging an exception that was occuring when remoting a data object between two .NET processes. I kept getting
 
-[code]  
+```
+  
 System.Runtime.Serialization.SerializationException: The constructor to deserialize an object of type 'com.TheSilentGroup.Fluorine.ASObject' was not found.  
-[/code]
+
+```
 
 The issue I had was that there was a .NET object that looked like this
 
-[csharp]  
+```csharp
+  
 public class ItemDto{  
  public object Item { get;set; }  
 }  
-[/csharp]
+
+```
 
 Which was used as a [covariant](http://en.wikipedia.org/wiki/Covariance_and_contravariance_(computer_science)) store for any item (because everything is an `object`). This was needed because the code I was working in leveraged reflection to pull out certain fields at runtime depending on whatever this object type really was.
 

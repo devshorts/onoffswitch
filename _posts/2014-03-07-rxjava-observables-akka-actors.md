@@ -34,17 +34,20 @@ I also wanted to make it easier to extend the actors to be able to process a pie
 
 First, let me show the commands we can send to the actors. This is just mapping the scala union type that the original blog post had. The `@Data` attribute is part of [project lombok](projectlombok.org/features/index.html) and auto creates an immutable class with a constructor and getters for your private final fields:
 
-[java]  
+```java
+  
 package com.devshorts.rx;
 
 import java.io.Serializable;
 
 public class UnSubscribe implements Serializable {}  
-[/java]
+
+```
 
 And
 
-[java]  
+```java
+  
 package com.devshorts.rx;
 
 import lombok.Data;  
@@ -56,13 +59,15 @@ import java.io.Serializable;
 public class Subscribe implements Serializable {  
  private final Action1 subscription;  
 }  
-[/java]
+
+```
 
 ## Observable actor
 
 Second, let me show the mapped observable actor. This is the abstract class that all observable actors should inherit from and it manages changing the default akka context to invoke receive messages on the supplied procedure. All this means is that when the actor gets a `Subscribe` it'll change what function it uses to receive messages to the one that is supplied by the subscribe object: `onRecieve` won't ever get called anymore. `unbecome` would undo that and set it back to the default handler.
 
-[java]  
+```java
+  
 package com.devshorts.rx;
 
 import akka.actor.UntypedActor;  
@@ -102,13 +107,15 @@ subscriber.getSubscription().call(processMessage(message));
 
 protected abstract Object processMessage(Object message);  
 }  
-[/java]
+
+```
 
 Notice the abstract method though. This is what I want all subsequent actors to implement and acts as the "do work" method.
 
 Here's an actor that just re-dispatches its input:
 
-[java]  
+```java
+  
 package com.devshorts.rx;
 
 public class AkkEcho extends ObservableActor {  
@@ -117,11 +124,13 @@ public class AkkEcho extends ObservableActor {
  return message;  
  }  
 }  
-[/java]
+
+```
 
 And here is one that modifies the input a little
 
-[java]  
+```java
+  
 package com.devshorts.rx;
 
 public class AkkaMapEcho extends ObservableActor {  
@@ -132,13 +141,15 @@ public class AkkaMapEcho extends ObservableActor {
 return m + " mapped!";  
  }  
 }  
-[/java]
+
+```
 
 ## Creating the observable wrapper
 
 Below is the observable wrapper. It creates a publish subject that handles incoming and outgoing messages, as well as taking care of instantiating only _one_ observable bound the actor. What is returned is now a safe consumable stream that multiple subscribers can read off of:
 
-[java]  
+```java
+  
 package com.devshorts.rx;
 
 import akka.actor.ActorRef;  
@@ -194,7 +205,8 @@ actor.tell(msg, ActorRef.noSender());
  return subj.asObservable();  
  }  
 }  
-[/java]
+
+```
 
 ## Using it
 
@@ -204,7 +216,8 @@ This makes it really nice to have uniform time based event behaviors that you ca
 
 Now let's check out a unit test that uses the actor. We'll have two observables that listen and capture events, and the test will also be responsible for posting values to the actor.
 
-[java]  
+```java
+  
 /\*\*  
  \* Wrap an akka actor's behavior into an observable stream.  
  \*  
@@ -261,7 +274,8 @@ private ActorRef createActorOfType(Class\<? extends Actor\> clazz) {
 
 return system.actorOf(Props.create(clazz), "rcv");  
 }  
-[/java]
+
+```
 
 Oh, and this is onoffswitch.net's 100th post! wooo!
 

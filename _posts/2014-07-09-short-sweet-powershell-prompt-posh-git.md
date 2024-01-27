@@ -33,7 +33,8 @@ Obviously it's a fictitious path, but sometimes you run into them, and it'd be n
 
 It's easy to define a shortPwd function and expose a global "MAX\_PATH" variable that can be reset.
 
-[code]  
+```
+  
 $MAX\_PATH = 5
 
 function ShortPwd  
@@ -51,19 +52,24 @@ if($paths.Length -gt $MAX\_PATH){
 
 return $finalPath  
 }  
-[/code]
+
+```
 
 In the posh-git example, make sure to load your custom function first, then change
 
-[code]  
+```
+  
 Write-Host($pwd.ProviderPath) -nonewline  
-[/code]
+
+```
 
 To
 
-[code]  
+```
+  
 Write-Host (ShortPwd) -nonewline -foregroundcolor green  
-[/code]
+
+```
 
 (I like my prompt green)
 

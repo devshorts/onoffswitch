@@ -40,14 +40,16 @@ $.connection.hub.start(signalRConfig, () =\> console.log("connected"));
 
 And on the server, in Global.asax.cs, configure the long poll bursts
 
-[csharp]  
+```csharp
+  
 protected void Application\_Start(object sender, EventArgs e)  
 {  
  GlobalHost.Configuration.ConnectionTimeout = TimeSpan.FromMilliseconds(1000);  
  LongPollingTransport.LongPollDelay = 5000;  
  RouteTable.Routes.MapHubs();  
 }  
-[/csharp]
+
+```
 
 But when I did this, per the tracker suggestion, I saw that I was still getting bursts that lasted 5 seconds. This was too long for me, since for 5 seconds you can't do anything else. If you are doing a lot of dynamic calls (making AJAX requests, or other service calls) then 5 seconds really holds up the application.
 
@@ -55,7 +57,8 @@ When in doubt, read the source. I'm unfortunately using a really old version of 
 
 SignalR uses a heartbeat to check when things are disconnected or timed out:
 
-[csharp]  
+```csharp
+  
 \_timer = new Timer(Beat,  
  null,  
  \_configurationManager.HeartBeatInterval,  
@@ -80,11 +83,13 @@ private void Beat(object state)
  }  
  /...  
 }  
-[/csharp]
+
+```
 
 The issue here is that the heartbeat is initialized to 10 seconds
 
-[csharp]  
+```csharp
+  
 public DefaultConfigurationManager()  
 {  
  ConnectionTimeout = TimeSpan.FromSeconds(110);  
@@ -92,7 +97,8 @@ public DefaultConfigurationManager()
  HeartBeatInterval = TimeSpan.FromSeconds(10);  
  KeepAlive = TimeSpan.FromSeconds(30);  
 }  
-[/csharp]
+
+```
 
 So, that means that no matter what you set the disconnect and connection timeouts to be, they can't be any more granular than 10 seconds. If you remember from signal processing the [shannon-nyquist sampling theorum](http://en.wikipedia.org/wiki/Nyquist%E2%80%93Shannon_sampling_theorem)
 

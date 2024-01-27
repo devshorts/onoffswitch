@@ -26,7 +26,8 @@ Testing if a socket is still open isn't as easy at it sounds. Anyone who has eve
 
 First lets write an async function that monitors a socket and returns true if its connected or false if its not. The polling interval is set to 10 microseconds. This is because if you set the interval to a negative integer (representing to wait indefinitely for a response), it won't return until data is written to the socket. If, however, you have a very short poll time, you will be able to detect when the socket is closed without having to write data to it.
 
-[fsharp]  
+```fsharp
+  
 /// Async worker to say whether a socket is connected or not  
 let isConnected (client:TcpClient) =  
  async {  
@@ -43,11 +44,13 @@ let isConnected (client:TcpClient) =
  with  
  | exn -\> false  
  }  
-[/fsharp]
+
+```
 
 Next we can create a simple monitor function to check on a predicate, and if the predicate returns false (i.e not connected) it'll execute an action. Otherwise it'll call itself and monitor the socket again. This is important since the poll will exit once it determines that the socket is connected or not.
 
-[fsharp]  
+```fsharp
+  
 let rec monitor predicate onAction client =  
  async {  
  let! isConnected = predicate client  
@@ -56,13 +59,16 @@ let rec monitor predicate onAction client =
  else  
  return! monitor predicate onAction client  
  }  
-[/fsharp]
+
+```
 
 Then, to use the monitor function all you have to do is something like this
 
-[fsharp]  
+```fsharp
+  
 monitor isConnected onDisconnect client |\> Async.Start  
-[/fsharp]
+
+```
 
 Where `monitor` is the generic async monitor function, `isConnected` is the async socket poll, `onDisconnect` is a function to call when a client disconnects, and `client` is a tcpClient socket connection. The great thing about this is that you don't need to have a seperate thread for each open connection to act as a monitor/handler.
 

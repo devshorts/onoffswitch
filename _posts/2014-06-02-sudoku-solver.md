@@ -40,7 +40,8 @@ Let's get solvin'
 
 Let's assume the board is a 2 dimensional nullable integer array, and that we have a class called `Location` that just encapsulates an (x,y) tuple:
 
-[csharp]  
+```csharp
+  
 public int? Get(int x, int y)  
  {  
  if (x \> \_board.Length || y \> \_board.Length)  
@@ -64,13 +65,15 @@ for (int i = 0; i \< \_emptySpaces.Count; i++)
  }  
  }  
  }  
-[/csharp]
+
+```
 
 Easy enough. Let's also keep track of empty spaces as we set things since we'll want to be able to query for empty spaces later (rather than finding them), and have a wrapper to update values of the board.
 
 Now lets make sure we can get all the information regarding a cell's group. This will be relevant for our calculations. It's a lot of boring boilerplate, but here it is:
 
-[csharp]  
+```csharp
+  
 public IEnumerable\<int\> UsedNumbersInSpace(Location location)  
  {  
  int x = location.X;  
@@ -130,13 +133,15 @@ for (int i = xStart; i \< xStart + N; i++)
  }  
  }  
  }  
-[/csharp]
+
+```
 
 ## Solving the board
 
 Now for the fun part. Let's solve the board using a basic recursive backtracking brute force attempt:
 
-[csharp]  
+```csharp
+  
 public class Solver  
 {  
  public static Board Solve(Board b)  
@@ -176,7 +181,8 @@ if (next != null)
 return null;  
  }  
 }  
-[/csharp]
+
+```
 
 Let's assume that `b.NextEmpty()` returns the first value from the `emptyList` backing collection in the board. Basically giving you a random empty value on each iteration.
 
@@ -191,7 +197,8 @@ It's constraint based because the moment we pin a cell that only has 1 possibili
 
 Given this, an easy way to tack this into the code above is to modify the `NextEmpty` function.
 
-[csharp]  
+```csharp
+  
 public Location NextEmpty()  
 {  
  if (\_emptySpaces.Count == 0)  
@@ -215,7 +222,8 @@ return NextEmpty();
 
 return possibles.MinBy(kvp =\> kvp.Value.Count()).Key;  
 }  
-[/csharp]
+
+```
 
 So what this code does is as you call for the next empty, it tries to constrain the board when it finds a primo spot to pin. Keeping in mind that at each solving iteration a full copy of the board is returned, its ok to mutate the board with this side effect. As you work through sudoku on each iteration, the possible questionable space to work through minimizes and you can now reasonably solve 4x4 boards pretty quickly!
 

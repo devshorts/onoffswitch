@@ -40,12 +40,14 @@ Though most of the complexity in locking is abstracted away you can still run in
 
 All you have to do now is use the `InterProcessMutex` in a `using` block and it clearly indicates the critical section. Any process can instantiate the same lock and the wrapper takes care of the rest. Take a look at our [github](https://github.com/devshorts/Inter-process-mutex) for full source and unit tests.
 
-[csharp]  
+```csharp
+  
 using (new InterProcessMutexLock(mutexName))  
 {  
  // critical section  
 }  
-[/csharp]
+
+```
 
 Beyond using locking mechanisms built into the framework and helpful wrapper classes, it's also important to understand exactly how locking works (both intra- and inter-process locks). Since it's good to know what the magic behind the scenes is doing, we'll first go over a general definition of locking, and then delve into a couple different types of locks and how they are implemented. For anyone interested, [_Operating System Concepts_](http://www.amazon.com/Operating-Concepts-Seventh-Abraham-Silberschatz/dp/0471694665/ref=sr_1_1?s=books&ie=UTF8&qid=1348423387&sr=1-1&keywords=operating+systems+and+concepts+7th+edition) is a great book and I recommend you read it if you are curious about operating system algorithms. It's a fun read and has great easy to digest explanations with examples.
 
@@ -74,17 +76,20 @@ In a spinlock, the execution unit continually tests a condition to see if its tr
 
 Test and set is an atomic function that generally looks like this (the function is atomic when it's executed at the processor level, not in c pseudocode)
 
-[csharp]  
+```csharp
+  
 bool testAndSet(int \* lock){  
  int previousLockValue = \*lock;  
  \*lock = 1;  
  return previousLockValue == 1;  
 }  
-[/csharp]
+
+```
 
 And can be used to spinlock a critical section like below
 
-[csharp]  
+```csharp
+  
 int lock = 0;
 
 void synchroFunction(){  
@@ -102,7 +107,8 @@ while (testAndSet(&lock)){
  // and exit the spinlock  
  lock = 0;  
 }  
-[/csharp]
+
+```
 
 Following the example, if it's not locked yet (initial lock is false), then the first execution unit acquires the lock and sets the lock to true. It also bails out of the while loop to execute its critical section, since it returned false from the `testAndSet` function (nobody held the lock). At this point it has the lock, and continues to have the lock, until it later sets the lock to false (which is usually an atomic function as well).
 
@@ -110,7 +116,8 @@ Following the example, if it's not locked yet (initial lock is false), then the 
 
 In the [1970's](http://www.garlic.com/~lynn/2001e.html#73), compare-and-swap replaced test-and-set for most architectures and is still used today for lock-free algorithms as well as lock handling. It looks something like this (again remember this example is not atomic code, this is only atomic when this instruction is implemented in the cpu):
 
-[csharp]  
+```csharp
+  
 compare\_and\_swap(int \*addr, int currentValue, int newVal){  
  int addressValue = \*addr;  
  if(addressValue == currentValue){  
@@ -118,11 +125,13 @@ compare\_and\_swap(int \*addr, int currentValue, int newVal){
  }  
  return addressValue;  
 }  
-[/csharp]
+
+```
 
 Compare and swap takes the address of an item storing the lock as well as a captured snapshot of whatever lock value an execution unit has and the expected new value. It only updates the lock reference if the captured value is equal to the value in the address.
 
-[csharp]  
+```csharp
+  
 int lock = 0;
 
 const int LOCKED = 1;
@@ -141,7 +150,8 @@ while (compare\_and\_swap(&lock, lock, LOCKED)){
 // make sure to release the lock  
  toggleLock(&lock);  
 }  
-[/csharp]
+
+```
 
 Lets trace it, remembering that the lock address only gets set if the passed in lock argument is the same as the address. If the initial value of `lock = 0`, the trace looks like this. Lets pretend the address of `lock` is `0xABC`  
 [table]  
@@ -162,7 +172,8 @@ On processors that didn't have atomic swap functions, spin locks were implemente
 
 In a two process example it looks like this.
 
-[csharp]  
+```csharp
+  
  // ready to be in the critical section  
  readyArray[currentProcessId] = true;
 
@@ -180,7 +191,8 @@ while (readyArray[currentProcessId] == true && turndId == otherProcessId)
 
 // end of critical section. we're no longer ready to be in the section anymore  
  readyArray[currentProcessId] = false;  
-[/csharp]
+
+```
 
 When a process who is ready to get into the critical section marks that its ready. The next variable `turnId` is the source of the contention. Someone is going to set it, but both won't be able to set it. Whichever write actually succeeds blocks the other process forcing it to go into a spinlock. When the acquired process is done, it'll toggle its `readyArray` value and the waiting process breaks out of its busy wait and executes.
 

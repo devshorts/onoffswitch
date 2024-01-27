@@ -24,7 +24,8 @@ permalink: "/2013/03/05/add-scheduled-task-and-run-even-if-on-battery-power/"
 ---
 Just wanted to share a little helpful snippet in case anyone needs it. To add a scheduled task and make sure it starts even when on battery power do this:
 
-[csharp]  
+```csharp
+  
 using (var taskService = new TaskService())  
 {  
  TaskDefinition task = taskService.NewTask();
@@ -51,7 +52,8 @@ task.Settings.DisallowStartIfOnBatteries = false;
 // Register the task in the root folder  
  taskService.RootFolder.RegisterTaskDefinition("test", task, TaskCreation.CreateOrUpdate, "SYSTEM", null, TaskLogonType.ServiceAccount, null);  
 }  
-[/csharp]
+
+```
 
 TaskService is part of [`Microsoft.Win32.TaskScheduler`](http://taskscheduler.codeplex.com/).
 
@@ -59,9 +61,11 @@ By default when you create a new task `DisallowStartIfOnBatteries` and `StartIfG
 
 Quick side note, I personally think negative property names are hard to follow (`DisallowStartIfOnBatteries`). It's hard to follow when it becomes a double negative. I think it would've been much better to name the property
 
-[code]  
+```
+  
 AllowStartOnBatteries  
-[/code]
+
+```
 
 Especially since it has nothing to do with starting the task when its not on batteries. It's interesting that the UI control for this doesn't use a double negative to display the context (even though the phrasing is logically inverse). Still, case in point
 

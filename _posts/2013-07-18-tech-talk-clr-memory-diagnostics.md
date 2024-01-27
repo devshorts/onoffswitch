@@ -24,7 +24,8 @@ permalink: "/2013/07/18/tech-talk-clr-memory-diagnostics/"
 ---
 Today's tech talk we discussed the recent release from Microsoft of [ClrMD](http://blogs.msdn.com/b/dotnet/archive/2013/05/01/net-crash-dump-and-live-process-inspection.aspx) that lets you attach and debug processes using an exposed API. You used to be able to do this in WinDbg using the SOS plugin, but now they've wrapped SOS in a managed dll that you can use to inspect CLR process information. The nice thing about this is you can now automate debugging inspections. It's now as easy as
 
-[csharp]  
+```csharp
+  
 int pid = Process.GetProcessesByName("TestApplication")[0].Id;
 
 using (DataTarget dataTarget = DataTarget.AttachToProcess(pid, 5000))  
@@ -41,7 +42,8 @@ foreach (ulong obj in heap.EnumerateObjects())
  Console.WriteLine("{0,12:X} {1,8:n0} {2}", obj, size, type.Name);  
  }  
 }  
-[/csharp]
+
+```
 
 ClrMD lets you take stack snapshots of running threads, iterate through all objects in the heap and get their values out, show all loaded modules and more. If you combine it with [ScriptCS](http://scriptcs.net/) you've got a really powerful debugging tool. What I liked about ClrMD is that you can use the same API to attach to running processes (in modes where you can pause the app while running, or run without pausing the attached app) as you can with process dumps.
 

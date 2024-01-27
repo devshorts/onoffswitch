@@ -27,10 +27,12 @@ However, the button mapping in Ubuntu isn't trivial. On windows you used the set
 
 [Here](http://forums.logitech.com/t5/Mice-and-Pointing-Devices/Guide-for-setup-Performance-MX-mouse-on-Linux-with-KDE/td-p/517167) is a great tutorial describing how to do it, but for the lazy, here is the mapping you need.
 
-[code]  
+```
+  
 "xte 'mouseclick 2'"  
  b:13+Release  
-[/code]
+
+```
 
 What this says is "when button 13 is clicked, then released, issue a mouseclick 2 command". `xte` is a program that simulates mouse and keyboard events, and `xbindkeys` (whose config you edit to set the xte mapping) is a program that lets you bind one key or mouse event to another key or mouse event.
 

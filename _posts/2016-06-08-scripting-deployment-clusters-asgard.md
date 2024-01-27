@@ -26,7 +26,8 @@ We use asgard at work to do deployments in both qa and production. Our general f
 
 However, its actually not super hard to write some scripts to find the latest AMI for a cluster and prepare an automated deployment pipeline from a template. Here you go:
 
-[code]  
+```
+  
 function asgard(){  
  verb=$1  
  url="https://my.asgard.com/us-east-1/$2"  
@@ -63,7 +64,8 @@ function start-deployment(){
 
 echo $payload | asgard POST "deployment/start/${cluster}"  
 }  
-[/code]
+
+```
 
 The gist here is to
 
@@ -73,14 +75,16 @@ The gist here is to
 
 To use it you'd do
 
-[code]  
+```
+  
 \> clusterName="foo"  
 \> next=`get-next-ami $clusterName`  
 \> start-deployment $clusterName $next  
 {  
  "deploymentId": "1773"  
 }  
-[/code]
+
+```
 
 And thats it!
 

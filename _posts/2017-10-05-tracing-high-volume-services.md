@@ -47,7 +47,8 @@ Here is an example of the header being sent automatically as part of Zipkin base
 
 Notice the `X-B3-TraceId` header. When a service receives this request it'll re-assume the trace id and set its SLF4j [MDC](https://logback.qos.ch/manual/mdc.html) field of `traceId` to be that value. We can now include in our logback.xml configuration to include the trace id like in our STDOUT log configuration below:
 
-[code]  
+```
+  
 \<appender name="STDOUT-COLOR" class="ch.qos.logback.core.ConsoleAppender"\>  
  \<filter class="ch.qos.logback.classic.filter.ThresholdFilter"\>  
  \<level\>TRACE\</level\>  
@@ -56,7 +57,8 @@ Notice the `X-B3-TraceId` header. When a service receives this request it'll re-
  \<pattern\>%yellow(%d) [%magenta(%X{traceId})] [%thread] %highlight(%-5level) %cyan(%logger{36}) %marker - %msg%n\</pattern\>  
  \</encoder\>  
 \</appender\>  
-[/code]
+
+```
 
 And we can also send the trace id as a structured JSON field to Loggly.
 
@@ -72,7 +74,8 @@ The trick here is to make sure that this implicit trace id that is pinned to the
 
 To make sure that traces hop properly between systems we had to make sure to enforce that everybody uses an `ExecutionContext` that safely captures the callers thread local's before executing. This is critical, otherwise you can make an async call and the trace id gets dropped. In that case, bye bye go the logs! It's hyper important to always _take an execution context_ and to never _pin an execution context_ when it comes to async scala code. Thankfully, we can make any execution context _safe_ by wrapping it up in a delegate:
 
-[code lang=scala]  
+```scala
+  
 /\*\*  
  \* Wrapper around an existing ExecutionContext that makes it propagate MDC information.  
  \*/  
@@ -109,11 +112,13 @@ class TwitterExecutionContextProvider extends ExecutionContextProvider {
  \*/  
  override def of(executionContext: ExecutionContext) = new PropagatingExecutionContextWrapper(executionContext)  
 }  
-[/code]
+
+```
 
 We've taken this trace wrapping concept and applied to all kinds of executors like `ExecutorService`, and `ScheduledExecutorService`. Technically we don't really want to expose the internals of how we wrap traces, so we load an `ExecutionContextProvider` via a java [service loading](https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html) mechanism and provide an API contract so that people can wrap executors without caring how they are wrapped:
 
-[code lang=scala]  
+```scala
+  
 /\*\*  
  \* A provider that loads from the java service mechanism  
  \*/  
@@ -142,13 +147,16 @@ trait ExecutionContextProvider {
 
 ...  
 }  
-[/code]
+
+```
 
 From a callers perspective they now do:
 
-[code lang=text]  
+```text
+  
 implicit val execContext = ExecutionContextProvider.provider.of(scala.concurrent.ExecutionContext.Implicits.global)  
-[/code]
+
+```
 
 Which would wrap, in this example, the default scala context.
 
@@ -184,9 +192,11 @@ This is difficult to answer with the current tools we've discussed.
 
 To solve this problem we have one more system in play. This is our high volume auditing system that lets us write and filter audit events at a large scale (100k req/s+). The basic architecture here is we have services write audit events via an Audit API which are funneled to Kinesis Firehose. The firehose stream buffers data for either 5 minutes or 128 MB (whichever comes first). When the buffer limit is reached, firehose dumps newline separated JSON in a flat fi`le into S3. We have a lambda function that waits for S3 create events on the bucket, reads the JSON, then transforms the JSON events into [Parquet](https://parquet.apache.org/) which is an efficient columnar storage format. The Parquet file is written back into S3 into a new folder with the naming scheme of
 
-[code lang=text]  
+```text
+  
 year=YYYY/month=MM/day=DD/hour=HH/minute=mm/\<uuid\>.parquet  
-[/code]
+
+```
 
 Where the minutes are grouped in 5 minute intervals. This partition is then added to Athena, which is a managed map-reduce around PrestoDB, that lets you query large datasets in S3.
 
@@ -219,18 +229,21 @@ On top of that, some services just pump so much repeated data that its not worth
 
 Filters are just YML files for us:
 
-[code]  
+```
+  
 name: "Filter name"  
 expiration: \<Optional DateTime. Epoch or string datetime of ISO formats parseable by JODA\>  
 js: |  
  function filter(event) {  
  // javascript that returns a boolean  
  }  
-[/code]
+
+```
 
 And an example filter may look like
 
-[code]  
+```
+  
 name: "anton\_client\_filter"  
 js: |  
  function filter(event) {  
@@ -238,7 +251,8 @@ js: |
 
 return client != null && client == "3136"  
  }  
-[/code]
+
+```
 
 In this filter only events that are marked with the client id of my client will pass through. Some systems don't need to be filtered so all their events pass through anyway.
 
@@ -266,7 +280,8 @@ Building the system out there were a few interesting caveats when using Nashorn 
 
 The first was that subtle differences in javascript can have _massive_ performance impacts. Let's look at some examples and benchmark them.
 
-[code]  
+```
+  
 function filter(event) {  
  var anton = {  
  "136742": true,  
@@ -277,14 +292,17 @@ var mineable = event.context.get("mineable\_id")
 
 return mineable != null && anton[mineable]  
 }  
-[/code]
+
+```
 
 The [JMH](http://openjdk.java.net/projects/code-tools/jmh/) benchmarks of running this code is
 
-[code]  
+```
+  
 [info] FiltersBenchmark.testInvoke thrpt 20 1027.409 ± 29.922 ops/s  
 [info] FiltersBenchmark.testInvoke avgt 20 1484234.075 ± 1783689.007 ns/op  
-[/code]
+
+```
 
 What?? 29 ops/second
 
@@ -292,7 +310,8 @@ What?? 29 ops/second
 
 Let's make some adjustments to the filter, given our internal system loads the javascript into an isolated scope per filter and then re-invokes just the function `filter` each time (letting us safely create global objects and pay heavy prices for things once):
 
-[code]  
+```
+  
 var anton = {  
  "136742": true,  
  "153353": true  
@@ -303,12 +322,15 @@ function filter(event) {
 
 return mineable != null && anton[mineable]  
 }  
-[/code]
 
-[code]  
+```
+
+```
+  
 [info] FiltersBenchmark.testInvoke thrpt 20 7391161.402 ± 206020.703 ops/s  
 [info] FiltersBenchmark.testInvoke avgt 20 14879.890 ± 8087.179 ns/op  
-[/code]
+
+```
 
 Ah, much better! 206k ops/sec.
 
@@ -316,7 +338,8 @@ Ah, much better! 206k ops/sec.
 
 If we use java constructs:
 
-[code]  
+```
+  
 function filter(event) {  
  var anton = new java.util.HashSet();  
  anton.add("136742")  
@@ -326,12 +349,15 @@ var mineable = event.context.get("mineable\_id")
 
 return mineable != null && anton.contains(mineable)  
 }  
-[/code]
 
-[code]  
+```
+
+```
+  
 [info] FiltersBenchmark.testInvoke thrpt 20 5662799.317 ± 301113.837 ops/s  
 [info] FiltersBenchmark.testInvoke avgt 20 41963.710 ± 11349.277 ns/op  
-[/code]
+
+```
 
 Even better! 301k ops/sec
 

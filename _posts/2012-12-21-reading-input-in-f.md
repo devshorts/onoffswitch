@@ -26,7 +26,8 @@ I've been playing with F# lately, much to the the chagrin of [Sam](http://tech.b
 
 In an imperative language you might write something like this:
 
-[csharp]  
+```csharp
+  
 String path = null;  
 while(true)  
 {  
@@ -38,11 +39,13 @@ while(true)
 
 Console.WriteLine("File doesn't exist");  
 }  
-[/csharp]
+
+```
 
 You can't declare `path` inside the while loop or its loses its scope. If you need to use `path` outside of the while loop, then it might seem like you have to let path be mutable. But, what if we did this:
 
-[csharp]  
+```csharp
+  
 private String GetPath()  
 {  
  while(true)  
@@ -55,29 +58,35 @@ private String GetPath()
  Console.WriteLine("File doesn't exist");  
  }  
 }  
-[/csharp]
+
+```
 
 Now we don't ever update any variables. We only ever use direct assignment. This sounds pretty functional to me. But, we still can't directly translate into F#. Remembering that in F# the last statement is the return value, what does this return?
 
-[csharp]  
+```csharp
+  
 let falseItem =  
  while true do  
  false  
-[/csharp]
+
+```
 
 This is actually an infinite loop; the while loop won't ever return `false`. In F#, a while loop can't return from it's body, since the body expression return type [has to be](http://msdn.microsoft.com/en-us/library/dd233208.aspx) of type unit. If you imagine the while loop as a function that takes a predicate and a lambda for the body then this makes sense. The `whileLoop` function will execute the body as long as the predicate returns true. So, in psuedocode, it kind of looks like this
 
-[csharp]  
+```csharp
+  
 whileLoop(predicate, body) = {  
  while predicate() do {  
  body()  
  }  
 }  
-[/csharp]
+
+```
 
 Now what? Well, turning this while loop into a recursive structure with immutable types is actually pretty easy:
 
-[csharp]  
+```csharp
+  
 let rec documentPath =  
  fun () -\>  
  Console.Write("File path: ")  
@@ -86,7 +95,8 @@ let rec documentPath =
  Console.WriteLine("File does not exist")  
  documentPath()  
  else path  
-[/csharp]
+
+```
 
 The trick here is to define `documentPath` as a recursive function. Either the function returns a valid path, or it calls itself executing the next "step" in our while loop. Also, since we don't need to do any work after the recursive function call, F# can optimize this to use [tail call optimization](http://stackoverflow.com/questions/310974/what-is-tail-call-optimization). The `documentPath` variable is of type `unit -> string` meaning it's a function that takes a unit type and returns a string. To actually get the path, we execute `documentPath()`, where `()` is the unit type.
 

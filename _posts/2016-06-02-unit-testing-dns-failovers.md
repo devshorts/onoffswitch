@@ -28,16 +28,19 @@ The magic sauce to pull this off is to make sure you override the default `sun.n
 
 For example, if we have
 
-[code]  
+```
+  
 cat META-INF/services/sun.net.spi.nameservice.NameServiceDescriptor  
 io.paradoxical.test.dns.LocalNameServerDescriptor  
-[/code]
+
+```
 
 Then the `io.paradoxical.test.dns.LocalNameServerDescriptor` will get created. Nice.
 
 What does that class actually look like?
 
-[scala]  
+```scala
+  
 class LocalNameServerDescriptor extends NameServiceDescriptor {  
  override def getType: String = "dns"
 
@@ -47,11 +50,13 @@ override def createNameService(): NameService = {
 
 override def getProviderName: String = LocalNameServer.dnsName  
 }  
-[/scala]
+
+```
 
 The type is of `dns` and the name service implementation is our own class. The provider name is something we have custom defined as well below:
 
-[scala]  
+```scala
+  
 object LocalNameServer {  
  Security.setProperty("networkaddress.cache.ttl", "0")
 
@@ -91,7 +96,8 @@ override def getHostByAddr(bytes: Array[Byte]): String = {
  default.getHostByAddr(bytes)  
  }  
 }  
-[/scala]
+
+```
 
 Pretty simple. We have a cache that is stored in a singleton companion object with some helper methods on it, and all we do is delegate looking into the cache. If we can resolve the data in the cache we return it, otherwise just proxy it to the default resolver.
 
@@ -99,7 +105,8 @@ The `use` method sets a system property that says to use the dns resolver of nam
 
 Now we can write some tests and see if this works!
 
-[scala]  
+```scala
+  
 @RunWith(classOf[JUnitRunner])  
 class DnsTests extends FlatSpec with Matchers {  
  LocalNameServer.use()
@@ -134,7 +141,8 @@ resolve("www.google.com").getHostAddress shouldNot be("127.0.0.1")
 
 def resolve(name: String) = InetAddress.getByName(name)  
 }  
-[/scala]
+
+```
 
 Happy dns resolving!
 

@@ -37,7 +37,8 @@ Every language is defined by a grammar, where the syntax represents the rules of
 
 In general, you can represent your grammar using [BNF](http://en.wikipedia.org/wiki/Backus%E2%80%93Naur_Form). Let's define a really simple language:
 
-[code]  
+```
+  
 word := [A-z]+  
 number := \d+  
 operator := + | -  
@@ -46,7 +47,8 @@ expression := token | token operator expression
 variableDeclration = var word = expression  
 statement : = variableDeclaration | expression  
 ifStatement := if (expression) { statement\* }  
-[/code]
+
+```
 
 What this translates to is:
 
@@ -65,12 +67,14 @@ If you wanted to you, you could feed this general grammar (modified syntacticall
 
 The goal of the parser is to take a strongly typed token stream from the lexer, and to create a syntax tree that we can use. A simple way to think about it is that each bullet point in our grammar can be a class. Imagine we have a class called `IfStatement`. It might look something like this:
 
-[csharp]  
+```csharp
+  
 public class IfStatement{  
  public Expression Predicate { get; set; }  
  public List\<Statement\> Statements { get; set; }  
 }  
-[/csharp]
+
+```
 
 We don't really care about the keyword `if` or any other of the special characters like (, ), {, and }, since the important part is that we now have a class that describes what the if statement meant: a [predicate](http://en.wikipedia.org/wiki/Predicate_(mathematical_logic)), and a list of statements to execute if the predicate is true. This type of class is what is known as a syntax tree. It's a tree because it references other syntax nodes. Here is an image showing what a syntax tree could look like (image taken from [wikipedia](http://en.wikipedia.org/wiki/Abstract_syntax_tree))
 
@@ -82,29 +86,35 @@ When you're done parsing, you will have a root node that references the entire s
 
 Since the parsers goal is to create these classes, it needs to be able to work on an underlying token stream and create meaningful representations from that stream. The parser knows what kinds of syntactical patterns it expects. For example, if we have the following variable declaration and assignment
 
-[code]  
+```
+  
 int x = 5;  
-[/code]
+
+```
 
 We can tell it's a variable declaration and assignment because it matches the pattern of
 
-[code]  
+```
+  
 valid type  
 word  
 equals  
 valid assignment (an expression maybe or a single token?)  
 semicolon  
-[/code]
+
+```
 
 The parsers job is to take those tokens in meaningful orders and create an AST from it. When I say "take", I mean you remove the current token from the head of the stream (or advance the token streams index pointer). Lets say we are parsing that variable declaration above, it might have a token stream that looks like this
 
-[code]  
+```
+  
 int (keyword)  
 word (x)  
 equals (keyword)  
 number (5)  
 semicolon (keyword)  
-[/code]
+
+```
 
 We see that the head of the stream is a keyword that can be a valid variable type (int), so we can take it off the list and store it. Then we expect the pattern "word", "equals", "expression", "semicolon". We can take them one at a time and while it matches keep on going. Certain items like the semicolon you can trash. It's there to tell the parser when to stop.
 
@@ -112,9 +122,11 @@ We see that the head of the stream is a keyword that can be a valid variable typ
 
 [Sometimes](http://en.wikipedia.org/wiki/LL_parser#LL.281.29_Conflicts), however, you can't determine what an expression will be just by looking at the current token. For example, what does this mean if you only look at the first element?
 
-[code]  
+```
+  
 1 + 1  
-[/code]
+
+```
 
 Is it a token of value 1? Or is it an expression of 1 + 1? Obviously it's 1 + 1, but the parser can't always tell. Careful ordering of your parser can avoid most of these ambiguities, but when it can't, you can either peek into the stream (so you see that the next token is a + so that means expression), or simply try alternatives. The first alternative to match wins!
 
@@ -126,7 +138,8 @@ In the last [post](http://onoffswitch.net/building-a-custom-lexer/) about the le
 
 The most basic form of the class is this:
 
-[csharp]  
+```csharp
+  
 public class ParseableTokenStream : TokenizableStreamBase\<Token\>  
 {  
  public ParseableTokenStream(Lexer lexer) : base (() =\> lexer.Lex().ToList())  
@@ -135,22 +148,26 @@ public class ParseableTokenStream : TokenizableStreamBase\<Token\>
 
 ... implementation ...  
 }  
-[/csharp]
+
+```
 
 It takes the lexer, lexes the tokens, and creates an underlying token stream that we can do snapshots on. We also have methods to test if the current item on the stream is a specific token type (defined by a known enum):
 
-[csharp]  
+```csharp
+  
 public Boolean IsMatch(TokenType type)  
 {  
  return Current.TokenType == type;  
 }  
-[/csharp]
+
+```
 
 The parsing stream base also lets us "take" a specific token. If you remember from the last post, all consuming of a lexable item does is advance the internal array index. The important part is that after we `Consume`, we've advanced to the next token in the token stream.
 
 You'll see in my parser that sometimes I use the `Take` return value, and sometimes it's discarded. This is intentional. Even if you don't intend to use a token in the syntax tree (like a semicolon) you still have to acknowledge that it was part of the expected pattern and advance the token stream.
 
-[csharp]  
+```csharp
+  
 public Token Take(TokenType type)  
 {  
  if (IsMatch(type))  
@@ -167,11 +184,13 @@ throw new InvalidSyntax(
  type,  
  Current.TokenType));  
 }  
-[/csharp]
+
+```
 
 We can also try an alternate route. If the route function returns a non-null syntax tree we'll assume the route succeeded and cache it. Later requests for getting syntax trees at that current index will first check the cache before trying to re-build the tree (if it needs to):
 
-[csharp]  
+```csharp
+  
 public Boolean Alt(Func\<Ast\> action)  
 {  
  TakeSnapshot();
@@ -204,27 +223,33 @@ RollbackSnapshot();
 
 return found;  
 }  
-[/csharp]
+
+```
 
 The `CachedAst` field is defined as
 
-[csharp]  
+```csharp
+  
 private Dictionary\<int, Memo\> CachedAst = new Dictionary\<int, Memo\>();  
-[/csharp]
+
+```
 
 Where `Memo` is
 
-[csharp]  
+```csharp
+  
 internal class Memo  
 {  
  public Ast Ast { get; set; }  
  public int NextIndex { get; set; }  
 }  
-[/csharp]
+
+```
 
 There are also couple of extra methods that let me try a route, and if it succeeds return it's cached results
 
-[csharp]  
+```csharp
+  
 public Ast Capture(Func\<Ast\> ast)  
 {  
  if (Alt(ast))  
@@ -253,7 +278,8 @@ Index = memo.NextIndex;
 
 return memo.Ast;  
 }  
-[/csharp]
+
+```
 
 The underlying stream in my parser is an array, so the inherited `Index` property keeps track of where we are in the stream. When we return a memoized syntax tree, we can seek the stream to the index directly after the last memoized token. This means we can easily jump around in our parser stream. Hopefully this makes sense, because if we returned a cached syntax tree that spanned token items 1 through 15, we should jump immediately to token index 16 and continue parsing from there.
 
@@ -263,14 +289,16 @@ For small parsing this works well, but obviously wouldn't scale with large progr
 
 First, to tie in the section above, here is the constructor of the [parser](https://github.com/devshorts/LanguageCreator/tree/master/Lang/Parser):
 
-[csharp]  
+```csharp
+  
 private ParseableTokenStream TokenStream { get; set; }
 
 public LanguageParser(Lexer lexer)  
 {  
  TokenStream = new ParseableTokenStream(lexer);  
 }  
-[/csharp]
+
+```
 
 Next, I've defined a few syntax tree classes that the parser will use:
 
@@ -280,7 +308,8 @@ All of the syntax tree containers inherit from the base class `Ast`. This makes 
 
 As an example, let me show one that I reused a lot. The `ScopeDeclr` AST gets created anytime the parser encounters a `{` followed by some statements, terminated by `}`.
 
-[csharp]  
+```csharp
+  
 public class ScopeDeclr : Ast  
 {  
  public List\<Ast\> ScopedStatements { get; private set; }
@@ -300,7 +329,8 @@ public override AstTypes AstType
  get { return AstTypes.ScopeDeclr; }  
  }  
 }  
-[/csharp]
+
+```
 
 `ScopedStatements` is a list of statements that are found in the scoped block.
 
@@ -308,7 +338,8 @@ I used the `ScopeDeclr` syntax tree to hold the root node of the entire applicat
 
 Here is the entrypoint to the parser:
 
-[csharp]  
+```csharp
+  
 public Ast Parse()  
 {  
  var statements = new List\<Ast\>(1024);
@@ -320,11 +351,13 @@ while (TokenStream.Current.TokenType != TokenType.EOF)
 
 return new ScopeDeclr(statements);  
 }  
-[/csharp]
+
+```
 
 The `.Or()` method is an extension method I added inspired by the [maybe monad](http://en.wikibooks.org/wiki/F_Sharp_Programming/Computation_Expressions#Monad_Primer). It returns the first non-null result in a chain of functions.
 
-[csharp]  
+```csharp
+  
 public static class Maybe  
 {  
  public static TInput Or\<TInput\>(this TInput input, Func\<TInput\> evaluator)  
@@ -338,11 +371,13 @@ public static class Maybe
 return evaluator();  
  }  
 }  
-[/csharp]
+
+```
 
 Lets take a look at what is a `Statement`
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// Class, method declaration or inner statements  
 /// \</summary\>  
@@ -369,13 +404,15 @@ if (TokenStream.Current.TokenType == TokenType.SemiColon)
 
 return statement;  
 }  
-[/csharp]
+
+```
 
 A statement can either be a class, a method declaration, or an inner statement. I didn't want to need to put semicolons after class and method definitions, so I don't test for a semicolon there. I also made semicolons optional, if we can unambiguously determine the grammar without needing semicolons then great, otherwise we'll use it to terminate a statement if it's there. Though in reality you need to put in semicolons or the parser will barf. Call it a [language quirk](https://www.google.com/search?q=programming+language+quirks).
 
 Here is an inner statement. These are statements I considered valid within scopes such as method declarations, global scope, or inside of classes.
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// A statement inside of a valid scope  
 /// \</summary\>  
@@ -402,19 +439,23 @@ if (ast != null)
 
 throw new InvalidSyntax(String.Format("Unknown expression type {0} - {1}", TokenStream.Current.TokenType, TokenStream.Current.TokenValue));  
 }  
-[/csharp]
+
+```
 
 Let's check out a few other parsers. Here is how to parse a `new` of the form
 
-[csharp]  
+```csharp
+  
 new thing(a, b, c)  
-[/csharp]
+
+```
 
 I explicity didn't put in a semicolon, since semicolons delimit statements, not just expressions.
 
 This gives me a class `NewAst` that has the class name (`thing`) and a list of the arguments (`a`, `b`, and `c`).
 
-[csharp]  
+```csharp
+  
 private Ast New()  
 {  
  Func\<Ast\> op = () =\>  
@@ -435,13 +476,15 @@ return null;
 
 return TokenStream.Capture(op);  
 }  
-[/csharp]
+
+```
 
 We test if the current token is of type `TokenType.New` and if so consumes it. Then it expects an expression (the word `thing`), and then gets a comma delimited list of arguments. There's no semicolon because this `new` statement is part of a larger sequence of statements which will contain a reference to this `new` on the tree. We don't really know, or care, if the statement is part of a variable declaration, or a print statement, or a function call, or whatever, as long as its valid in the grammar.
 
 Here is a `while`
 
-[csharp]  
+```csharp
+  
 private Ast GetWhile()  
 {  
  if (TokenStream.Current.TokenType == TokenType.While)  
@@ -462,11 +505,13 @@ return TokenStream.Capture(op);
 
 return null;  
 }  
-[/csharp]
+
+```
 
 Which leverages the following helper function
 
-[csharp]  
+```csharp
+  
 private Tuple\<Ast, ScopeDeclr\> GetPredicateAndStatements(TokenType type)  
 {  
  TokenStream.Take(type);
@@ -481,7 +526,8 @@ var statements = GetStatementsInScope(TokenType.LBracket, TokenType.RBracket);
 
 return new Tuple\<Ast, ScopeDeclr\>(predicate, statements);  
 }  
-[/csharp]
+
+```
 
 Hopefully you can see now how this all continues on. `GetStatementsInScope` pulls all semicolon delimited statements between a left bracket and a right bracket and returns a scope declaration block with them inside.
 
@@ -489,21 +535,25 @@ Hopefully you can see now how this all continues on. `GetStatementsInScope` pull
 
 I wanted to dedicate a specific section on parsing expressions because I struggled with this. These are ones like
 
-[code]  
+```
+  
 1 + 1  
 (b.x.z \* 2.0)  
 (new class()).x == true  
 (f + 2) + foo() + 3 + (a - 2 - z)  
-[/code]
+
+```
 
 I'll be truthful here, I didn't think expressions through thoroughly before I started. For every pattern I was able to match I exposed one that I couldn't. At one point I ran into a bunch of left recursion issues. In the end, expressions, as I've "_defined_" them look like this
 
-[code]  
+```
+  
 operator = + | - | / | ^ | = | | | == | !=  
 terminal = new statement | function call | class dereference | single token  
 expression' = terminal operator expression | terminal  
 expression = ( expression ) | ( expression ) operator expression | expression'  
-[/code]
+
+```
 
 This was mostly figured out through trial and error, some pen and paper diagrams, extensive unit tests, and a lot of head scratching. Honestly, out of the whole parser this is what took the longest to get right (at least right enough).
 
@@ -511,7 +561,8 @@ What I did to avoid left recursion, I later realized, looks similar to what [wik
 
 The expression parsing code, in the end, matches expressions of the following formats (for example). I made all the examples use a plus sign because I was lazy - any available operator works in any ordering (these cases are from my expression testing unit test)
 
-[csharp]  
+```csharp
+  
 1 + 2;  
 1 + 2 + 3;  
 (1 + 2) + 3;  
@@ -523,11 +574,13 @@ new foo().z + 1;
 a.f().z \* 2.0 + (new foo().x + 2);  
 (new foo().z) + 1;  
 (f + 2) + foo() + 3 + (a + 2 + z)  
-[/csharp]
+
+```
 
 Which when tested, looks something like this
 
-[csharp]  
+```csharp
+  
 SCOPE:  
 (Int: 1 Plus: + Int: 2)  
 (Int: 1 Plus: + (Int: 2 Plus: + Int: 3))  
@@ -540,11 +593,13 @@ SCOPE:
 ([( Word: a). (call Word: f with args ). (Word: z)] Asterix: \* (Float: 2.0 Plus: + ([( new Word: foo with args n/a). (Word: x)] Plus: + Int: 2)))  
 ([( new Word: foo with args n/a). (Word: z)] Plus: + Int: 1)  
 ((Word: f Plus: + Int: 2) Plus: + (call Word: foo with args Plus: + (Int: 3 Plus: + (Word: a Plus: + (Int: 2 Plus: + Word: z)))))  
-[/csharp]
+
+```
 
 Like the other parse functions, this one returns an `Ast` and does some basic alternative checking. The `new` test, on line 3, isn't part of `IsValidOperand` because I re-use `IsValidOperand` elsewhere.
 
-[csharp]  
+```csharp
+  
 private Ast Expression()  
 {  
  if (IsValidOperand() || TokenStream.Current.TokenType == TokenType.New)  
@@ -585,7 +640,8 @@ default:
  return null;  
  }  
 }  
-[/csharp]
+
+```
 
 What we're doing here is splitting up the operation into 3 different sections
 
@@ -595,15 +651,18 @@ What we're doing here is splitting up the operation into 3 different sections
 
 If we have a valid left operand we can parse a basic expression that is of the form
 
-[code]  
+```
+  
 terminal | terminal operator expression  
-[/code]
+
+```
 
 This is right recursive! Sweet, no recursion issues. If you didn't catch why earlier, check out [this](http://stackoverflow.com/questions/847439/why-cant-a-recursive-descent-parser-handle-left-recursion) stack overflow question. The ordering of parsing here matters, I am parsing from most terms to least terms. If I switched the order (terminal first, then expression), the parser would break since we'd run into the alternative issue I mentioned in a section above.
 
 Here is how I parsed the basic expression defined in the above BNF
 
-[csharp]  
+```csharp
+  
 private Ast ParseExpression()  
 {  
  Func\<Func\<Ast\>, Func\<Ast\>, Ast\> op = (leftFunc, rightFunc) =\>  
@@ -632,11 +691,13 @@ Func\<Ast\> leftOp = () =\> op(ExpressionTerminal, Expression);
 return TokenStream.Capture(leftOp)  
  .Or(() =\> TokenStream.Capture(ExpressionTerminal));  
 }  
-[/csharp]
+
+```
 
 Where `IsValidOperand` is
 
-[csharp]  
+```csharp
+  
 private bool IsValidOperand()  
 {  
  switch (TokenStream.Current.TokenType)  
@@ -652,24 +713,28 @@ private bool IsValidOperand()
  }  
  return false;  
 }  
-[/csharp]
+
+```
 
 And `ExpressionTerminal` is
 
-[csharp]  
+```csharp
+  
 private Ast ExpressionTerminal()  
 {  
  return ClassReferenceStatement().Or(FunctionCallStatement)  
  .Or(New)  
  .Or(SingleToken);  
 }  
-[/csharp]
+
+```
 
 ## Testing the parser
 
 At this point everything is set up! I didn't cover all of the parser functions but they are pretty similar in nature. Anyways, lets do a few tests
 
-[csharp]  
+```csharp
+  
 [Test]  
 public void TestSimpleAst()  
 {  
@@ -683,11 +748,13 @@ Assert.IsTrue(expr.Left.Token.TokenType == TokenType.Word);
  Assert.IsTrue(expr.Right.Token.TokenType == TokenType.Int);  
  Assert.IsTrue(ast.Token.TokenType == TokenType.ScopeStart);  
 }  
-[/csharp]
+
+```
 
 And something more complicated
 
-[csharp]  
+```csharp
+  
 [Test]  
 public void AstWithExpression2()  
 {  
@@ -706,21 +773,25 @@ Assert.IsTrue(ast.ScopedStatements.Count == 3);
 
 Console.WriteLine(ast);  
 }  
-[/csharp]
+
+```
 
 Let me print out the above test string representation:
 
-[code]  
+```
+  
 SCOPE:  
  Declare Word: z as Int: int with value Int: 1  
  SCOPE:  
  Declare Word: y as Int: int with value (Int: 5 Plus: + Int: 4)  
  (Word: x Equals: = (Int: 1 Plus: + (Int: 2 Carat: ^ (Int: 5 Minus: - Int: 7))))  
-[/code]
+
+```
 
 And this insane block of gibberish.
 
-[csharp]  
+```csharp
+  
 [Test]  
 public void FunctionTest()  
 {  
@@ -773,7 +844,8 @@ Assert.IsTrue(ast.ScopedStatements.Count == 3);
  Assert.IsTrue(ast.ScopedStatements[1] is Expr);  
  Assert.IsTrue(ast.ScopedStatements[2] is MethodDeclr);  
 }  
-[/csharp]
+
+```
 
 Well, you get the idea.
 

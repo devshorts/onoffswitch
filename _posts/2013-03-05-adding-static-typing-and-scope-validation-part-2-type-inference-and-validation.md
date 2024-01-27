@@ -27,19 +27,23 @@ This post continues my [series](http://onoffswitch.net/tag/language-implementati
 
 To have static typing, each syntax tree node needs to track what kind of type it is. Integers are integers, words are resolved user defined types, quoted strings are strings. But terminals are not the only nodes with types. Each syntax trees type is derived from its terminals. For example the expression syntax tree that represents the following:
 
-[csharp]  
+```csharp
+  
 (1 + 2) == 5  
-[/csharp]
+
+```
 
 Is actually this:
 
-[code]  
+```
+  
  ==  
  / \  
  + 5  
  / \  
 1 2  
-[/code]
+
+```
 
 We have a tree that has an expression on the left, and a literal on the right. We need to know what the expression on the lefts type is before we can do anything. Since the scope builder is depth first and each syntax tree's type is composed of its internal tree types, we'll be guaranteed that by the time we evaluate the type of the `==` tree we'll know that the left hand side is an integer type.
 
@@ -82,7 +86,8 @@ if (ast.Left == null && ast.Right == null)
 
 The expression visit function calls a helper method that takes the left and right trees as well as the current token
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// Determines user type  
 /// \</summary\>  
@@ -124,7 +129,8 @@ if (!TokenUtil.EqualOrPromotable(left.AstSymbolType.ExpressionType, right.AstSym
 
 return left.AstSymbolType;  
 }  
-[/csharp]
+
+```
 
 Each expression knows what kind of type it should have (based on the infix token) and can validate that its left and right branches match accordingly. Other parts of the scope builder who use these expressions can now determine their types as well (such as function invokes, method declarations, return statements, etc) since the expression is tagged with a type. Anything that can be used as part of another statement needs to have a type associated to it.
 
@@ -132,7 +138,8 @@ Each expression knows what kind of type it should have (based on the infix token
 
 Type inference now is super easy. If the left hand side is a type of `var` we don't try to do anything with it, we'll just give it the same type that the right hand side has. For example, in the variable declaration syntax tree visitor I have a block that looks kind of like this:
 
-[csharp]  
+```csharp
+  
 // if its type inferred, determine the declaration by the value's type  
 if (ast.DeclarationType.Token.TokenType == TokenType.Infer)  
 {  
@@ -142,7 +149,8 @@ var symbol = ScopeUtil.DefineUserSymbol(ast.AstSymbolType, ast.VariableName);
 
 DefineToScope(ast, symbol);  
 }  
-[/csharp]
+
+```
 
 Type validation is also easy, all we have to do is check if the right hand side is assignable to the left hand side. To type check any other (non-expression) syntax trees, like `print`, we can validate that we are expecting the right type (for `print` we don't want to print a void value). Each tree contains its type information as the `AstSymbolType` property that has an enum describing its type that we can use for type checking.
 
@@ -150,15 +158,18 @@ Type validation is also easy, all we have to do is check if the right hand side 
 
 In my language I decided I would allow functions to be declared with a `var` type inferred return type. This means I had to infer its type from its return value. This isn't quite as easy as asking the method declaration tree where its return value is yet, since you have to go find it in the tree. What I did to find it was, while iterating over the source tree, keep track of if I'm inside of a method. The scope builder keeps a single heap allocated property called
 
-[csharp]  
+```csharp
+  
 private MethodDeclr CurrentMethod { get; set; }  
-[/csharp]
+
+```
 
 Each time I encounter a method declaration (either by an anonymous lambda or a class method or an inline method), I update this property. I also keep track of what the previous method was on the stack. This way as the scope builder iterates through the tree it always knows what is the current method. When a method is done iterating it'll set `CurrentMethod` to the last method it knew about (or null if there was no method it was inside of)
 
 To help with tracking return statements, I've also added some extra metadata to the `MethodDeclr` AST so every method declaration can now access the syntax tree that represents its return statement directly:
 
-[csharp]  
+```csharp
+  
 public class MethodDeclr : Ast  
 {  
  /// ...
@@ -167,11 +178,13 @@ public ReturnAst ReturnAst { get; private set; }
 
 /// ...  
 }  
-[/csharp]
+
+```
 
 During the course of tree iteration, if there is a `return` statement we'll end up hitting the `ReturnAst` visit method and we can tag the current method's return statement with it:
 
-[csharp]  
+```csharp
+  
 public void Visit(ReturnAst ast)  
 {  
  if (ast.ReturnExpression != null)  
@@ -183,11 +196,13 @@ ast.AstSymbolType = ast.ReturnExpression.AstSymbolType;
 CurrentMethod.ReturnAst = ast;  
  }  
 }  
-[/csharp]
+
+```
 
 Here is my `MethodDeclr` visit method
 
-[csharp]  
+```csharp
+  
 public void Visit(MethodDeclr ast)  
 {  
  var previousMethod = CurrentMethod;
@@ -228,7 +243,8 @@ ScopeTree.PopScope();
 
 CurrentMethod = previousMethod;  
 }  
-[/csharp]
+
+```
 
 Let's trace through it:
 
@@ -245,7 +261,8 @@ Let's trace through it:
 
 Now we've properly validated the method declaration type with its return value, and if we needed to type inferred the method from its return statement. So, as an example, we can support something like this:
 
-[csharp]  
+```csharp
+  
 [Test]  
 public void TestTypeInferFunctionReturn()  
 {  
@@ -266,14 +283,17 @@ Console.WriteLine("Inferred return type: " + function.AstSymbolType.ExpressionTy
 
 Console.WriteLine("Original declared return expression type: " + function.MethodReturnType);  
 }  
-[/csharp]
+
+```
 
 Which prints out
 
-[code]  
+```
+  
 Inferred return type: String  
 Original declared return expression type: Infer: var  
-[/code]
+
+```
 
 ## Conclusion
 

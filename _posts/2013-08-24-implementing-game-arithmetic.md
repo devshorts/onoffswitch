@@ -52,7 +52,8 @@ Whenever I see arbitrary boundaries, I tend to ignore them. My solution works fo
 
 First, the data types:
 
-[fsharp]  
+```fsharp
+  
 type Operation =  
  | Mult  
  | Sub  
@@ -69,7 +70,8 @@ type Operation =
  | Add -\> (+)
 
 let orderofOps = [[Mult];[Add;Sub]]  
-[/fsharp]
+
+```
 
 I've created a union type defining the available operations, how to print them out, and what their actual evaluated operation is. The nice thing in F# is that functions are first class. For example, returning `(*)` returns a function of signature `int -> int -> int`.
 
@@ -77,12 +79,14 @@ Also I've defined an order of operations list list. Items in inner lists have th
 
 Next is the expression definition. Anyone who's ever worked with syntax tree's should recognize this union pattern:
 
-[fsharp]  
+```fsharp
+  
 type Expression =  
  | Terminal of int  
  | Expr of Expression \* Operation \* Expression
 
-[/fsharp]
+
+```
 
 Since it's the idiomatic form of an expression tree.
 
@@ -90,7 +94,8 @@ Since it's the idiomatic form of an expression tree.
 
 Lets generate some randomness. This defines random numbers and random operations.
 
-[fsharp]  
+```fsharp
+  
 let rand = new System.Random()
 
 let randNum min max = rand.Next(min, max)
@@ -100,74 +105,90 @@ let randomOperation () =
  | 0 -\> Mult  
  | 1 -\> Sub  
  | \_ -\> Add  
-[/fsharp]
+
+```
 
 Now I can generate a random expression, where each term is within a min and max range, and the expression is of a passed in length
 
-[fsharp]  
+```fsharp
+  
 let rec randomExpression min max length =  
  match length with  
  | 0 -\> Terminal(randNum min max)  
  | \_ -\> Expr(Terminal(randNum min max), randomOperation(), randomExpression min max (length - 1))
 
-[/fsharp]
+
+```
 
 ## Display an expression
 
 It'd also be useful to pretty print our expression
 
-[fsharp]  
+```fsharp
+  
 let rec display = function  
  | Terminal(i) -\> i.ToString()  
  | Expr(left, op, right) -\>  
  String.Format("{0} {1} {2}", display left, op, display right)  
-[/fsharp]
+
+```
 
 This outputs an expression printed like
 
-[code]  
+```
+  
 8 - 6 \* 8 - 5 \* 9 \* 9  
-[/code]
+
+```
 
 ## Tree Evaluation
 
 The last thing we need to do is actually evaluate the tree. Let's break down some of the work into active patterns. I love using active patterns to help hide away complex match statements.
 
-[fsharp]  
+```fsharp
+  
 let (|TermWithExpression|\_|) predicate expr =  
  match expr with  
  | Expr(Terminal(left), targetOp, Expr(Terminal(right), o, next))  
  when predicate targetOp -\>  
  Expr(Terminal(targetOp.evaluate left right), o, next) |\> Some  
  | \_ -\> None  
-[/fsharp]
+
+```
 
 If the operator passes a predicate and folds the left and right terms into a new terminal if the expression has a left terminal and a right expression. Something of the form:
 
-[fsharp]  
+```fsharp
+  
 Expr(Terminal(2), Mult, Expr(Terminal(3), Add, Terminal(4)))  
-[/fsharp]
+
+```
 
 The next thing is if we have an expression that is composed of just two terminals.
 
-[fsharp]  
+```fsharp
+  
 Expr(Terminal(6), Add, Terminal(4))  
-[/fsharp]
+
+```
 
 Again, if the operator passes a predicate we'll fold the two terminals into a new terminal.
 
-[fsharp]  
+```fsharp
+  
 let (|TermWithTerm|\_|) predicate expr =  
  match expr with  
  | Expr(Terminal(item), targetOp, Terminal(item2))  
  when predicate targetOp -\>  
  Terminal(targetOp.evaluate item item2) |\> Some  
  | \_ -\> None  
-[/fsharp]
+
+```
 
 Finally, lets tie it all into one function
 
-[fsharp]  
+```fsharp
+  
 let foldExpr expr opsInPrecedence =  
  let rec foldExpr' expr =  
  let shouldEvalOperator o = List.exists (fun i -\> i = o) opsInPrecedence
@@ -179,13 +200,15 @@ match expr with
  | Terminal(i) -\> Terminal(i)
 
 foldExpr' expr  
-[/fsharp]
+
+```
 
 ## Testing it
 
 I heard a great quote from [Anton Kovalyov](http://anton.kovalyov.net/about/), creator of [JSHint](http://www.jshint.com/), at [QConn NYC](https://qconnewyork.com/) 2013: "_if it's not tested, it's broken_", so here is a test to validate the code:
 
-[fsharp]  
+```fsharp
+  
 [\<Test\>]  
 let arithmeticTest() =
 
@@ -201,7 +224,8 @@ let result = eval randomExpr
 printfn "%s = %d = %d" (display randomExpr) validationResult (match result with Terminal(x) -\> x)
 
 result |\> should equal \<| Terminal(validationResult)  
-[/fsharp]
+
+```
 
 This code uses the evaluate capability of the .NET database (found via this [stackoverflow](http://stackoverflow.com/questions/333737/c-sharp-evaluating-string-342-yield-int-18) post) to evaluate the displayed random expression and compare the result to my evaluation of the expression.
 

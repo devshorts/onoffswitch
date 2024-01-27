@@ -23,24 +23,30 @@ permalink: "/2017/11/16/sbt-sonatyperelease-travis/"
 ---
 I figured I'd drop a quick note here for anyone else running into an issue. If you are trying to do a sonatypeRelease via sbt 1.0.3 on travis and getting a
 
-[code lang=text]  
+```text
+  
 Credentials file /home/travis/.sbt/credentials does not exist  
-[/code]
+
+```
 
 Even though you are supplying your own inline creds, just drop in a fake creds file into that location:
 
-[code lang=text]  
+```text
+  
 realm=Sonatype Nexus Repository Manager  
 host=x.y.z  
 user=none  
 password=none  
-[/code]
+
+```
 
 Via
 
-[code lang=text]  
+```text
+  
 cp scripts/creds.fake /home/travis/.sbt/credentials  
-[/code]
+
+```
 
 And save yourself the 2 days of headache I have had :p
 

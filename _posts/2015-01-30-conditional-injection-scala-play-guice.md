@@ -29,12 +29,14 @@ For the most part I'm doing a mental mapping of .NET's web api framework to the 
 
 On one of my past projects a coworker of mine set up a really interesting framework leveraging ninject and web api where you can conditionally inject a data source for test data by supplying a query parameter to a rest API of "test". So the end result looks something like:
 
-[csharp]  
+```csharp
+  
 [GET("foo/{name}")]  
 public void GetExample(string name, [IDataSource] dataProvider){  
  // act on data provider  
 }  
-[/csharp]
+
+```
 
 The way it chose the correct data provider is by leveraging a custom parameter binder that will resolve the source from the ninject kernel based on the query parameters. I've found that this worked out really well in practice. It lets the team set up some sample data while testers/qa/ui devs can start building out consuming code before the db layers are even complete.
 
@@ -42,7 +44,8 @@ I really liked working with this pattern so I wanted to see how we can map this 
 
 First I want to define some data sources
 
-[scala]  
+```scala
+  
 trait DataSource{  
  def get : String  
 }
@@ -54,7 +57,8 @@ class ProdSource extends DataSource{
 class TestSource extends DataSource {  
  override def get : String = "test"  
 }  
-[/scala]
+
+```
 
 It should be pretty clear whats going on here. I've defined two classes that implement the data source trait. Which one that gets injected should be defined by a query parameter.
 
@@ -62,7 +66,8 @@ Guice lets you define bindings for the same trait (interface) to a target class 
 
 Lets just walk through the remaining example. First we need the interface, but Guice wants it to be an annotation. Since scala has weird support for annotations and the JVM has shitty type erasure, I had to write the annotation in java
 
-[java]  
+```java
+  
 import com.google.inject.BindingAnnotation;
 
 import java.lang.annotation.ElementType;  
@@ -74,13 +79,15 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)  
 @BindingAnnotation  
 public @interface TestAnnotation {}  
-[/java]
+
+```
 
 I'm honestly not even sure I need the @Target, but whatever.
 
 Next we're gonna create some binding modules for Guice to use where we can specify the conditional binding:
 
-[scala]  
+```scala
+  
 package Modules
 
 import annotations.TestAnnotation  
@@ -104,13 +111,15 @@ bind(interface).to(main)
 bind(interface) annotatedWith markerClass to test  
  }  
 }  
-[/scala]
+
+```
 
 What this is saying is that given the 3 types (the main interface, the implementation of the main item, and the implementation of the dev item) to conditionally bind the dev item to the marker class of "TestAnnotation". This will make sense when you see how its used.
 
 As normal, guice is used to set up the controller instantation with the source module registered.
 
-[scala]  
+```scala
+  
 import Modules.{DbModule, SourceModule}  
 import com.google.inject.Guice  
 import play.api.GlobalSettings
@@ -123,11 +132,13 @@ override def getControllerInstance[A](controllerClass: Class[A]): A = {
  kernel.getInstance(controllerClass)  
  }  
 }  
-[/scala]
+
+```
 
 Now comes the fun part of actually resolving the query parameter. I'm going to wrap an action and create a new action so we can get a nodejs style `(datasource, request) =>` lambda.
 
-[scala]  
+```scala
+  
 trait Sourceable{  
  val kernelSource : Injector
 
@@ -145,13 +156,15 @@ f(binder, request)
 
 def sourceableQueryParamToggle = "test"  
 }  
-[/scala]
+
+```
 
 The kernel never has to be registered since Guice will auto inject it when its asked for (its implicity available). Whats happening here is that we set up the kernel and the target interface type we want to get (i.e. DataSource). If the query string matches the sourceable query param toggle (i.e. the word "test") then it'll pick up the registered data source using the "test annotation" marker. Otherwise it uses the default.
 
 Finally the controller now looks like this:
 
-[scala]  
+```scala
+  
 @Singleton  
 class Application @Inject() (db : DbAccess, kernel : Injector) extends Controller with Sourceable {  
  override val kernelSource: Injector = kernel
@@ -163,13 +176,16 @@ def binding(name : String) = WithSource(classOf[DataSource]){ (provider, request
 Ok(result)  
  }}  
 }  
-[/scala]
+
+```
 
 And the route
 
-[scala]  
+```scala
+  
 GET /foo/:name @controllers.Application.binding(name: String)  
-[/scala]
+
+```
 
 The kernel value is provided to the trait and any other methods can now ask for a data provider of a particular type and get it.
 

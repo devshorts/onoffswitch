@@ -38,11 +38,13 @@ SublimeHaskell leverages command line haskell tools, like `hdevtools` and `ghc-m
 
 On windows you may run into issues that you can't install the `unix-2.7` package. That's OK. You don't need to install it from cygwin, contrary to lots of stack overflow answers. Instead, go to the following [fork](https://github.com/mvoidex/hdevtools) of the `hdevtools` project. Go to the project folder and do
 
-[code]  
+```
+  
 \> cabal configure  
 \> cabal build  
 \> cabal install  
-[/code]
+
+```
 
 Basically this just builds the project from source, then installs it into your cabal package path (which is for your user). Hdevtools gives access to type information for files on the command line, so it's really important to get this working, otherwise your type inference in sublimetext won't work.
 

@@ -28,13 +28,15 @@ Every time this hits me I have to think about it. The compiler barfs at you with
 
 What this really is saying is that `Foo.class` references some import or class whose namespace isn't on the classpath or has fields missing. I usually get this when I have a project level circular dependency via transitive includes. I.e.
 
-[code]  
+```
+  
 Repo 1/  
  /project A  
  /project B -\> depends on C and A  
 Repo 2  
  /project C -\> depends on A  
-[/code]
+
+```
 
 So here the dependency `C` pulls in a version of `A` but that version may not be the same that project `B` pulls in. If I do namespace refactoring in project A, then project B won't compile if those namespaces are used by project C. It's a mess.
 

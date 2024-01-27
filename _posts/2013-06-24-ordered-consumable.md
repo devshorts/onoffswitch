@@ -62,7 +62,8 @@ Until the whole list is processed. Once the list is processed you can't consume 
 
 Here is a unit test to demonstrate in code:
 
-[csharp]  
+```csharp
+  
 [Test]  
 public void TestConsuming()  
 {  
@@ -84,13 +85,15 @@ sort = consumable.Take(40).ToList();
 Assert.IsTrue(sort.First() == 3);  
  Assert.IsTrue(sort.Last() == 7);  
 }  
-[/csharp]
+
+```
 
 The easiest way to implement this was to wrap a list with a custom IEnumerable. The underlying enumerator can track if an item is processed or not, and if so find the next item to emit.
 
 Here's the IEnumerable
 
-[csharp]  
+```csharp
+  
 public class OrderedConsumable\<T\> : IEnumerable\<T\>  
 {  
  public IList\<T\> List { get; set; }
@@ -152,11 +155,13 @@ IEnumerator IEnumerable.GetEnumerator()
  return GetEnumerator();  
  }  
 }  
-[/csharp]
+
+```
 
 It's basically just a wrapper over the enumerator. The enumerator does all the real work:
 
-[csharp]  
+```csharp
+  
 public class OrderedConsumableEnumerator\<T\> : IEnumerator\<T\>  
 {  
  private readonly object \_locker = new object();
@@ -270,7 +275,8 @@ public bool HasProcessed(int indx)
  }  
  }  
 }  
-[/csharp]
+
+```
 
 The enumerator uses a boolean array (the same size as the input list) to track if something is processed or not. When someone calls `Current` it marks the current index as processed and returns the value. When `MoveNext` is executed, we just need to find the next unprocessed element in the processed list and set the underlying index to that element.
 
@@ -278,7 +284,8 @@ While using a linked list might have been more space and time efficient to track
 
 Anyways, the final use case looked something like this. The generator doesn't care what the order is, and when someone seeks they just update the internal head pointer.
 
-[csharp]  
+```csharp
+  
 public void GenerateImages()  
 {  
  OrderedConsumable = new OrderedConsumable\<int\>(SecondsToProcessList));
@@ -293,7 +300,8 @@ public void Seek(int targetSeconds)
 {  
  OrderedConsumable.SetAsHead(seconds =\> targetSeconds == seconds);  
 }  
-[/csharp]
+
+```
 
 The nice thing is here, if I try to iterate over the consumable again, if everything is consumed nothing will return. This ensures that I don't reprocess anything that was already processed.
 

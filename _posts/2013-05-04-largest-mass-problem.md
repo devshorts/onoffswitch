@@ -25,12 +25,14 @@ permalink: "/2013/05/04/largest-mass-problem/"
 ---
 I was recently asked to write some code to find the largest contiguous group of synonymous elements in a two dimensional array. The idea is that you want to find the largest "land mass" in a problem where you have a game board that looks something like
 
-[code]  
+```
+  
 L L L W  
 W L L W  
 L W W W  
 W L L W  
-[/code]
+
+```
 
 Where `L` stands for land, and `W` stands for water. In this example, the largest land mass would be of size 5. But there are also 2 other land masses, one of size one, and another of size two. Elements can be contiguous only if their direct adjacent neighbor is the same type, so diagonals don't count.
 
@@ -42,7 +44,8 @@ To me, this solution smells of recursion. You need a way to start at a point, an
 
 First, lets define our example board:
 
-[fsharp]  
+```fsharp
+  
 type Earth =  
  | Land  
  | Water
@@ -51,13 +54,15 @@ let board = array2D [[Land; Land; Land; Water;];
  [Water; Land; Land; Water;];  
  [Land; Water; Water; Water;];  
  [Water; Land; Land; Water;]]  
-[/fsharp]
+
+```
 
 ## Moving around
 
 Next, lets define some helper methods. Since I know I'm going to have to branch up, down, left and right. I also know that I need to cover edge conditions such as when I'm iterating over the board and I am going to step off the board edge (beyond the size of the 2d array). I'm treating the current position on the board as an integer tuple representing x and y.
 
-[fsharp]  
+```fsharp
+  
 let moveRight position =  
  let (x,y) = position  
  (x + 1, y)
@@ -81,31 +86,36 @@ let ySize board = Array2D.length2 board
 let offBoard position board =  
  let (x,y) = position  
  x \< 0 || y \< 0 || x \>= (xSize board) || y \>= (ySize board)  
-[/fsharp]
+
+```
 
 ## Keeping track of where you've been
 
 I also know that since I'm going to be branching through this board in different recursive iterations, I need to be able to keep track of cells that I've already worked on. This makes sure that one branch (for example going left) doesn't re-process cells that were processed by another branch (like one that went up). I have two methods here, one to just cons the current position to the previous positions list, and another to help me find if the current position is in a positions list.
 
-[fsharp]  
+```fsharp
+  
 let markPosition position previousSpots = position::previousSpots
 
 let positionExists position list =  
  List.exists(fun pos -\> pos = position) list  
-[/fsharp]
+
+```
 
 ## Did I find one?
 
 Also, I can create a helper method that tells me if the current position I'm on matches the target type that I want.
 
-[fsharp]  
+```fsharp
+  
 let positionOnTarget position board target =  
  if offBoard position board then  
  false  
  else  
  let (x, y) = position  
  (Array2D.get board x y) = target  
-[/fsharp]
+
+```
 
 You may have noticed that a lot of these helper functions are only one line, and sometimes just wrap another one line built in F# functionality. I like to do it that way for readability sake.
 
@@ -113,7 +123,8 @@ You may have noticed that a lot of these helper functions are only one line, and
 
 Lets start with what flood fill does. Given a position, find all the contiguous elements. Each time we find a block it returns the block positions it found and the elements it already processed as a tuple
 
-[fsharp]  
+```fsharp
+  
 type Board\<'T\> = 'T[,]
 
 type X = int
@@ -170,13 +181,15 @@ match found with
  (currentMass, processedList)
 
 findMassStartingAt' position ([], positionSeed)  
-[/fsharp]
+
+```
 
 Each time the mass function is called it returns the masses it found. This is why up, down, left and right are all being piped a new list telling it what's already been found. By the end of the entire search the recursive calls have returned all available contiguous blocks starting from the original seed position. Also instead of passing the board to the inner list I'm leveraging the parent closure to reference the board.
 
 But, this only finds a mass if we told it where to start. To search for other masses I opted to brute force the problem and iterate over the entire 2d array, re-using the function that knew how to find a single mass. To iterate over the 2d array I created the following function
 
-[fsharp]  
+```fsharp
+  
 (\*  
  Iterate over each element in a 2d array, passing the x and y  
  coordinate and the board, to the supplied function  
@@ -190,13 +203,15 @@ let forEachElement (applier:(X -\> Y -\> Board\<'a\> -\> 'b)) (twoDimArray:Board
  for y in 0..(ySize board) do  
  items \<- (applier x y twoDimArray)::items  
  items  
-[/fsharp]
+
+```
 
 Which lets you apply a function to each element and return a new item. The other Array2D built in functions always created other 2D arrays, but I basically wanted to create a list based on the indexes and not just the element at those indexes.
 
 Now our final contiguous searcher looks like this. Remember that each block we find returns a `MassFinder` tuple which is `ContiguousPoints * ProcessedPositions` so I am just picking out the contiguous blocks with the `fst` map.
 
-[fsharp]  
+```fsharp
+  
 (\*  
  Finds all contiguous blocks of the specified type  
  and returns a list of lists (each list is the points for a specific  
@@ -213,11 +228,13 @@ let getContiguousBlocks board target =
 forEachElement findMass board  
  |\> List.map fst  
  |\> List.filter (List.isEmpty \>\> not)  
-[/fsharp]
+
+```
 
 Breaking things up like this also lets us solve the correlary problem of flood fill! I'm passing it an empty list as a seed to say we haven't processed any elements
 
-[fsharp]  
+```fsharp
+  
 (\*  
  Returns a list of points representing a contigious block  
  of the type that the point was at.  
@@ -229,13 +246,15 @@ let floodFillArea (point:Position) (canvas:Board\<'T\>) =
 
 findMassStartingAt point canvas itemAtPoint [] |\> fst
 
-[/fsharp]
+
+```
 
 ## The test
 
 Well, lets try it:
 
-[fsharp]  
+```fsharp
+  
 (\*  
  Test functions to run it  
 \*)
@@ -250,14 +269,17 @@ let sizeOfMassAt22 = List.length massAt
 
 System.Console.WriteLine("Largest mass is " + (List.length largestList).ToString());  
 System.Console.WriteLine("Mass size at (2,2) is " + sizeOfMassAt22.ToString());  
-[/fsharp]
+
+```
 
 And the answer is...
 
-[code]  
+```
+  
 Largest mass is 5  
 Mass size at (2,2) is 6  
-[/code]
+
+```
 
 Where index (2,2) was the large water block in the middle.
 
@@ -267,7 +289,8 @@ Looks like it worked
 
 Now that there is a basic working version, we can make this a bit more advanced. If we use continuation passing style then we can make our multiple branching recursion tail recursive. Here is a rewritten version of the mass finder function but which uses continuations:
 
-[fsharp]  
+```fsharp
+  
 let findMassStartingAt (position:Position) (board:Board\<'A\>) (target:'A) (positionSeed:ProcessedPositions) : MassFinder =  
  let rec findMassStartingAt' position (currentMass:ContiguousPoints, processedList:ProcessedPositions) cont =
 
@@ -306,7 +329,8 @@ findMassStartingAt' up massState (fun foundMassUp -\>
  cont((currentMass, updatedProcess))
 
 findMassStartingAt' position ([], positionSeed) id  
-[/fsharp]
+
+```
 
 Instead of letting all the recursion bubble and piping that value to the next recursion, now we're capturing what to do when the next recursion is ready to run. By using the closure state we can capture what is the next point to go to, and we know that the next `MassFinder` that was previously processed will be passed to the continuation at each round. Now there's no worry about stack depth!
 
@@ -359,7 +383,8 @@ The basic idea is to generate an array reprenseting all of the boards positions.
 
 You could cut out even more work if you cached the creation of the board tuple array elsewhere.
 
-[fsharp]  
+```fsharp
+  
 (\*  
  Finds all items of list2 that are not in list1  
 \*)
@@ -394,11 +419,13 @@ let firstNonProcessedPosition processedList xCount yCount =
 match excludes with  
  | [] -\> None  
  | \_ -\> Some(List.head excludes)  
-[/fsharp]
+
+```
 
 And now we just need to use this new information to feed to the fill function to find our contiguous block of elements. This function is a little more complicated, but not by much.
 
-[fsharp]  
+```fsharp
+  
 (\*  
  Finds all contiguous blocks of the specified type  
  and returns a list of lists (each list is the points for a specific  
@@ -428,7 +455,8 @@ findBlocks' ((match block with
  | \_ -\> block::blocks), processed)
 
 findBlocks' ([],[])  
-[/fsharp]
+
+```
 
 Now, we keep processing until we've processed everyone. At that point, return what we found!
 

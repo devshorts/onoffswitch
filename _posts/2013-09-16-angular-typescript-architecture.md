@@ -44,7 +44,8 @@ Anything less than these requirements, I felt, would compromise maintainability 
 
 Starting off, my folder structure looks like this:
 
-[code]  
+```
+  
 app  
 ├──components  
 ├──css  
@@ -75,7 +76,8 @@ app
  ├──services  
  ├──e2e tests  
 ├──index.html  
-[/code]
+
+```
 
 - components - This is where all the html templates for directives go
 - css - All scss files and the final compiled app.css which is what is linked to from index.html

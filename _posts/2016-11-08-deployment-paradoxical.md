@@ -44,7 +44,8 @@ To that end, Jake created a [git project](https://github.com/paradoxical-io/depl
 
 First things first, is that we need a way to delegate deployment after our travis build is complete. So you'd add the following to your projects travis file:
 
-[code]  
+```
+  
 git:  
  submodules: false  
 before\_install:  
@@ -57,19 +58,22 @@ before\_install:
  - git submodule update --init --remote --recursive  
 after\_success:  
 - ./.deployment/deploy.sh  
-[/code]
+
+```
 
 Which would pull the git deployment submodule, and delegate the after step to its deploy script.
 
 You also need to add the deployment project as a parent of your pom:
 
-[code]  
+```
+  
 \<parent\>  
  \<groupId\>io.paradoxical\</groupId\>  
  \<artifactId\>deployment-base-pom\</artifactId\>  
  \<version\>1.0\</version\>  
 \</parent\>  
-[/code]
+
+```
 
 This sets up nice things for us like making sure we sign our GPG artifacts, include sources as part of our deployment, and attaches javadocs.
 
@@ -87,7 +91,8 @@ Anyways, the base pom handles a lot of nice things :)
 
 Now lets break down the after build [deploy script](https://github.com/paradoxical-io/deployment/blob/master/deploy.sh). It's job is to take the travis encrypted gpg keys (which are also password secured) and decrypt them, and run the right maven release given the git tags.
 
-[code lang=text]  
+```text
+  
 if [-n "$TRAVIS\_TAG"]; then  
  echo "Deploying release version for tag '${TRAVIS\_TAG}'"  
  mvn clean deploy --settings "${SCRIPT\_DIR}/settings.xml" -DskipTests -P release -Drevision='' $@  
@@ -100,7 +105,8 @@ else
  echo "No deployment running for current settings"  
  exit 0  
 fi  
-[/code]
+
+```
 
 It's worth noting here a few magic things.
 

@@ -24,13 +24,16 @@ permalink: "/2013/05/20/minimizing-null-ref/"
 ---
 In a production application you frequently can find yourself working with objects that have a large accessor chain like
 
-[code]  
+```
+  
 student.School.District.Street.Name  
-[/code]
+
+```
 
 But when you want to program defensively you need to always do null checks on any reference type. So your accessing chain looks more like this instead
 
-[csharp]  
+```csharp
+  
 if (student.School != null)  
 {  
  if (student.School.District != null)  
@@ -41,7 +44,8 @@ if (student.School != null)
  }  
  }  
 }  
-[/csharp]
+
+```
 
 Which sucks. Especially since its easy to forget to add a null check, and not to mention it clutters the code up. Even if you used an option type, you still have to check if it's something or if its nothing, and dealing with huge option chains is just as annoying.
 
@@ -55,11 +59,13 @@ This is where the magic of [castle dynamic proxy](http://www.castleproject.org/p
 
 For my purposes, I wanted to create a null safe proxy that lets me safely iterate through the function call chain. Before I dive into it, lets see what the final result is:
 
-[csharp]  
+```csharp
+  
 var user = new User();
 
 var name = user.NeverNull().School.District.Street.Name.Final();  
-[/csharp]
+
+```
 
 At this point `name` can be either null, or the street name. But since this user never set any of its public properties everything is null, so name here will be null. At this point I can do one null check and move on.
 
@@ -67,12 +73,14 @@ At this point `name` can be either null, or the street name. But since this user
 
 `NeverNull` is an extension method that wraps the invocation target (the thing calling the method) with a new dynamic proxy.
 
-[csharp]  
+```csharp
+  
 public static T NeverNull\<T\>(this T source) where T : class  
 {  
  return (T) \_generator.CreateClassProxyWithTarget(typeof(T), new[] { typeof(IUnBoxProxy) }, source, new NeverNullInterceptor(source));  
 }  
-[/csharp]
+
+```
 
 I'm doing a few things here. First I'm making a proxy that wraps the source object. The proxy will be of the same type as the source. Second, I'm telling castle to also add the `IUnBoxProxy` interface to the proxy implementation. We'll see why that's used later. All it means is that the proxy that is returned implements not only all the methods of the source, but is also going to be of the `IUnBoxProxy` interface. Third, I am telling castle to use a `NeverNullInterceptor` that holds a reference to the source item. This interceptor is responsible for manipulating any function calls on the source object.
 
@@ -80,7 +88,8 @@ I'm doing a few things here. First I'm making a proxy that wraps the source obje
 
 The interceptor isn't that complicated. Here is the whole class:
 
-[csharp]  
+```csharp
+  
 public class NeverNullInterceptor : IInterceptor  
 {  
  private object Source { get; set; }
@@ -117,7 +126,8 @@ if (!PrimitiveTypes.Test(invocation.Method.ReturnType))
  }  
  }  
 }  
-[/csharp]
+
+```
 
 The main gist of this class is that whenever a function gets called on a proxy object, the interceptor can capture the function call. We created the specific proxy to be tied to this interceptor as part of the proxy generation.
 
@@ -127,12 +137,14 @@ But, if the return value was null we still need to continue the accessor chain. 
 
 In the scenario where the return result is null, here is the function to proxy the type
 
-[csharp]  
+```csharp
+  
 public static object NeverNullProxy(Type t)  
 {  
  return \_generator.CreateClassProxy(t, new[] { typeof(IUnBoxProxy) }, new NeverNullInterceptor(null));  
 }  
-[/csharp]
+
+```
 
 Now, you may notice that I'm passing `null` to the constructor of the interceptor, but previously I passed a source object to the constructor. This is because I want the interceptor to know what is the underlying proxied target. This is how I'm going to be able to unbox the final value out of the proxy chain when it's requested. This is also the reason for the `IUnBoxProxy` interface we added.
 
@@ -140,7 +152,8 @@ Now, you may notice that I'm passing `null` to the constructor of the intercepto
 
 At this point there is an entire proxy chain set up. Once you enter the proxy chain, all other functions on that object are also proxies. But at some point you want to get the actual value out, whether its null or not. This is where that special interface comes in. Using an extension method on all object types we can cast the object to the special interface (remembering that the object we're working on is actually a proxy and that it should have implemented the special interface we told it to) and execute a function on it. It really doesn't matter which function, just a function
 
-[csharp]  
+```csharp
+  
 public static T Final\<T\>(this T source)  
 {  
  var proxy = (source as IUnBoxProxy);  
@@ -151,25 +164,30 @@ public static T Final\<T\>(this T source)
 
 return (T)proxy.Value;  
 }  
-[/csharp]
+
+```
 
 Since the proxy is actually a dynamic proxy that was created we get caught back in the interceptor. This is why this block exists
 
-[csharp]  
+```csharp
+  
 if (invocation.Method.DeclaringType == typeof(IUnBoxProxy))  
 {  
  invocation.ReturnValue = Source;  
  return;  
 }  
-[/csharp]
+
+```
 
 If the declaring type (i.e. the thing calling the function) is of that type (which it is since we explicitly cast it to it) then return the internal stored unboxed proxy. If the proxy contained null then a null gets returned, otherwise the last thing in the chain gets returned.
 
 I specificailly excluded primitives during the proxy boxing phase since a primitive implies the final ending of the chain. That and castle kept throwing me an error saying that it
 
-[csharp]  
+```csharp
+  
 Could not load type 'Castle.Proxies.StringProxy' from assembly 'DynamicProxyGenAssembly2, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null' because the parent type is sealed.  
-[/csharp]
+
+```
 
 But thats OK since we don't need to proxy primitives in this scenario.
 
@@ -179,7 +197,8 @@ Now this is great and all, but if it incurs an enormous performance penalty then
 
 Create an empty user and use the never null proxy to check a string some amount of times. The console writeline exists only to make sure the compiler doesn't optimize out unused variables.
 
-[csharp]  
+```csharp
+  
 private void NullWithProxy(int amount)  
 {  
  var user = new User();
@@ -192,11 +211,13 @@ var s = "na";
 
 Console.WriteLine(s.FirstOrDefault());  
 }  
-[/csharp]
+
+```
 
 Test a non null object chain with the proxy
 
-[csharp]  
+```csharp
+  
  private void TestNonNullWithProxy(int amount)  
  {  
  var student = new User  
@@ -221,11 +242,13 @@ var s = "na";
 
 Console.WriteLine(s.FirstOrDefault());  
  }  
-[/csharp]
+
+```
 
 And finally test a bunch of if statements on a non null object
 
-[csharp]  
+```csharp
+  
 private void NonNullNoProxy(int amount)  
 {  
  var student = new User  
@@ -259,7 +282,8 @@ var s = "na";
 
 Console.WriteLine(s.FirstOrDefault());  
 }  
-[/csharp]
+
+```
 
 And the results are
 

@@ -29,7 +29,8 @@ Asynchronous work wrapped in futures has garnered a lot of attention in the java
 
 In order to to demystify the concept of Futures lets build own version. Futures aren't hard to implement, even when you have a language that doesn't have them built in (or if you are on the .NET micro without async or Tasks). All we need to do is encapsulate a lambda and create an API that lets us chain deferred futures together. Lets look at a final unit test to demonstrate what we're trying to accomplish.
 
-[csharp]  
+```csharp
+  
 private void TestFutureImpl()  
 {  
  int count = 0;
@@ -56,11 +57,13 @@ var result = future.Resolve();
 
 Assert.AreEqual(3, result);  
 }  
-[/csharp]
+
+```
 
 With an output of
 
-[csharp]  
+```csharp
+  
 All setup, nonblock but now wait  
 Running 0  
 Resolving 0  
@@ -69,7 +72,8 @@ Resolving
 Running  
 Requesting result  
 Resolving 2  
-[/csharp]
+
+```
 
 You can see the deferred action waits for a certain period of time, so it could take some time to complete. But, with our future we can encapsulate this work, compose two other futures (that will evaluate after the first is complete), and finally when we _ask_ for the result it will either block until its done, or immediately return the result if it was evaluated.
 
@@ -77,7 +81,8 @@ For my purposes, I wrote an eager evaluated futures class, this means that once 
 
 Lets take a look at what's really going on. Here is the basic skeleton of the future. I wrap the passed in function in another function that is responsible for exception handling, as well as notifying whoever else is listening that the action completed (by setting a manual rest event mutex). The other function is responsible for either waiting for the mutex to complete, or returning the completed result. Subclasses can implement the `Execute` method which would just either run the wrapped method in a new thread, or run it in a thread pool. It honestly doesn't matter how its executed, it can even be run synchronously if you wanted to!
 
-[csharp]  
+```csharp
+  
 public abstract class Future\<T\>  
 {  
  private bool \_isComplete;
@@ -142,11 +147,13 @@ return \_result;
  }
 
 // ....  
-[/csharp]
+
+```
 
 Now lets look at how to compose futures. The idea is you have one future, and the next future won't run until the first is complete. You can either pass in the result of the first future, or just run another action (with no input). From the users perspective you get one future that represents the result of all the composed actions. All we need to do is to create a new lambda that first resolves the previous one (via the closure), then executes the next one, all wrapped in a new future!
 
-[csharp]  
+```csharp
+  
 public abstract Future\<T\> Then(Func\<T\> next);
 
 protected Func\<T\> ThenWithoutResult(Func\<T\> next)  
@@ -170,11 +177,13 @@ return next(previousResult);
 }
 
 public abstract Future\<Y\> Then\<Y\>(Func\<T, Y\> next);  
-[/csharp]
+
+```
 
 Look at the implementation of one of the subclasses:
 
-[csharp]  
+```csharp
+  
 public class NewThreadFuture\<T\> : Future\<T\>  
 {  
  public NewThreadFuture(Func\<T\> function) : base(function)  
@@ -198,7 +207,8 @@ public override Future\<Y\> Then\<Y\>(Func\<T, Y\> next)
  return new NewThreadFuture\<Y\>(ThenWithResult(next));  
  }  
 }  
-[/csharp]
+
+```
 
 Simple! Now we can create asynchronous actions (remember that asynchronous just means nonblocking, but they are IN ORDER), and represent the entire workflow with a single future object. From an implementors perspective we can now also control how we execute the actions, whether on the threadpool or on new threads (or we can add other mechanisms if we want). This is because the future base class handles all the resolving synchronization making sure everything happens in order (just non-blocking).
 

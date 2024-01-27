@@ -61,7 +61,9 @@ The line represents the point where if you took an x1 and x2 feature set, multip
 
 What confused me here is that there is a discussion of w but the axis are only in relation to x1 and x2. Really what that means is that
 
-[code]f(x1, x2) = w1\*x1+w2\*x2 + b[/code]
+```
+f(x1, x2) = w1\*x1+w2\*x2 + b
+```
 
 This is the ideal line that represents classification. **w** is a fixed vector here, the output function varies with the feature input. The b of the function represents the weight of the bias node: it's independent of the input data.
 

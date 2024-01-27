@@ -24,9 +24,11 @@ permalink: "/2013/03/04/double-encoding-uri-and-html-encoding/"
 ---
 URL's have specific characters that are special, like `%` and `&` that if you need to use as part of your GET URI then you need to [encode](http://www.w3schools.com/tags/ref_urlencode.asp) them. For example:
 
-[html]  
+```html
+  
 http://localhost?key=this & that&key2=value2  
-[/html]
+
+```
 
 It's obvious that this URL is invalid, `this & that` has both spaces and a special character `&`. In fact, you may have even noticed it's invalid in your browser:
 
@@ -34,48 +36,62 @@ It's obvious that this URL is invalid, `this & that` has both spaces and a speci
 
 To get around this you can URI encode your URL's which will convert special characters to ASCII:
 
-[html]  
+```html
+  
 http://localhost?key=this%20%26%20that&key2=value2  
-[/html]
+
+```
 
 But there is also [HTML encoding](http://en.wikipedia.org/wiki/Character_encodings_in_HTML), which means escaping special HTML characters when you are putting in text into html. For example:
 
-[html]  
+```html
+  
 \<p\>6 \> 7\</p\>  
-[/html]
+
+```
 
 Doesn't work, since `>` is a special character. To get around this, you need to HTML encode your text. HTML encoding uses special characters to indicate escaping of text. HTML encoding the above example would make your text
 
-[html]  
+```html
+  
 \<p\>6 &gt; 7\</p\>  
-[/html]
+
+```
 
 But sometimes you want to put in some HTML dynamically into a page that also contains a URL. Here you need to double encode (encode the URI and the HTML). The ordering here matters. Let's take this HTML text as the source:
 
-[html]  
+```html
+  
 \<a href="me.aspx?Filename=Anton's Document" /\>  
-[/html]
+
+```
 
 And lets encode it first with HTML then with URI:
 
-[html]  
+```html
+  
 html encoded: \<a href="me.aspx?Filename=Anton&apos;s+Document" /\>  
 uri encoded: \<a href="me.aspx?Filename=Anton%26apos;s+Document" /\>  
-[/html]
+
+```
 
 But what if we do it the other way around?
 
-[html]  
+```html
+  
 uri encoded: \<a href="me.aspx?Filename=Anton's+Document" /\>  
 html encoded: \<a href="me.aspx?Filename=Anton&apos;s+Document" /\>  
-[/html]
+
+```
 
 See the difference? Look at where the apostrophe would be
 
-[code]  
+```
+  
 invalid: %26apos;  
 valid: &apos;  
-[/code]
+
+```
 
 The first example will give you an invalid URL but the second example is the URL you want. URL and HTML encodings aren't interchangable, they are used for specific scenarios and sometimes need to be used together (in the right order).
 

@@ -32,7 +32,8 @@ For example, lets say you have a dataset like this. Each row represents some ani
 
 The data set clearly tells us what is and isn't a fish. Using ID3 you can take all your known sample data and build out a tree that would look like this in the end:
 
-[code]  
+```
+  
 can survive without surfacing: yes  
  has flippers: yes  
  is fish: yes  
@@ -40,7 +41,8 @@ can survive without surfacing: yes
  is fish: no  
 can survive without surfacing: no  
  is fish: no  
-[/code]
+
+```
 
 If we get a piece of data that has features, but no class, to find the class all we have to do is follow the branches till we get a leaf which gives us the final class classifier.
 
@@ -50,23 +52,28 @@ With our sample, we can say _Can it survive without surfacing? If yes, then does
 
 The data set is what you'll use to build the original tree and it just contains a set of instances. An instance is like what I showed above, it's one piece of data in the set. Each instance also has features (also called axis). A feature would be "Has flippers", or "Can survive without surfacing". The final output of an instance is its class.
 
-[csharp]  
+```csharp
+  
 public class DecisionTreeSet  
 {  
  public List\<Instance\> Instances { get; set; }  
 }  
-[/csharp]
 
-[csharp]  
+```
+
+```csharp
+  
 public class Instance  
 {  
  public List\<Feature\> Features { get; set; }
 
 public Output Output { get; set; }  
 }  
-[/csharp]
 
-[csharp]  
+```
+
+```csharp
+  
 public class Feature  
 {  
  public string Value { get; set; }  
@@ -78,7 +85,8 @@ public Feature(string value, string axis)
  Axis = axis;  
  }  
 }  
-[/csharp]
+
+```
 
 ## Splitting Features
 
@@ -102,7 +110,8 @@ So I've returned only the instances that had the value of "yes" in that column, 
 
 Here is how I split the sets in C#
 
-[csharp]  
+```csharp
+  
 public class DecisionTreeSet  
 {  
  //...  
@@ -121,9 +130,11 @@ public DecisionTreeSet Split(string axis, string value)
  };  
  }  
 }  
-[/csharp]
 
-[csharp]  
+```
+
+```csharp
+  
 public class Instance  
 {  
  //...
@@ -145,7 +156,8 @@ return new Instance
  };  
  }  
 }  
-[/csharp]
+
+```
 
 ## Measuring Order
 
@@ -157,7 +169,8 @@ Calculating the entropy is pretty easy using shannons formula:
 
 ![](http://onoffswitch.net/wp-content/uploads/2013/05/efdf8c905c0f9dfd78002df6f20edb5d.png)
 
-[csharp]  
+```csharp
+  
 public static double Entropy(DecisionTreeSet set)  
 {  
  var total = set.Instances.Count();
@@ -174,7 +187,8 @@ foreach (var target in outputs)
 
 return entropy;  
 }  
-[/csharp]
+
+```
 
 For each possible output class type (fish/not fish), determine the probability of finding that class type in the total set. The sum of all those probabilities in the set is your entropy.
 
@@ -186,7 +200,8 @@ This should make sense, since we want the resulting data sets after a split to h
 
 First we figure out what the entropy of the total base set is. Then get all the unique values for a feature. In our sample set, "can survive without surfacing" has two unique values: "yes" and "no". Same with "has flippers". By summing the entropy for each split of a feature's unique values we can get the total entropy of the tree for that split. A large info gain tells us that splitting on an axis (the sum of entropy of splitting on all a features unique values) gave us a more homogenous and uniform final class output. A low info gain tells us that the final class output was still pretty mixed up and not so good.
 
-[csharp]  
+```csharp
+  
 public static string SelectBestAxis(DecisionTreeSet set)  
 {  
  var baseEntropy = Entropy(set);
@@ -224,7 +239,8 @@ private static double EntropyForSplitBranches(DecisionTreeSet set, IEnumerable\<
  let prob = (float) subset.NumberOfInstances/set.NumberOfInstances  
  select prob\*Entropy(subset)).Sum();  
 }  
-[/csharp]
+
+```
 
 ## Split the samples example
 
@@ -234,10 +250,12 @@ Lets trace through it with the sample set above. The original sets base entropy 
 
 [![2013-05-25 13_18_29-MarkdownPad 2](http://onoffswitch.net/wp-content/uploads/2013/05/2013-05-25-13_18_29-MarkdownPad-2.png)](http://onoffswitch.net/wp-content/uploads/2013/05/2013-05-25-13_18_29-MarkdownPad-2.png)
 
-[code]  
+```
+  
 The entropy for axis "can survive without surfacing" value "yes" is 0.550977512949583  
 The entropy for axis "can survive without surfacing" value "no" is 0  
-[/code]
+
+```
 
 This makes sense, if we split on "no", then both of the "Is Fish" outputs are "no", so the class output is uniform. This is best kind of entropy!
 
@@ -247,10 +265,12 @@ Now, the other splits
 
 [![2013-05-25 13_18_41-MarkdownPad 2](http://onoffswitch.net/wp-content/uploads/2013/05/2013-05-25-13_18_41-MarkdownPad-2.png)](http://onoffswitch.net/wp-content/uploads/2013/05/2013-05-25-13_18_41-MarkdownPad-2.png)
 
-[code]  
+```
+  
 The entropy for axis "has flippers" value "yes" is 0.800000011920929  
 The entropy for axis "has flippers" value "no" is 0  
-[/code]
+
+```
 
 So while splitting on "has flippers" with the value of "no" gives us a zero entropy, splitting on the value "yes" gives a higher entropy (0.8) than splitting on "can survive without surfacing" with a value of "yes" (0.5509). In this case, splitting on "can survive" is a better split.
 
@@ -262,18 +282,21 @@ Once you have the best axis to split on, building the tree comes together easily
 
 A tree is just a leaf, or some branches
 
-[csharp]  
+```csharp
+  
 public class Tree  
 {  
  public Output Leaf { get; set; }
 
 public Dictionary\<Feature, Tree\> Branches { get; set; }  
 }  
-[/csharp]
+
+```
 
 And to build the tree, recurse and build until all instances are of the same class, or all instances only have one feature left
 
-[csharp]  
+```csharp
+  
 public class DecisionTreeSet  
 {  
  //...  
@@ -385,7 +408,8 @@ public IEnumerable\<Feature\> UniqueFeatures()
  return Instances.SelectMany(f =\> f.Features).DistinctBy(f =\> f.Axis + f.Value).ToList();  
  }  
 }  
-[/csharp]
+
+```
 
 ## Testing it
 
@@ -395,7 +419,8 @@ Using my decision tree, I've built a classifier using the [car evaluation](http:
 
 First, lets parse the data set. I made a generic line reader class that can handle emitting data sets for static files
 
-[csharp]  
+```csharp
+  
 public abstract class LineReader : IParser  
 {  
  public DecisionTreeSet Parse(string file)  
@@ -418,11 +443,13 @@ return set;
 
 protected abstract Instance ParseLine(string line);  
 }  
-[/csharp]
+
+```
 
 And implement the line parser for this set
 
-[csharp]  
+```csharp
+  
 public class Car : LineReader  
 {  
  protected override Instance ParseLine(string line)  
@@ -451,11 +478,13 @@ return new Instance
  };  
  }  
 }  
-[/csharp]
+
+```
 
 Finally to build the tree
 
-[csharp]  
+```csharp
+  
 [Test]  
 public void TestCar()  
 {  
@@ -471,7 +500,8 @@ foreach (var instance in set.Instances)
  Assert.That(Tree.ProcessInstance(tree, instance).Value, Is.EqualTo(instance.Output.Value));  
  }  
 }  
-[/csharp]
+
+```
 
 Which gives us a pretty big tree. `Tree.ProcessInstance` takes a tree and a sample instance and returns you the class. The test runs through all the sample data and validates that the tree returns the appropriate output.
 

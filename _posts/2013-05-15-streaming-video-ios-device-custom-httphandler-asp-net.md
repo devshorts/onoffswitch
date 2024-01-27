@@ -36,7 +36,8 @@ Anyways, streaming a file from the static handler worked fine though, so what wa
 
 From the static handler I'd get this:
 
-[code]  
+```
+  
 HTTP/1.1 200 OK  
 Content-Type video/mp4  
 Last-Modified Wed, 15 May 2013 20:59:30 GMT  
@@ -46,11 +47,13 @@ Server Microsoft-IIS/7.5
 X-Powered-By ASP.NET  
 Date Wed, 15 May 2013 21:23:41 GMT  
 Content-Length 2509720  
-[/code]
+
+```
 
 And for my dynamic handler I got this:
 
-[code]  
+```
+  
 HTTP/1.1 200 OK  
 Cache-Control private  
 Content-Type video/mp4  
@@ -59,7 +62,8 @@ X-AspNet-Version 4.0.30319
 X-Powered-By ASP.NET  
 Date Wed, 15 May 2013 21:22:55 GMT  
 Content-Length 2509720  
-[/code]
+
+```
 
 So all that was missing was ETag and Accept-Ranges.
 
@@ -75,12 +79,14 @@ The second thing that was different was the Accept-Ranges header. This turns out
 
 However, it's up the server to tell the client that it supports range requests. So, once I added this into the header
 
-[csharp]  
+```csharp
+  
 context.Response.Headers.Add("Accept-Ranges", "bytes");  
 context.Response.Headers.Add("ETag", HashUtil.QuickComputeHash(target));  
 context.Response.ContentType = "video/mp4";  
 context.Response.TransmitFile(target);  
-[/csharp]
+
+```
 
 Everything started to work. Now, I'm not actually handling range requests though. I need to test with a huge file and kill the connection and see what happens. But, even then, all that requires is [testing the request headers](http://stackoverflow.com/questions/4330023/detecting-byte-range-requests-in-net-httphandler) and parsing for the byte range it wants to send out.
 

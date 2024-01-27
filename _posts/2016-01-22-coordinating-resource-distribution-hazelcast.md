@@ -31,13 +31,15 @@ To solve this, I've clustered the cassieq instances together using [hazelcast](h
 
 For the impatient you can get [dalloc](https://github.com/paradoxical-io/dalloc) from
 
-[java]  
+```java
+  
 \<dependency\>  
  \<groupId\>io.paradoxical\</groupId\>  
  \<artifactId\>dalloc\</artifactId\>  
  \<version\>1.0\</version\>  
 \</dependency\>  
-[/java]
+
+```
 
 The general idea in dalloc is that each node creates a resource allocator who is bound to a resource group name (like "Queues"). Each node supplies a function to the allocator that generates the master set of resources to use, and a callback for when resources are allocated. The callback is so you can wire in async events and when allocations need to be rebalanced outside of a manual invocation (like cluster member/join).
 

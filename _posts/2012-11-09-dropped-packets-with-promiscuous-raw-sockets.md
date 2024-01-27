@@ -159,7 +159,8 @@ Here are the new side by side screenshots of my capture application vs Wireshark
 
 After I had done all this socket research, and already changed my code to use WinPCap, I went back and increased the buffer size as a test and I was able to finally get all the packets I wanted. In the end all I really needed was the following snippet after I had bound my socket.
 
-[c]  
+```cpp
+  
 int bufferLength;  
 int bufferLengthPtrSize = sizeof(int);
 
@@ -174,14 +175,17 @@ setsockopt(socketPtr, SOL\_SOCKET, SO\_RCVBUF, (char \*)&buffsize, sizeof(buffsi
 getsockopt(socketPtr, SOL\_SOCKET, SO\_RCVBUF, (char \*)&bufferLength, &bufferLengthPtrSize);
 
 printf("updated socket buffer bytes %dn", bufferLength);  
-[/c]
+
+```
 
 This prints out:
 
-[c]  
+```cpp
+  
 default socket buffer bytes 8192  
 updated socket buffer bytes 50000  
-[/c]
+
+```
 
 Though while this did work, I'm glad I went with WinPCap since depending on socket throughput I might still have run into issues.
 

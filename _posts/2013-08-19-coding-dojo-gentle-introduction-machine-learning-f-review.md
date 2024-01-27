@@ -38,7 +38,8 @@ In the end, if you followed his steps, in a span of under 2 hours, even a novice
 
 I wanted to share my version of his classifer which is based off of Mathias' well guided steps.
 
-[fsharp]  
+```fsharp
+  
 open System  
 open System.IO
 
@@ -96,7 +97,8 @@ let accuracy trainingSet validationSet k =
 
 let training = train @"C:\Projects\Personal2\DcDojo\DcDojo\trainingsample.csv"  
 let validation = train @"C:\Projects\Personal2\DcDojo\DcDojo\validationsample.csv"  
-[/fsharp]
+
+```
 
 Had I written this without following his steps I probably would have inlined a lot of the simple helper functions, but I wanted to show how Mathias really brought the "_start small, build big_" mentality to the project. This is something that really works well in functional languages and I think all the meetup participants picked up on that.
 

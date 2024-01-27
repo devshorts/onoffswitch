@@ -45,7 +45,8 @@ Returning to the client all you need to send back is the _hash_ and how many ite
 
 Something maybe like this
 
-[scala]  
+```scala
+  
 case class BatchItemGroupId(value: UUID) extends UuidValue
 
 object BatchItemId {  
@@ -68,7 +69,8 @@ case class BatchItemId(value: String) extends StringValue {
 }
 
 case class BatchId(value: Long) extends LongValue  
-[/scala]
+
+```
 
 We also need an abstraction on top of a byte array that lets us toggle bits in it. It also lets you count how many bits are set. We'll need to know that so we can answer the question of "is this subgroup hash empty". I've shown bitmasking but I can show it again [at this gist](https://gist.github.com/devshorts/df36b7f042d8f64df382efb1a43c898a).
 

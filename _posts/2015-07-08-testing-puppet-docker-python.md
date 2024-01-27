@@ -40,10 +40,12 @@ To do that, I wrote [puppety](https://github.com/devshorts/Puppety). It's really
 
 If you look at the git repo, you'll see there are two main folders:
 
-[code]  
+```
+  
 /data  
 /test  
-[/code]
+
+```
 
 The `/data` folder is going to map to the `/etc/puppet` folder on our puppet master. It should contain all the stuff we want to deploy as if we plopped that whole folder onto the puppet root.
 
@@ -53,7 +55,8 @@ The test folder contains the python test runners, as well as the dockerized cont
 
 If you have a node configuration in an environment you can test a node by annotating it like so:
 
-[code]  
+```
+  
 # node-test: jenkins/test-server  
 node "test.foo.com" {  
  file {'/tmp/example-ip': # resource type file and filename  
@@ -62,13 +65,15 @@ node "test.foo.com" {
  content =\> "Here is my Public IP Address: ${ipaddress\_eth0}.\n", # note the ipaddress\_eth0 fact  
  }  
 }  
-[/code]
+
+```
 
 Lets say this node sits in a definition file in `/etc/puppet/environments/develop/manifests/nodes/jenkins.pp`
 
 Our test runner can pick up that we asked to test the jenkins node, and template our manifests such that during run time the actual node definition looks like
 
-[code]  
+```
+  
 # node-test: jenkins/test-server  
 node /docker\_host.\*/ {  
  file {'/tmp/example-ip': # resource type file and filename  
@@ -77,7 +82,8 @@ node /docker\_host.\*/ {
  content =\> "Here is my Public IP Address: ${ipaddress\_eth0}.\n", # note the ipaddress\_eth0 fact  
  }  
 }  
-[/code]
+
+```
 
 Now, when the dockerized puppet container connects, it assumes the role of the jenkins node!
 
@@ -87,7 +93,8 @@ We are also structuring our puppet scripts in terms of roles. Roles using a cust
 
 To support this, we can annotate role tests like so
 
-[code]  
+```
+  
 node default {  
  case $node\_role{  
  # role-test: roles/slave-test  
@@ -108,7 +115,8 @@ node default {
  }  
  }  
 }  
-[/code]
+
+```
 
 When the `roles/slave-test` gets run the test runner will add the role `slave` to the right file, such that when the container connects it'll assume that role.
 
@@ -162,9 +170,11 @@ To deploy we have cron job on the puppet master to pull back our puppet scripts 
 
 Sometimes using puppety goes wrong and it's nice to see whats going on. Because each container exposes an entrypoint script we can pass in a debug flag to get access to a shell so we can run the tests manually:
 
-[code]  
+```
+  
 $ docker run -it -h docker\_host -v ~/tmp/:/opt/local/tmp puppet-tests/puppet-agent --debug /bin/bash  
-[/code]
+
+```
 
 Now we can execute the entrypoint by hand, or run puppet by hand and play around.
 

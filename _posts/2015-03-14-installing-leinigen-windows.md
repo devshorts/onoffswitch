@@ -22,7 +22,8 @@ permalink: "/2015/03/14/installing-leinigen-windows/"
 ---
 Figured I'd spend part of the afternoon and play with clojure but was immediately thwarted trying to install [leiningen](http://leiningen.org/) on windows via powershell. I tried the msi installer but it didn't seem to do anything, so I went to my `~/.lein/bin` folder and ran
 
-[code]  
+```
+  
 .lein\bin\> .\lein.bat self-install  
 Downloading Leiningen now...  
 SYSTEM\_WGETRC = c:/progra~1/wget/etc/wgetrc  
@@ -36,7 +37,8 @@ To connect to github.com insecurely, use `--no-check-certificate'.
 Unable to establish SSL connection.
 
 Failed to download https://github.com/technomancy/leiningen/releases/download/2.5.1/leiningen-2.5.1-standalone.zip  
-[/code]
+
+```
 
 Hmm, thats weird. For some reason the cert isn't validating with wget (that I have installed via Gow).
 
@@ -46,7 +48,8 @@ Since I have gow in my path wget comes up first, so I just switched around the o
 
 The relevant section in the lein.bat file is
 
-[code]  
+```
+  
 :DownloadFile  
 rem parameters: TargetFileName Address  
 if NOT "x%HTTP\_CLIENT%" == "x" (  
@@ -71,7 +74,8 @@ if NOT ERRORLEVEL 1 (
  call wget -O %1 %2  
  goto EOF  
 )  
-[/code]
+
+```
 
 Once the self install completes now lein is available.
 

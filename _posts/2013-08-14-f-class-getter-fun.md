@@ -30,7 +30,8 @@ The issue was that I didn't realize that f# class members are always deferred. I
 
 My code looked like this:
 
-[fsharp]  
+```fsharp
+  
 module Connection =  
  type Connection (dbUrl) =
 
@@ -41,7 +42,8 @@ member x.create item = x.client.Create item
 member x.connect() =  
  x.client.Connect()  
  x  
-[/fsharp]
+
+```
 
 If I had more experience with F# I probably would have spotted this right away, but it took me a while to figure out what was going on. The issue here is
 
@@ -103,7 +105,8 @@ Clear as day now. Each time you call the property it returns a new instance. I h
 
 The fix was easy:
 
-[fsharp]  
+```fsharp
+  
 module Connection =  
  type Connection (dbUrl) =
 
@@ -116,11 +119,13 @@ member x.create item = x.client.Create item
 member x.connect() =  
  x.client.Connect()  
  x  
-[/fsharp]
+
+```
 
 Which now generates
 
-[csharp]  
+```csharp
+  
  [AutoOpen]  
  [CompilationMapping(SourceConstructFlags.Module)]  
  public static class Connection  
@@ -157,7 +162,8 @@ public Connection.Connection connect()
  }  
  }  
  }  
-[/csharp]
+
+```
 
 That's more like it
 

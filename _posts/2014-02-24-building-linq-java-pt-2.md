@@ -28,7 +28,8 @@ But if you want to do a transformation like a map, you need to project the input
 
 The following iterator handles projecting from a source to a result type and yields an enumerable iterator of the result type.
 
-[java]  
+```java
+  
 package com.devshorts.enumerable.iterators;
 
 import java.util.function.Function;
@@ -64,11 +65,13 @@ this.projection = projection;
  return projection.apply((TSource)source.next());  
  }  
 }  
-[/java]
+
+```
 
 It's exposed in the main base class by passing in a projection function
 
-[java]  
+```java
+  
 public \<TResult\> Enumerable\<TResult\> map(Function\<TSource, TResult\> mapFunc){  
  return enumerableWithIterator(source -\>  
  new MapIterator\<TSource, TResult\>(source, i -\> mapFunc.apply(i)));  
@@ -77,7 +80,8 @@ public \<TResult\> Enumerable\<TResult\> map(Function\<TSource, TResult\> mapFun
 private \<TResult\> Enumerable\<TResult\> enumerableWithIterator(Function\<Iterable\<TSource\>, Iterator\<TResult\>\> generator){  
  return new Enumerable\<\>(\_ig -\> generator.apply(this));  
 }  
-[/java]
+
+```
 
 So enumerableWithIterator takes a function that returns an iterable, and wraps a new Enumerable fluent type to wrap the current iterator source (this). The "\_ig" parameter is ignored, hence the name.
 
@@ -89,7 +93,8 @@ First lets check the flat map iterator. We need to consume each underlying list,
 
 Note how the flat map iterator inherits from the map iterator. The reason for this is that if we want to project from one type to another we need to inherit from a class that exposes two generic types. The basic EnumerableIterator only exposes one generic. We could have inherited from that as well and added the extra generics, but I think it was nicer to group maps in a map inheritance tree, and everything else under the basic class.
 
-[java]  
+```java
+  
 package com.devshorts.enumerable.iterators;
 
 import java.util.List;  
@@ -142,7 +147,8 @@ public TResult next() {
  return item;  
  }  
 }  
-[/java]
+
+```
 
 ## Other fun iterators
 
@@ -150,7 +156,8 @@ Since we have basic sequence manipulators and element transformations, we can do
 
 Technically intersperse is a subset of intercalate (terms taken from Haskells Data.List package). Intercalate will put in the elements of another list inbetween the elements of the first list. To get intersperse you pass in an array of size one:
 
-[java]  
+```java
+  
 public class IntercalateIterator\<TSource\> extends EnumerableIterator\<TSource\> {  
  private List\<TSource\> intercalator;
 
@@ -195,23 +202,29 @@ return n;
  }
 
 }  
-[/java]
+
+```
 
 And check windowed. This yields a list of lists where each list is a sliding window of size N across the source list. If you a have a list
 
-[code]  
+```
+  
 1;2;3;4  
-[/code]
+
+```
 
 And you apply a window of size 2, you will get
 
-[code]  
+```
+  
 [[1;2], [2;3], [3;4]]  
-[/code]
+
+```
 
 This can be pretty handy in some scenarios
 
-[java]  
+```java
+  
 package com.devshorts.enumerable.iterators;
 
 import java.util.Iterator;  
@@ -275,13 +288,15 @@ private Iterator\<TSource\> it(){
  }
 
 }  
-[/java]
+
+```
 
 ## Using it
 
 Using these features is now really easy, here are some sample tests that demonstrate our new iterators
 
-[java]  
+```java
+  
 @Test  
 public void FlatMap(){  
  assertEquals(asList("5", "4", "3", "2", "1"),  
@@ -307,5 +322,6 @@ public void Windowed(){
  .toList());  
 }
 
-[/java]
+
+```
 

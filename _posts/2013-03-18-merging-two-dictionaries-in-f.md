@@ -23,7 +23,8 @@ permalink: "/2013/03/18/merging-two-dictionaries-in-f/"
 ---
 If you ever need to merge two immutable dictionaries (maps) that may share the same key, here is how I did it
 
-[fsharp]  
+```fsharp
+  
 let mapMerge group1 group2 appender =  
  group1 |\> Seq.fold(fun (acc:Map\<'a,'b\>) (KeyValue(key, values)) -\>  
  match acc.TryFind key with  
@@ -34,13 +35,16 @@ let mapMerge group1 group2 appender =
 // Map\<string, seq\<string\>\>  
 // then the appender deals with how to merge duplicate keys  
 let joinMaps = mapMerge map1 map2 Seq.append  
-[/fsharp]
+
+```
 
 It doesn't matter which group you treat as the source and which group you treat as the seed since you are creating a new dictionary out of the two. By pre-seeding the fold with one of the dictionaries you know that the accumulator will already have some of the values you want. The map will iterate over the second dictionary (used as the source). All you need to do is pull out the data from the dictionary if it exists, and if so return a new dictionary that adds the elements to the accumulator again. By injecting a custom "key conflict" resolver you can merge any kind of item. For my example, I have a map of type
 
-[fsharp]  
+```fsharp
+  
 Map\<string, seq\<string\>\>  
-[/fsharp]
+
+```
 
 Which is why I injected the `Seq.append` function. The types don't need to be specified in the sequence fold, I just put them there to be explicit for the post.
 

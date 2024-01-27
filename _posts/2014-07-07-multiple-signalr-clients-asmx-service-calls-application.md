@@ -25,12 +25,14 @@ I was writing a test application to simulate what multiple signalR clients to a 
 
 I had coupled the asmx calling code into a test class for a signalR client, so each class was responsible for its internal signalR connection as well as its outgoing asmx calls. When I had one class everything worked great. But the moment I had two classes running (i.e 2 signalR connections and 2+ asmx connections) everything locked up. I couldn't figure out what was going on. The signalR clients had connected but all the asmx calls stopped making it through, and eventually I got errors like this:
 
-[csharp]  
+```csharp
+  
 System.Net.WebException: The operation has timed out  
 at System.Net.HttpWebRequest.GetRequestStream(TransportContext& context)  
 at System.Net.HttpWebRequest.GetRequestStream()  
 at System.Web.Services.Protocols.SoapHttpClientProtocol.Invoke(String methodName, Object[] parameters)  
-[/csharp]
+
+```
 
 At first I thought maybe the server was rejecting calls or was overloaded somehow. It didn't make any sense since it was only 4 connections, but I was testing against a server with other live connections so I figured I'd rule that option out. But when I looked at the IIS logs of the server I didn't even see any incoming connections. No 503 errors were generated, nothing indicated that the calls were even making it outbound from the client.
 
@@ -52,7 +54,9 @@ Turns out since I was connecting all the signalR clients and the asmx calls thro
 
 I added
 
-[csharp]ServicePointManager.DefaultConnectionLimit = 10;[/csharp]
+```csharp
+ServicePointManager.DefaultConnectionLimit = 10;
+```
 
 to the start of my application and everything worked out great.
 

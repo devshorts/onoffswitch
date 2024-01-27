@@ -30,26 +30,31 @@ We all know that it's smart to create helper and utility classes when faced with
 
 I use this one everywhere! It seems silly, but this may be the most used helper function in our entire application.
 
-[csharp]  
+```csharp
+  
 public static function isEmpty(list:IList):Boolean {  
  return list == null || list.length == 0;  
 }  
-[/csharp]
+
+```
 
 ## Flatten a list into a delimited string
 
 It's handy to be able to say given a list of objects, print out a comma (or delimiter) seperated string representing that list. This function takes a list, a function that formats each item, and an optional delimiter. An example usage is:
 
-[csharp]  
+```csharp
+  
 var foldedString:String = foldToDelimitedList(listOfUsers,  
  function(item:Object):String{  
  return (item as UserData).userName;  
  });  
-[/csharp]
+
+```
 
 Which would give you something like "user1, user2, user3".
 
-[csharp]  
+```csharp
+  
 public static function foldToDelimitedList(vals:ArrayCollection, formatter:Function, delim:String = ", "):String{  
  var retString:String = "";  
  var count:int = 0;  
@@ -64,19 +69,23 @@ if(count \< vals.length){
  }  
  return retString;  
 }  
-[/csharp]
+
+```
 
 ## Find an item in a list
 
 This one is handy when you want to know if something is in a list based on a certain property. If it finds the item it will return to you the index it found. You use it like this:
 
-[csharp]  
+```csharp
+  
 var index:int = findItem(list, "someProperty", "expectedPropertyValue");  
-[/csharp]
+
+```
 
 For an element whose property `someProperty` matches the value `expectedPropertyValue`, it will return the first found index.
 
-[csharp]  
+```csharp
+  
 public static function findItem(dataProvider:Object, propName:String, value:Object, useLowerCase:Boolean = false):int {
 
 if (value == null) {  
@@ -104,5 +113,6 @@ if (loopValue == value || (useLowerCase && loopValue.toString().toLocaleLowerCas
  }  
  return -1;  
 }  
-[/csharp]
+
+```
 

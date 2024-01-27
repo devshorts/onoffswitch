@@ -28,13 +28,15 @@ One thing we have been using at my work and at paradoxical is a simple java base
 
 Assuming you have a folder in your application that stores db scripts like
 
-[code]  
+```
+  
 db/scripts/01\_init.cql  
 db/scripts/02\_add\_thing.cql  
 ..  
 db/sripts/10\_migrate\_users.cql  
 ..  
-[/code]
+
+```
 
 Then each script corresponds to a particular db version state. It's current state depends on all previous states. Our cassandra loader tracks db versions in a `db_version` table and lets you apply runners against a keyspace to move your schema (and data) to the target version. If your db is already at a version it does nothing, or if your db is a few versions back the runner will only run the required versions to get you to latest (or to the version number you want).
 
@@ -42,15 +44,18 @@ Taking this one step further, when working at least in Java we have the luxury o
 
 One thing our cassandra loader can do is be run in library mode, where you give it the same set of db scripts and you can build a fresh db for your integration tests:
 
-[java]  
+```java
+  
 public static Session create() throws Exception {  
  return CqlUnitDb.create("../db/scripts");  
 }  
-[/java]
+
+```
 
 Running the loader in standalone mode (by downloading the `runner` [maven classifier](https://repo1.maven.org/maven2/io/paradoxical/cassandra.loader/1.1)) lets you run the migration runner in your console:
 
-[code]  
+```
+  
 \> java -jar cassandra.loader-runner.jar
 
 Unexpected exception:Missing required options: ip, u, pw, k  
@@ -65,7 +70,8 @@ usage: Main
  data will be deleted!  
  -u,--username \<arg\> Cassandra Username  
  -v,--upgrade-version \<arg\> Upgrade to Version  
-[/code]
+
+```
 
 The advantage to unifying all of this is that you can test your db scripts in isolation and be confident that they work!
 

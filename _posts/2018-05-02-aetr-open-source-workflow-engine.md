@@ -37,7 +37,8 @@ The primary building blocks in AETR are
 
 A step tree is literally a tree structure that represents what a sequence of steps is. Leaf nodes in the tree are all API actions, and parent nodes in the tree are either a sequential or a parallel parent. What this means is you can have trees like this:
 
-[code lang=text]  
+```text
+  
 Sequential  
  |- Sequential  
  |- API1  
@@ -45,13 +46,15 @@ Sequential
  |- Parallel  
  |- API3  
  |- API4  
-[/code]
+
+```
 
 In this tree the root is sequential, which means its child nodes must run... sequentially. The first child is also a sequential parent, so the ordering of this node is the execution of `API1` followed by `API2` when `API1` completes. When that branch completes, the next branch can execute. That branch is parallel, so both `API3` and `API4` execute concurrently. When both complete, the final root node is complete!
 
 Int the nomenclature of AETR when you go to run a step tree, it becomes a run tree. A run tree is the same tree as a step tree but includes information such as state, timing, inputs/outputs, etc. For example:
 
-[code lang=scala]  
+```scala
+  
 case class Run(  
  id: RunInstanceId,  
  var children: Seq[Run],  
@@ -67,7 +70,8 @@ case class Run(
  var input: Option[ResultData] = None,  
  var output: Option[ResultData] = None  
 )  
-[/code]
+
+```
 
 ## DB layer
 
@@ -77,7 +81,8 @@ Step trees related to run trees are a bit more complicated to rebuild since step
 
 Here's an example of rebuilding a step tree:
 
-[code lang=scala]  
+```scala
+  
 def getStep(stepTreeId: StepTreeId): Future[StepTree] = {  
  val idQuery = sql"""  
  WITH RECURSIVE getChild(kids) AS (  
@@ -103,7 +108,8 @@ provider.withDB(nodesQuery.withPinnedSession).map {
 allSteps.find(\_.id == stepTreeId).get  
  }  
  }  
-[/code]
+
+```
 
 We can use a recursive CTE in postgres to find all the children starting at a given tree id, then we can slurp those childrens identities and rebuild the graph in memory.
 

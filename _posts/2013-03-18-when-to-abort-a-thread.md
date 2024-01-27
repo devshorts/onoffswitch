@@ -34,7 +34,8 @@ When I'm faced with this kind of a prospect, and I certainly don't come across t
 
 Here is `RunWithTimeout` and I hope the block comment is pretty clear.
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// Helper function to wrap actions within another thread and test to see how long its run.  
 /// Only allows the Action() to run within the alloted time or it'll abort the wrapped thread.  
@@ -90,13 +91,15 @@ Thread.Sleep(TimeSpan.FromMilliseconds(checkTimeMs));
  return false;  
  }  
 }  
-[/csharp]
+
+```
 
 The basic idea here is to spin up two threads. One that does the actual work, and another to wait for a period of time, check if the first thread is done, and if not, forcibly abort it.
 
 And here is an NUnit test to demonstrate it. We're going to set a timeout of one second, but have our sandboxes function wait for two seconds. This means the sandbox function should be aborted since it's taking too long. We can then test to see how long we blocked for (it should be around one second) and validate that `RunWithTimeout` returned `false` indicating that it uncleanly exited and was aborted.
 
-[csharp]  
+```csharp
+  
 [Test]  
 public void TestTimeout()  
 {  
@@ -119,5 +122,6 @@ private static void WaitAction(TimeSpan wait)
 {  
  Thread.Sleep(wait);  
 }  
-[/csharp]
+
+```
 

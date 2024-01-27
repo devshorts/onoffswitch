@@ -32,7 +32,8 @@ I don't have much experience with Scala (I skimmed a Scala book and wrote a hell
 
 An example I used in our talk today was
 
-[fsharp]  
+```fsharp
+  
 let (|Pattern1|\_|) i =  
  if i = 0 then Some(Pattern1) else None
 
@@ -45,11 +46,13 @@ let activePatternTest () =
  | Pattern1 -\> printf "pattern1"  
  | Pattern2 -\> printf "pattern2"  
  | \_ -\> printf "something else"  
-[/fsharp]
+
+```
 
 Which really drives the point home that you can do custom work in your pattern match and hide it away from the user. Another, more real world, example is how I matched on regular expressions in my [parsec clone](https://github.com/devshorts/ParsecClone) project
 
-[fsharp]  
+```fsharp
+  
 let (|RegexStr|\_|) (pattern:string) (input:IStreamP\<string, string\>) =  
  if String.IsNullOrEmpty input.state then None  
  else  
@@ -60,18 +63,21 @@ let (|RegexStr|\_|) (pattern:string) (input:IStreamP\<string, string\>) =
  |\> List.head)  
  else  
  None  
-[/fsharp]
+
+```
 
 Which can be used to hide away regular expression pattern matching. The usage of this would now be:
 
-[fsharp]  
+```fsharp
+  
 member x.regexMatch (input:IStreamP\<string, string\>) target =  
  if String.IsNullOrEmpty input.state then None  
  else  
  match input with  
  | RegexStr target result -\> Some(result.Length)  
  | \_ -\> None  
-[/fsharp]
+
+```
 
 Nice and clean, just the way I like it.
 

@@ -34,7 +34,8 @@ To clarify what's going on with computation expressions, I wanted to show what i
 
 Let's start with a small sample to see how information passes through the workflow. This makes it easier to understand what computation expressions are doing:
 
-[fsharp]  
+```fsharp
+  
 open System
 
 type State =  
@@ -66,31 +67,37 @@ let rec formatState (chain:State) =
 formatState stateChain
 
 Console.ReadKey() |\> ignore  
-[/fsharp]
+
+```
 
 Which prints out
 
-[csharp]  
+```csharp
+  
 State: 1  
 State: 2  
 State: 3  
-[/csharp]
+
+```
 
 ## Desugaring
 
 Before we trace through what's happening, lets desugar the expression. If you aren't familiar with the bang syntax, a let! statement will compile into an execution on the builders Bind function and a return will compile into an execution on the builders Return function. Let's take the original expression:
 
-[fsharp]  
+```fsharp
+  
 let build \_ = builder{  
  let! x = 1  
  let! y = 2  
  return 3  
  }  
-[/fsharp]
+
+```
 
 And show the same thing but without the syntactic sugar.
 
-[fsharp]  
+```fsharp
+  
 let desugared =  
  builder.Bind(1, fun next -\>  
  let x = next // next = 1 since we took the input value of the bind,  
@@ -112,7 +119,8 @@ terminatedState
  // State.Current(2, State.Current(3, State.Terminated))  
  returnedState  
  )  
-[/fsharp]
+
+```
 
 The important thing to understand here is how the let! statement is deconstructed. The right hand side is the `value` input to the bind. Everything below the let! statement (and including the left hand side of the assignment), is inside of the bind lambda (passed to the `rest` argument of the bind function). The first thing the lambda does is actually apply the left hand side assignment with the input from the bind. In this case, the first let! statement assigns `x = 1`. Then it executes the remaining function, being the other let! and return statements.
 
@@ -138,18 +146,22 @@ The right hand side is going to be applied to the `value` argument of the bind f
 
 Go back and look at how we've defined the bind function:
 
-[fsharp]  
+```fsharp
+  
 member this.Bind(value:int, rest:int-\>State) =  
  State.Current((value, rest(value)))  
-[/fsharp]
+
+```
 
 Here the `value` argument is 1. The second argument, `rest`, is the lambda. The lambda is going to have to return a `State` union since `State.Current` expects an integer, State tuple.
 
 When we execute the lambda inside the bind we pass the value (1) to the lambda, but we've also captured the current value. This means that this bind is going to return:
 
-[fsharp]  
+```fsharp
+  
 State.Current(1, rest(1))  
-[/fsharp]
+
+```
 
 So here we apply the value to the function
 
@@ -161,52 +173,66 @@ This is where the left hand side statement (x) now gets assigned.
 
 Now what about
 
-[fsharp]  
+```fsharp
+  
 builder.Return(2)  
-[/fsharp]
+
+```
 
 Remember we defined the return function to return
 
-[fsharp]  
+```fsharp
+  
 member this.Return(returnValue:int) = State.Current(returnValue, State.Terminated)  
-[/fsharp]
+
+```
 
 So with our simplified example this will return
 
-[fsharp]  
+```fsharp
+  
 State.Current(2, State.Terminated)  
-[/fsharp]
+
+```
 
 The previous lambda now returns that same value, since that's the last line of the statement. So we're back now to the original bind function:
 
-[fsharp]  
+```fsharp
+  
 member this.Bind(value:int, rest:int-\>State) =  
  State.Current((1, rest(1)))  
-[/fsharp]
+
+```
 
 But `rest(1)` returns `State.Current(2, State.Terminated)`. Our final builders return value, in this example, is
 
-[fsharp]  
+```fsharp
+  
 State.Current(1, State.Current(2, State.Terminated))  
-[/fsharp]
+
+```
 
 All the computation builder syntax is doing is just sugaring our statements up to give us these broken up functions.
 
 Back to the original sample. We added a second `let!` statement in there:
 
-[fsharp]  
+```fsharp
+  
 let build \_ = builder{  
  let! x = 1  
  let! y = 2  
  return 3  
  }  
-[/fsharp]
+
+```
 
 Now, hopefully, you should be able to see how the final return from the computation expression is a state object representing what happened in the monad:
 
-[fsharp]  
+```fsharp
+  
 State.Current(1, State.Current(2, State.Current(3, State.Terminated)))  
-[/fsharp]
+
+```
 
 ## Combine and Yield
 
@@ -214,7 +240,8 @@ Computation expressions have more than just let! and return statements though. O
 
 In general, there is a bunch of reserved syntax that maps to specific builder functions. The [msdn](http://msdn.microsoft.com/en-us/library/dd233182.aspx) on computation syntax has these all defined.
 
-[fsharp]  
+```fsharp
+  
 open System
 
 type BuildTest() =  
@@ -244,13 +271,15 @@ let run = build()
 let monader = printf "%s" ("got " + run.ToString())
 
 Console.ReadKey() |\> ignore  
-[/fsharp]
+
+```
 
 This snippet evaluates to 12.
 
 You can even add precedence by evaluating a computation expression within the computation expressions
 
-[fsharp]  
+```fsharp
+  
 builder{  
  yield m.mult 2 // 2 \* (1 + (8 + 0))  
  yield m.add 1 // 1 + (8 + 0)
@@ -264,7 +293,8 @@ yield m.add parenth // 8 + 0
 
 return 0 // 0  
 }  
-[/fsharp]
+
+```
 
 Which evaluates to 18.
 
@@ -272,7 +302,8 @@ Which evaluates to 18.
 
 Just like before, there's a bunch of magic going on here, so it's easier if you follow along with the desugared version of the original arithmetic expression below.
 
-[fsharp]  
+```fsharp
+  
 let desugared = builder.Delay(  
  fun () -\> builder.Combine(builder.Yield(m.mult 2),  
  builder.Delay(  
@@ -283,7 +314,8 @@ let desugared = builder.Delay(
  fun() -\> builder.Combine(builder.Yield(m.add 3),  
  builder.Delay(  
  fun() -\> builder.Return(0))))))))))  
-[/fsharp]
+
+```
 
 Each monadic function is wrapped in a `Delay`, which promptly executes it. Look at the builder's delay declaration - it takes a function and executes it.
 
@@ -299,7 +331,8 @@ If you are confused why this example's desguaring contains the Delay method and 
 
 When you [decompile](http://www.jetbrains.com/decompiler/) a computation expression, each monadic function gets compiled into it's own class representing a monad. In our arithmetic operation example, this is a Combine, Yield, Delay trio. It's not easy to read since the function names have been mangled, but you can see the general pattern here (formatting added).
 
-[csharp]  
+```csharp
+  
 [Serializable]  
 internal class runu004089 : FSharpFunc\<Unit, int\>  
 {  
@@ -316,15 +349,18 @@ public override int Invoke(Unit unitVar0)
  (FSharpFunc\<Unit, int\>) new ExpresionsTest.runu004091u002D2()));  
  }  
 }  
-[/csharp]
+
+```
 
 This decompliation represents the following sub-block.
 
-[fsharp]  
+```fsharp
+  
 builder.Combine(  
  builder.Yield(m.add 2), builder.Delay( (\*next function\*) )  
 )  
-[/fsharp]
+
+```
 
 Notice in the decompiled block that the class name is `runu004089` and the executable expression is compiled into an `Invoke` that returns an int. The decompiled assembly will actually be littered with these classes with mangled names, following a naming format of the target variable name (`run`) and an identifier (`u004089`). You can always decompile the computation expression to get a sense for how it's been desugared.
 

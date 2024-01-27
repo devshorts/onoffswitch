@@ -28,7 +28,8 @@ Back in akka land! I'm using the ask pattern to get results back from actors sin
 
 My final usage should look something like:
 
-[java]  
+```java
+  
 private \<Response, Request\> Future\<Response\> askActorForResponseAsync(Request source) {  
  final FiniteDuration askTimeout = new FiniteDuration(config.getAskForResultTimeout().toMillis(), TimeUnit.MILLISECONDS);
 
@@ -40,25 +41,29 @@ return FutureConverter.fromScalaFuture(ask)
  .executeOn(actorSystem.dispatcher())  
  .thenApply(i -\> (Response) i);  
 }  
-[/java]
+
+```
 
 The idea is that I'm going to translate a scala future with a callback into a completable future java promise.
 
 Next up, the future converter:
 
-[java]  
+```java
+  
 public class FutureConverter {  
  public static \<T\> FromScalaFuture\<T\> fromScalaFuture(scala.concurrent.Future\<T\> future) {  
  return new FromScalaFuture\<\>(future);  
  }  
 }  
-[/java]
+
+```
 
 This is just an entrypoint into a new class that can give you a nice fluent interface to provide the execution context.
 
 Next, a class whose job is to create an akka callback and convert it into a completable future.
 
-[java]  
+```java
+  
 import scala.concurrent.ExecutionContext;  
 import scala.concurrent.Future;
 
@@ -89,20 +94,24 @@ future.onComplete(completer.toScalaCallback(), context);
 return completableFuture;  
  }  
 }  
-[/java]
+
+```
 
 And finally another guy whose job it is to translate java functions into akka callbacks:
 
-[java]  
+```java
+  
 import akka.dispatch.OnComplete;
 
 @FunctionalInterface  
 public interface AkkaOnCompleteCallback\<T\> {  
  OnComplete\<T\> toScalaCallback();  
 }  
-[/java]
 
-[java]  
+```
+
+```java
+  
 import akka.dispatch.OnComplete;  
 import org.slf4j.MDC;
 
@@ -143,5 +152,6 @@ callback.accept(failure, success);
  };  
  }  
 }  
-[/java]
+
+```
 

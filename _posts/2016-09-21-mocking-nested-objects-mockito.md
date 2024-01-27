@@ -24,13 +24,16 @@ permalink: "/2016/09/21/mocking-nested-objects-mockito/"
 ---
 Yes, I know its a code smell. But I live in the real world, and sometimes you need to mock nested objects. This is a scenario like:
 
-[code]  
+```
+  
 when(a.b.c.d).thenReturn(e)  
-[/code]
+
+```
 
 The usual pattern here is to create a mock for each object and return the previous mock:
 
-[code]  
+```
+  
 val a = mock[A]  
 val b = mock[B]  
 val c = mock[C]  
@@ -39,11 +42,13 @@ val d = mock[D]
 when(a.b).thenReturn(b)  
 when(b.c).thenReturn(c)  
 when(c.d).thenReturn(d)  
-[/code]
+
+```
 
 But again, in the real world the signatures are longer, the types are nastier, and its never quite so clean. I figured I'd sit down and solve this for myself once and for all and came up with:
 
-[scala]  
+```scala
+  
 import org.junit.runner.RunWith  
 import org.mockito.Mockito  
 import org.scalatest.junit.JUnitRunner  
@@ -81,13 +86,15 @@ class Child1 {
 class Parent {  
  def getChild1: Child1 = new Child1  
 }  
-[/scala]
+
+```
 
 As you can see in the full test we can create some mocks object, and reference the call chain via extractor methods.
 
 The actual mocker is really pretty simple, it just looks nasty cause of all the lambdas/manifests. All thats going on here is a way to pass the next object to a chain and extract it with a method. Then we can create a mock using the manifest and assign that mock to the source object via the lambda.
 
-[scala]  
+```scala
+  
 import org.mockito.Mockito
 
 object Mocks {  
@@ -117,7 +124,8 @@ def mockChain[Y](idx: Int) = prevMocks(idx).asInstanceOf[Y]
 def head[Y] = mockChain[Y](0)  
  }  
 }  
-[/scala]
+
+```
 
 The main idea here is just to hide away the whole "make b and have it return c" for you. You can even capture all the intermediate mocks in a list (I called it a mock chain), and expose the first element of the list with `head`. With a little bit of scala manifest magic you can even get around needing to pass class files around and can leverage the generic parameter (boy, feels almost like .NET!).
 

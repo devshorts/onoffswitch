@@ -72,13 +72,15 @@ return ()
 
 When I run `cabal build;cabal run` I now get
 
-[code]  
+```
+  
 First name  
 anton  
 Last name  
 kropp  
 "{\"lastName\":\"kropp\",\"firstName\":\"anton\"}"  
-[/code]
+
+```
 
 Certainly JSON, but I want it _pretty_. I found [aeson-pretty](https://hackage.haskell.org/package/aeson-pretty) and gave that a shot. Now I'm doing:
 
@@ -106,13 +108,15 @@ return ()
 
 And I got:
 
-[code]  
+```
+  
 First name  
 anton  
 Last name  
 kropp  
 "{\n \"lastName\": \"kropp\",\n \"firstName\": \"anton\"\n}"  
-[/code]
+
+```
 
 Hmm. I can see that it _should_ be pretty, but it isn't. How come? Lets check out the types:
 
@@ -240,7 +244,8 @@ return ()
 
 Which gives me:
 
-[code]  
+```
+  
 $ cabal build; cabal run  
 Building sample-0.1.0.0...  
 Preprocessing executable 'sample' for sample-0.1.0.0...  
@@ -256,7 +261,8 @@ kropp
  "lastName": "kropp",  
  "firstName": "anton"  
 }  
-[/code]
+
+```
 
 Source available at my [github](https://github.com/devshorts/Playground/tree/master/haskell/aeson-tests)
 

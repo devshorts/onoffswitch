@@ -42,30 +42,39 @@ permalink: "/2013/06/10/fogbugz-priority-prediction-naive-bayes/"
 <p>The naive portion is important to note, because it allows us to use the following property of conditionally independent data:</p>
 <p><img src="http://onoffswitch.net/wp-content/uploads/2013/05/2013-05-31-14_09_56-www.asz_.ymmf_.hu_talata_math_probability_sections_section_2_6.png" alt="Independent product formula" width="354" height="61" class="aligncenter size-full wp-image-3980" /></p>
 <p>What this formula means is that the probability of one thing AND another thing is the probability of each multiplied together. This applies to us since if the text is composed of words, and words are conditionally independent, then we can use the above property to determine the probability of text. In other words, you can expand <em>P(text | spam)</em> to be </p>
-<p>[code]<br />
+<p>```
+<br />
 text = word1 ∪ word2 ∪ word3 ∪ ... ∪ wordN</p>
 <p>P(text | spam) = P(word1 | spam)*P(word2 | spam)...*P(wordN | spam)<br />
-[/code]</p>
+
+```</p>
 <p>The probability of the entire text is the probability of each word multiplied together.</p>
 <h2>Naive Bayes Algorithm Training</h2>
 <p>The goal of training the classifier is to find out what is the probability of a word in a particular class. If we're going to classify the assigned user based on case text, then we need to know what is the probability of a word when the assigned user is "<em>anton kropp</em>", and what is the probability when it is "<em>other developer</em>".</p>
 <p>To train the classifier, you need to have some documents whose class you know. For my example, I need to have a bunch of cases already made who are properly assigned.  Using the training documents you first need to find out what are all the available words in the space.  For this I tokenized the case titles into words without any special tokens (?, !, -, <, >, etc) and I removed <a href="http://www.webconfs.com/stop-words.php" target="_blank" rel="noopener noreferrer">commmon stop words</a>.  The word space is the unique set of all the words in the training documents.</p>
 <p>The next idea is that you treat this word space as a vector.  If I am training the data on two cases with titles "<em>this is broken</em>" and "<em>users don't work</em>",  then the vector will be:</p>
-<p>[code]<br />
+<p>```
+<br />
 [this | is | broken | users | dont | work]<br />
-[/code]</p>
+
+```</p>
 <p>Where the word "this" is in the 0 position, "is" is in position 1, etc.  Next what we need to do is correlate each document's word occurrence to the training word space vector.  If a word exists it'll get incremented in the right position.  For example, with title "<em>this is broken</em>", it's vector will look like</p>
-<p>[code]<br />
+<p>```
+<br />
 [1 1 1 0 0 0]<br />
-[/code]</p>
+
+```</p>
 <p>Indicating it had 1 occurrence of "<em>this</em>", 1 of "<em>is</em>", and 1 of "<em>broken</em>", but zero occurrences of "<em>users</em>", "<em>dont</em>" and "<em>work</em>".  The second title will have</p>
-<p>[code]<br />
+<p>```
+<br />
 [0 0 0 1 1 1]<br />
-[/code]</p>
+
+```</p>
 <p>Next we need to do is go through every class (the assigned users, for example, such as "<em>anton kropp</em>", and "<em>other developer</em>") and divide the count of each word by the total number of words found. This gives you the probability that a certain word occurs in a certain class.</p>
 <h2>Work through an example</h2>
 <p>So lets say I have a document class that represents what I'm using to train my data. The document class is generic, it doesn't really care what it's representing.</p>
-<p>[csharp]<br />
+<p>```csharp
+<br />
 public class Class<br />
 {<br />
     public string Name { get; set; }<br />
@@ -75,10 +84,12 @@ public class Class<br />
     public List&lt;String&gt; Words { get; set; }</p>
 <p>    public Class Class { get; set; }<br />
 }<br />
-[/csharp]</p>
+
+```</p>
 <p>In my example a document is the case. The words represent the tokenized case title, and the class is the thing I am classifying ("<em>anton kropp</em>" or "<em>other developer</em>").</p>
 <p>To build the unique set of vocab in the training space is easy</p>
-<p>[csharp]<br />
+<p>```csharp
+<br />
 /// &lt;summary&gt;<br />
 /// Create a unique set of words in the vocab space<br />
 /// &lt;/summary&gt;<br />
@@ -88,10 +99,12 @@ public static List&lt;string&gt; Vocab(IEnumerable&lt;Document&gt; documents)<br
 {<br />
     return new HashSet&lt;string&gt;(documents.SelectMany(doc =&gt; doc.Words)).ToList();<br />
 }<br />
-[/csharp]</p>
+
+```</p>
 <p>Now to train the data.  We group the documents by class, then create a vector representing the occurance of each word in the space for all the documents in that class. I'm initializing the first vector to use all 1's instead of 0's since we are going to multiply the probability of each word together. If any probability is zero (i.e a word wasn't found), then we'll get a zero for the probability, which isn't really true.  </p>
 <p>I'm using the <a href="http://mathnetnumerics.codeplex.com/" target="_blank" rel="noopener noreferrer">Math.Net numerics</a> vector library to do the vector processing.</p>
-<p>[csharp]<br />
+<p>```csharp
+<br />
 public static TrainedData TrainBayes(List&lt;Document&gt; trainingDocuments)<br />
 {<br />
     var vocab = VocabBuilder.Vocab(trainingDocuments);</p>
@@ -122,11 +135,13 @@ public static TrainedData TrainBayes(List&lt;Document&gt; trainingDocuments)<br 
         Vocab = vocab<br />
     };<br />
 }<br />
-[/csharp]</p>
+
+```</p>
 <p>You may notice the logarithm stuff going on. That's to prevent <a href="http://stackoverflow.com/a/9342513/310196" target="_blank" rel="noopener noreferrer">numeric underflow</a>. Since probabilities will be small decimals, multiplying them all will make them smaller. By taking the logarithm we can maintain the same relative shape of the function, but they get shifted into a different number space. Now multiplying them won't give us underflow.</p>
 <h2>Classifying</h2>
 <p>To classify, we need to multiply the vocab vector of a document by each classes probability vector and add the probabilities up.  Whatever class gives us the highest probability is the class we predict we are</p>
-<p>[csharp]<br />
+<p>```csharp
+<br />
 public static Class Classify(Document document, TrainedData trainedData)<br />
 {<br />
     var vocabVector = document.VocabListVector(trainedData.Vocab);</p>
@@ -144,30 +159,38 @@ public static Class Classify(Document document, TrainedData trainedData)<br />
     }</p>
 <p>    return classified;<br />
 }<br />
-[/csharp]</p>
+
+```</p>
 <h2>Success rate</h2>
 <p>The next step is to test the success rate.  If we have a bunch of documents that are already categorized we can run them back through the classifier.  At that point all that's required is to see if the classifier classifies a document properly or not.  The success rate is important, because if we have a low success rate of classifying documents then either the training set was poor, or the classifier needs other tuning.  Without testing the success rate you can't know how accurate your predictions would be. </p>
 <h2>Back to fogubgz</h2>
 <p>Remember, I want to see if I can auto triage cases.  To do that I need to train the bayes classifier with some known data.  Thankfully, I have over 50,000 cases to use as a my training set.  Fogbugz makes it easy to pull data back since they have an exposed <a href="http://www.fogcreek.com/fogbugz/docs/70/topics/advanced/api.html" target="_blank" rel="noopener noreferrer">web api</a> you can hook into that returns back neatly formatted XML. First log in:</p>
-<p>[code]<br />
+<p>```
+<br />
 curl &quot;http://fogbugz.com/api.asp?cmd=logon&amp;email=myEmail@company.com&amp;password=naivebayes&quot;<br />
-[/code]</p>
+
+```</p>
 <p>Which gives you a token as a response</p>
-<p>[code]<br />
+<p>```
+<br />
 &lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;<br />
 &lt;response&gt;<br />
     &lt;token&gt;<br />
        &lt;![CDATA[5lrnq9c34cjg6h01flg3coe5etj2gg]]&gt;<br />
     &lt;/token&gt;<br />
 &lt;/response&gt;<br />
-[/code]</p>
+
+```</p>
 <p>Next it's easy to query for a bunch of raw cases and pipe it to some file</p>
-<p>[code]<br />
+<p>```
+<br />
 curl &quot;http://fogbugz.com/api.asp?cmd=search&amp;q=openedby:anton&amp;cols=sTitle,sProject,sArea,sPersonAssignedTo,sPriority,events,ixPersonOpenedBy,ixPersonResolvedBy&amp;max=1500&amp;token=5lrnq9c34cjg6h01flg3coe5etj2gg&quot; &gt; anton.xml<br />
-[/code]</p>
+
+```</p>
 <p>This pulls back 1500 cases that I opened with the colums of title, project, area, assigned to, priority, all the edit events, who opened it, and who resolved it.  I chose 1500 only to not have to wait to pull back all 50,000+ cases (though I probably could have).  Also I am limiting my searches to individual users who have opened cases. By doing this I may be able to get some insight in what kind of cases people make. Maybe cases I make are more likely to be assigned to myself. By limiting my training set to a specific category like this I'm inherently creating a pivot.</p>
 <p>After parsing the xml, all you  need to do is transform your fogbugz case to a generic document (that the naive bayes classifier I wrote wants). <code>ToDoc</code> lets me adjust what is the class (in this scenario who the case is assigned to) and what is the predictor text (the case title).  Generalizing the transform lets me reapply the same runner for different combinations of input.</p>
-<p>[csharp]<br />
+<p>```csharp
+<br />
 public void TestParser(string path)<br />
 {<br />
     var parser = new FogbugzXmlParser();</p>
@@ -207,7 +230,8 @@ Console.WriteLine();
 
 Console.WriteLine("Prediction success rate is {0:0.00}%", successRate \* 100);  
 }  
-[/csharp]
+
+```
 
 ## Conclusion
 

@@ -25,16 +25,19 @@ I work on a 64 bit machine but frequently deploy to 32 bit machines. The code I 
 
 When this happens, what you'll get is a message like this:
 
-[code]  
+```
+  
 Unhandled Exception: System.BadImageFormatException: Could not load file or assembly 'Some.dll' or one of its dependencies. An attempt was made to load a program with  
  an incorrect format.  
  at Test.Program.Run(Args args, Boolean fastStart)  
  at Test.ProgramMain(String[] args) in Program.cs:line 36  
-[/code]
+
+```
 
 The first thing I do here is to try and figure out which of these dll's is built at the wrong type. The easiest way I've found to do that is to have a simple app that reflectively loads all the assemblies in a directory and tests their image format:
 
-[csharp]  
+```csharp
+  
 class Program  
 {  
  static void Main(string[] args)  
@@ -114,7 +117,8 @@ static bool ModuleContainsFunction(string moduleName, string methodName)
  [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]  
  extern static IntPtr GetProcAddress(IntPtr hModule, string methodName);  
 }  
-[/csharp]
+
+```
 
 Running the app will print out something like this:
 

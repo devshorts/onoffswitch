@@ -31,7 +31,8 @@ It took a little poking around, but its not that complicated to do. The router m
 
 A full scala example is here:
 
-[scala]
+```scala
+
 
 import akka.actor.\_  
 import akka.routing.\_
@@ -139,5 +140,6 @@ master ! Add
 
 master ! "do work again"  
 }  
-[/scala]
+
+```
 

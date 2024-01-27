@@ -24,15 +24,19 @@ I'm not much of a ruby guy, but I had the inkling to play with it this weekend. 
 
 I came across this [blog post](http://www.sitepoint.com/functional-programming-techniques-with-ruby-part-ii/) that shows that ruby has a way to auto curry lambdas, which is actually pretty awesome. However, I was a little confused by the syntax
 
-[ruby]  
+```ruby
+  
 a.send(fn, b)  
-[/ruby]
+
+```
 
 I'm more used to ML style where you would do
 
-[code]  
+```
+  
 fn a b  
-[/code]
+
+```
 
 So what is `a.send` doing?
 
@@ -44,7 +48,8 @@ If you think of it that way, then `a.send(fn, b)` translates to "execute functio
 
 As an example, this curries the multiplication function:
 
-[ruby]  
+```ruby
+  
 apply\_onContext = lambda do |fn, a, b|  
  a.send(fn, b)  
 end
@@ -52,7 +57,8 @@ end
 mult = apply\_onContext.curry.(:\*, 5)
 
 puts mult.(2)  
-[/ruby]
+
+```
 
 This prints out `10`. First a lambda is created that sends a message to the object 'a' asking it to execute the the function `*` (represented as an [interned string](http://en.wikipedia.org/wiki/String_interning)).
 
@@ -60,7 +66,8 @@ Then we can leverage the curry function to auto curry the lambda for us creating
 
 If we understand message passing we can construct other lambdas now too:
 
-[ruby]  
+```ruby
+  
 class Test  
  def add(x, y)  
  x + y  
@@ -76,7 +83,8 @@ apply\_onClass.curry.(:add, 1)
 end
 
 puts Test.new.addOne.(4)  
-[/ruby]
+
+```
 
 This returns a curried lambda that invokes a message :add on the source object.
 
@@ -96,9 +104,11 @@ Obviously it sucks to leverage exception handling, but hey, still neat.
 
 While nowhere near as succinct as f#
 
-[fsharp]  
+```fsharp
+  
 let addOne = (+) 1  
-[/fsharp]
+
+```
 
 But learning new things about other languages is interesting :)
 

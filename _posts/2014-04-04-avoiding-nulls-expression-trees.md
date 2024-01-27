@@ -33,7 +33,8 @@ For the impatient, full source available at my [github](https://github.com/devsh
 
 Let me demonstrate the final usage first. If all of users properties and methods return null, executing this whole chain would fail starting at the null result of `GetSchool()`. But, by using the Option static class we can safely deconstruct and inspect the expression, returning if the chain is valid, what failed in it, and what was the final value (if one existed).
 
-[csharp]  
+```csharp
+  
 public void TestGetSafe()  
 {  
  var user = new User();
@@ -42,11 +43,13 @@ MethodValue\<string\> name = Option.Safe(() =\> user.GetSchool().District.Street
 
 Assert.IsFalse(name.ValidChain());  
 }  
-[/csharp]
+
+```
 
 The lambda is converted to an expression tree and rebuilt into this glorious mess:
 
-[code]  
+```
+  
 .Lambda #Lambda1\<System.Func`2[NoNulls.Tests.SampleData.User,Devshorts.MonadicNull.MethodValue`1[System.String]]\>(NoNulls.Tests.SampleData.User $u)  
 {  
  .Block() {  
@@ -99,7 +102,8 @@ The lambda is converted to an expression tree and rebuilt into this glorious mes
  }  
  }  
 }  
-[/code]
+
+```
 
 The return value of the `Safe` method is a new object called `MethodValue` which tells you if the expression was successful (i.e. no nulls), or if it did fail, _what_ failed (i.e. where in the expression it failed). And of course if the chain is valid you can get the value safely.
 
@@ -109,7 +113,8 @@ The magic is actually pretty easy. Because we have access to the expression tree
 
 Since we need to know the information about the whole call chain we need to iterate over it all first. As we iterate we should track of what happened in the call chain so we can re-iterate over it later and manipulate it at the end.
 
-[csharp]  
+```csharp
+  
 private readonly Stack\<Expression\> \_expressions = new Stack\<Expression\>();
 
 private Expression \_finalExpression;
@@ -153,11 +158,13 @@ protected override Expression VisitMember(MemberExpression node)
 
 return Visit(node.Expression);  
 }  
-[/csharp]
+
+```
 
 In the process of visiting the nodes, we pushed each piece of the call chain into a stack. Now we can build it all back out. The bulk of the work is in this recursive function. It iterates back through the stack, maps the previous call to a variable, and builds out if not null checks.
 
-[csharp]  
+```csharp
+  
 private Expression BuildIfs(Expression current, Expression prev = null)  
 {  
  var stringRepresentation = Expression.Constant(current.ToString(), typeof(string));
@@ -190,11 +197,13 @@ blockBody = CheckForNull(variable, whenNull, nextExpression);
 
 return Expression.Block(new [] { variable }, new[] { assignment, blockBody });  
 }  
-[/csharp]
+
+```
 
 When I say "map the previous call" I mean building out something like this:
 
-[csharp]  
+```csharp
+  
 var var1 = user;  
 if(var1 != null){  
  var var2 = var1.school
@@ -202,7 +211,8 @@ if(var1 != null){
 if(var2 != null)  
  ....  
 }  
-[/csharp]
+
+```
 
 The initial statement "user" needs to get assigned to a variable. Then this variable needs to be transformed into a new call where we call ".school" on it. We know what to do with ".school" because the call for ".school" was captured as part of the stack iteration. During the iteration of the expression tree in the visitor we were able to capture each portion of the tree.
 
@@ -222,7 +232,8 @@ From here on out we've cached the value.
 
 The evaluate expression function is pretty simple:
 
-[csharp]  
+```csharp
+  
 private Expression EvaluateExpression(Expression current, Expression prev)  
 {  
  if (prev == null)  
@@ -246,11 +257,13 @@ return Expression.MakeMemberAccess(prev, member.Member);
 
 return current;  
 }  
-[/csharp]
+
+```
 
 The rest of the work is boilerplate of creating if checks and returning the final result when necessary
 
-[csharp]  
+```csharp
+  
 private Expression OnNull(ConstantExpression stringRepresentation)  
 {  
  var falseVal = Expression.Constant(false);
@@ -273,7 +286,8 @@ private Expression LastExpression(ParameterExpression variable, ConstantExpressi
 
 return Expression.New(MethodValueConstructor, new Expression[] { variable, stringRepresentation, trueVal });  
 }  
-[/csharp]
+
+```
 
 ## Conclusion
 

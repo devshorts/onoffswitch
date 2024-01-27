@@ -25,7 +25,8 @@ AngularJS provides a neat way of filtering arrays in an `ng-repeat` tag by pipin
 
 When filtering by an object you can pass in a javascript object that represents key value items that should match whats in the backing data element. For example:
 
-[js]  
+```js
+  
 $scope.elements = [{ foo: "bar" }, { foo: "biz" }]
 
 --
@@ -33,13 +34,15 @@ $scope.elements = [{ foo: "bar" }, { foo: "biz" }]
 \<div ng-repeat="foos in elements | filter: { foo: "bar" }"\>  
  {{ foos.foo }} matches "bar"  
 \</div\>  
-[/js]
+
+```
 
 Here I filtered all the objects whose foo property matches the value "bar". But what if I have a non-trivial object? Something with lots of nested objects? I found that passing in the object to the filter was both unweidly, and error prone. I wanted something simple where I could write out how to dereference it, like `obj.property.otherItem.target`.
 
 Thankfully this is pretty easy to write:
 
-[js]  
+```js
+  
 function initFilters(app){  
  app.filter('property', property);  
 }
@@ -67,11 +70,13 @@ return \_.filter(array, function(item){
  });  
  }  
 }  
-[/js]
+
+```
 
 And can be used in your html like this:
 
-[js]  
+```js
+  
 \<ul\>  
  only failed: \<input type="checkbox"  
  ng-model="onlyFailed"  
@@ -81,5 +86,6 @@ And can be used in your html like this:
  \<test-entry test="entry.test"\>\</test-entry\>  
  \</li\>  
 \</ul\>  
-[/js]
+
+```
 

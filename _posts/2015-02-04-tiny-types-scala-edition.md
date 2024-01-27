@@ -26,18 +26,21 @@ With scala we don't have the value type capability that c# has, but we can sort 
 
 The simple gist is to generate stuff like
 
-[scala]  
+```scala
+  
 package com.devshorts.data
 
 case class foo(data : String)  
 case class bar(data : String)  
 case class bizBaz(data : Int)  
 case class Data(data : java.util.UUID)  
-[/scala]
+
+```
 
 And the implicit conversions
 
-[scala]  
+```scala
+  
 package com.devshorts.data
 
 object Conversions{  
@@ -46,7 +49,8 @@ object Conversions{
  implicit def convertbizBaz(i : bizBaz) : Int = i.data  
  implicit def convertData(i : Data) : java.util.UUID = i.data  
 }  
-[/scala]
+
+```
 
 Now you get a similar feel of primitive wrapping with function level unboxing and you can pass your primitive case class wrappers to more generic functions.
 

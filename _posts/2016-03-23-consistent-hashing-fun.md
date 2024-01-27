@@ -38,7 +38,8 @@ For the impatient, the full source is[here](https://github.com/devshorts/consist
 
 First I started with some data types
 
-[scala]  
+```scala
+  
 case class HashValue(value: String) extends AnyRef
 
 case class HashKey(key: Int) extends AnyRef with Ordered[HashKey] {  
@@ -52,13 +53,15 @@ object HashKey {
 case class HashRange(minHash: HashKey, maxHash: HashKey) extends Ordered[HashRange] {  
  override def compare(that: HashRange): Int = minHash.compare(that.minHash)  
 }  
-[/scala]
+
+```
 
 I chose to wrap the key in a positive space since it made things slightly easier. In reality you want to use md5 or some actual hashing function, but I relied on the hash code here.
 
 And then a machine to hold values:
 
-[scala]  
+```scala
+  
 import scala.collection.immutable.TreeMap
 
 class Machine[TValue](val id: String) {  
@@ -89,7 +92,8 @@ map = keepOnly
 dropped.toSeq  
  }  
 }  
-[/scala]
+
+```
 
 A machine keeps a sorted tree map of hash values. This lets me really quickly get things within ranges. For example, when we re-partition a machine, it's no longer responsible for the entire range set that it was before. But it may still be responsible for parts of it. So we want to be able to tell a machine _hey, keep ranges 0-5, 12-20, but drop everything else_. The tree map lets me do this really nicely.
 
@@ -97,7 +101,8 @@ Now for the fun part, the actual consistent hashing stuff.
 
 Given a set of machines, we need to define how the circular partitions is defined
 
-[scala]  
+```scala
+  
 private def getPartitions(machines: Seq[Machine[TValue]]): Seq[(HashRange, Machine[TValue])] = {  
  val replicatedRanges: Seq[HashRange] = Stream.continually(defineRanges(machines.size)).flatten
 
@@ -109,13 +114,15 @@ replicatedRanges
  .take(machines.size \* replicas)  
  .toList  
 }  
-[/scala]
+
+```
 
 What we want to make sure is that each node sits on multiple ranges, this gives us the replication factor. To do that I've duplicated the machines in the list by the replication factor, and made sure all the lists cycle around indefinteily, so while they are not evenly distributed around the ring (they are clustered) they do provide fault tolerance
 
 Lets look at what it takes to put a value into the ring:
 
-[scala]  
+```scala
+  
 private def put(hashkey: HashKey, value: TValue): Unit = {  
  getReplicas(hashkey).foreach(\_.add(hashkey, value))  
 }
@@ -125,13 +132,15 @@ private def getReplicas(hashKey: HashKey): Seq[Machine[TValue]] = {
  .filter { case (range, machine) =\> hashKey \>= range.minHash && hashKey \< range.maxHash }  
  .map(\_.\_2)  
 }  
-[/scala]
+
+```
 
 We need to make sure that for each replica in the ring that sits on a hash range, that we insert it into that machine. Thats pretty easy, though we can improve this later with better lookups
 
 Lets look at a get
 
-[scala]  
+```scala
+  
 def get(hashKey: TKey): Option[TValue] = {  
  val key = HashKey.safe(hashKey.hashCode())
 
@@ -139,13 +148,15 @@ getReplicas(key)
  .map(\_.get(key))  
  .collectFirst { case Some(x) =\> x }  
 }  
-[/scala]
+
+```
 
 Also similar. Go through all the replicas, and find the first one to return a value
 
 Now lets look how to add a machine into the ring
 
-[scala]  
+```scala
+  
 def addMachine(): Machine[TValue] = {  
  id += 1
 
@@ -159,23 +170,27 @@ redistribute(partitions)
 
 newMachine  
 }  
-[/scala]
+
+```
 
 So we first create a new list of machines, and then ask how to re-partition the ring. Then the keys in the ring need to redistribute themselves so that only the nodes who are responsible for certain ranges contain those keys
 
-[scala]  
+```scala
+  
 def redistribute(newPartitions: Seq[(HashRange, Machine[TValue])]) = {  
  newPartitions.groupBy { case (range, machine) =\> machine }  
  .flatMap { case (machine, ranges) =\> machine.keepOnly(ranges.map(\_.\_1)) }  
  .foreach { case (k, v) =\> put(k, v) }  
 }  
-[/scala]
+
+```
 
 Redistributing isn't that complicated either. We group all the nodes in the ring by the machine they are on, then for each machine we tell it to only keep values that are in its replicas. The machine `keepOnly` function takes a list of ranges and will remove and _return_ anything not in those ranges. We can now aggregate all the things that are "emitted" by the machines and re insert them into the right location
 
 Removing a machine is really similiar
 
-[scala]  
+```scala
+  
 def removeMachine(machine: Machine[TValue]): Unit = {  
  val remainingMachines = partitions.filter { case (r, m) =\> !m.eq(machine) }.map(\_.\_2)
 
@@ -183,7 +198,8 @@ partitions = getPartitions(remainingMachines.distinct)
 
 redistribute(partitions)  
 }  
-[/scala]
+
+```
 
 And thats all there is to it! Now we have a fast, simple consistent hasher.
 

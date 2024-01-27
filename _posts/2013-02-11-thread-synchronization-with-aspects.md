@@ -35,16 +35,19 @@ There are two things I wanted to accomplish. One was to simplify local method lo
 
 First, I've defined an interface that exposes a basic lock. Implementing the interface is optional as you'll see later.
 
-[csharp]  
+```csharp
+  
 public interface IAspectLock  
 {  
  object Lock { get; }  
 }  
-[/csharp]
+
+```
 
 Next we have the actual aspect we'll be tagging methods with.
 
-[csharp]  
+```csharp
+  
 [Serializable]  
 public class Synchronize : MethodInterceptionAspect  
 {  
@@ -106,7 +109,8 @@ lock (locker)
  }  
  }  
 }  
-[/csharp]
+
+```
 
 The attribute can either take a string representing the name of the global lock we want to use, or, if none is provided, we can test to see if the instance implements our special interface and use its lock. When an object implements `IAspectLock` the code path is simple: get the lock from the object and use it on the method.
 
@@ -116,7 +120,8 @@ For the scenario where a global lock name was defined, I used a static dictionar
 
 Just to be sure this all works, I wrote a unit test to make sure the attribute worked as expected. The test spawns 10,000 threads which will each loop 100,000 times and increment the `_syncTest` integer. The idea is to introduce a race condition. Given enough threads and enough work, some of those threads won't get the updated value of the integer and won't actually increment it. For example, at some point both threads may think `_syncTest` is 134, and both will increment to 135. If it was synchronized, the value, after two increments, should be 136. Since race conditions are timing-dependent we want to make the unit test stressful to try and maximize the probability that this would happen. Theoretically, we could run this test and never get the race condition we're expecting, since that's by definition a race condition (non-deterministic results). However, on my machine, I was able to consistently reproduce the expected failure conditions.
 
-[csharp]  
+```csharp
+  
 private int \_syncTest = 0;  
 private const int ThreadCount = 10000;  
 private const int IterationCount = 100000;
@@ -144,11 +149,13 @@ private void SynchroMethod()
  \_syncTest++;  
  }  
 }  
-[/csharp]
+
+```
 
 When the method doesn't have the attribute we get an NUnit failure like
 
-[csharp]  
+```csharp
+  
  Expected synchornized value to be 1000000000 but was 630198141  
  Expected: True  
  But was: False
@@ -156,7 +163,8 @@ When the method doesn't have the attribute we get an NUnit failure like
 at NUnit.Framework.Assert.That(Object&nbsp;actual,&nbsp;IResolveConstraint&nbsp;expression,&nbsp;String&nbsp;message,&nbsp;Object[]&nbsp;args)  
  at NUnit.Framework.Assert.True(Boolean&nbsp;condition,&nbsp;String&nbsp;message)  
  at AspectTests.TestSynchro() in AspectTests.cs: line 35  
-[/csharp]
+
+```
 
 Showing the race condition that we expected did happen (the value will change each time). When we have the method synchronized, our test passes.
 

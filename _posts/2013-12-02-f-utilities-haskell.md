@@ -26,9 +26,11 @@ Slowly I am getting more familiar with Haskell, but there are some things that r
 
 For example, if we wanted to do `(x+2)+3` in f#
 
-[fsharp]  
+```fsharp
+  
 let chained = (+) 2 \>\> (+) 3  
-[/fsharp]
+
+```
 
 Compare to haskell:
 

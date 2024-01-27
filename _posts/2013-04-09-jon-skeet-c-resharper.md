@@ -29,7 +29,8 @@ I took some notes and wanted to share some of the interesting things that Jon me
 
 Skeet talked about how Resharper, and in fact the C# compiler lets you do weird stuff like this:
 
-[csharp]  
+```csharp
+  
 public class SuperContainer\<T\>  
 {
 
@@ -38,7 +39,8 @@ public class SuperContainer\<T\>
 public class Container\<T\> : SuperContainer\<Container\<Container\<T\>\>\>  
 {  
 }  
-[/csharp]
+
+```
 
 Even though this leads itself to recursive parameterization. Compiling this is just fine though. However, even if its not used in an assembly, if you run unit tests for that assembly you'll get:
 
@@ -50,17 +52,20 @@ This is because unit tests usually use reflection to test your assemblies. If yo
 
 Jon talked about the problem of accessing modified closures and how it's different in C#5 vs previous versions. The problem is described like this:
 
-[csharp]  
+```csharp
+  
 var list = new List\<Action\>();  
 foreach (var i in Enumerable.Range(0, 10))  
 {  
  list.Add(() =\> Console.WriteLine(i));  
 }  
-[/csharp]
+
+```
 
 In C# 4, the variable `i` is the same reference for each iteration. This means that when you capture the value in a lambda, you are closing on its reference. Running this, you are going to get
 
-[code]  
+```
+  
 9  
 9  
 9  
@@ -71,18 +76,21 @@ In C# 4, the variable `i` is the same reference for each iteration. This means t
 9  
 9  
 9  
-[/code]
+
+```
 
 The C# 4 and earlier solution is to make sure that a new variable is created each time the iteration runs:
 
-[csharp]  
+```csharp
+  
 var list = new List\<Action\>();  
 foreach (var i in Enumerable.Range(0, 10))  
 {  
  int tmp = i;  
  list.Add(() =\> Console.WriteLine(tmp));  
 }  
-[/csharp]
+
+```
 
 This gives you the right answer. But in C# 5 they changed the handling of foreach internally to give you the expected behavior: you will close on different references each time.
 
@@ -90,17 +98,20 @@ This gives you the right answer. But in C# 5 they changed the handling of foreac
 
 Jon then spent a short bit discussing covariance between objects and how you can induce runtime failures, but resharper doesn't warn you about it. For example, the following code is compilable, but not runnable:
 
-[csharp]  
+```csharp
+  
 string[] x = new string[10];  
 object[] o = x;  
 o[0] = 5; // breaks  
-[/csharp]
+
+```
 
 ## Statics in generic types
 
 The next thing Jon talked about was the Resharper warning when you have a static member variable as part of a class with generics. For example:
 
-[csharp]  
+```csharp
+  
 public class Foo\<T\>  
 {  
  public static string Item { get; set; }  
@@ -116,15 +127,18 @@ Foo\<int\>.Item = "b";
  Console.WriteLine(Foo\<String\>.Item);  
  Console.WriteLine(Foo\<int\>.Item);  
 }  
-[/csharp]
+
+```
 
 Which prints out
 
-[code]  
+```
+  
 a  
 a  
 b  
-[/code]
+
+```
 
 Interestingly enough, Resharper 7 gives me no warning on using a static item in a templated class. The problem is really when you think you have a cache or some other static item per class, but its created once per **type**. This was new info to me so I thought this was pretty cool.
 
@@ -132,7 +146,8 @@ Interestingly enough, Resharper 7 gives me no warning on using a static item in 
 
 Jon's mentioned it on twitter before, and it was cool to see him mention it in his webinar, but you can get into very strange things when you call a virtual method from a base constructor. For example:
 
-[csharp]  
+```csharp
+  
 public class Base  
 {  
  protected int item;
@@ -166,13 +181,16 @@ public override void VirtualFunc()
  }  
  }  
 }  
-[/csharp]
+
+```
 
 Which prints out
 
-[code]  
+```
+  
 System.Exception : Should never do this  
-[/code]
+
+```
 
 Basically the base class constructor is called first, so you haven't set the member field in the derived constructor. This means that if you run into this problem you have no way of assuring that items are initialized, even if they may be set in the constructor. Resharper, thankfully, gives you a warning about this. So follow it's advice!
 
@@ -180,7 +198,8 @@ Basically the base class constructor is called first, so you haven't set the mem
 
 Skeet ended with a spattering of random C# weirdness, like being able to declare a class called `var` even though `var` is a keyword. Also, comparing of doubles can be...well, odd:
 
-[csharp]  
+```csharp
+  
 [Test]  
 public void CompareDouble()  
 {  
@@ -190,14 +209,17 @@ var x = double.NaN;
 
 Console.WriteLine(x == x);  
 }  
-[/csharp]
+
+```
 
 Here, Resharper says "hey, just change these values to true, they're always going to be true", but actually this prints out
 
-[code]  
+```
+  
 False  
 False  
-[/code]
+
+```
 
 What?
 

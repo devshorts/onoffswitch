@@ -27,7 +27,8 @@ permalink: "/2013/03/06/just-another-brainfuck-interpreter/"
 <p>Honestly, why not? </p>
 <h2>The entry point</h2>
 <p>Not much to tell:</p>
-<p>[csharp]<br />
+<p>```csharp
+<br />
 static void Main(string[] args)<br />
 {<br />
     var parser = new Parser(&quot;++++++++++[&gt;+++++++&gt;++++++++++&gt;+++&gt;+&lt;&lt;&lt;&lt;-]&gt;++.&gt;+.+++++++..+++.&gt;++.&lt;&lt;+++++++++++++++.&gt;.+++.------.--------
@@ -39,13 +40,15 @@ var interpreter = new Interpreter(instructions);
 
 interpreter.Interpret();  
 }  
-[/csharp]
+
+```
 
 ## The container classes
 
 Some data classes and enums:
 
-[csharp]  
+```csharp
+  
 public enum Tokens  
  {  
  MoveFwd,  
@@ -79,13 +82,15 @@ class While : Instruction
 
 public List\<Instruction\> Instructions { get; set; }  
  }  
-[/csharp]
+
+```
 
 ## A helper function
 
 A function to translate a character token into a known token
 
-[csharp]  
+```csharp
+  
 private Tokens GetToken(char input)  
 {  
  switch (input)  
@@ -109,13 +114,15 @@ private Tokens GetToken(char input)
  }  
  return Tokens.Unknown;  
 }  
-[/csharp]
+
+```
 
 ## The parser
 
 And the entire parser:
 
-[csharp]  
+```csharp
+  
 public List\<Instruction\> Instructions { get; private set; }
 
 public Parser(string source)  
@@ -170,7 +177,8 @@ if (stack.Count \> 0)
  throw new Exception("Unmatched [found. Expecting]");  
  }  
 }  
-[/csharp]
+
+```
 
 I took a different approach to parsing this time than usual. I didn't feel like having to deal with a consumable stream, so I linearly went through the token source. Each time I encountered a while loop start I pushed it onto the while loop stack. Anytime I had instructions, if I had stuff in the stack, I added it to the instruction list at the top of stack. As I hit while loop end tokens (]), I popped off the stack and yielded the aggregate instruction.
 
@@ -178,7 +186,8 @@ I took a different approach to parsing this time than usual. I didn't feel like 
 
 The interpreter is dirt simple too. We have a 30,000 byte array of memory (per spec from wikipedia). The rest I think is self explanatory:
 
-[csharp]  
+```csharp
+  
 public class Interpreter  
 {  
  private readonly byte[] \_space = new byte[30000];
@@ -230,7 +239,8 @@ private void InterpretImpl(IEnumerable\<Instruction\> instructions)
  }  
  }  
 }  
-[/csharp]
+
+```
 
 ## The source
 

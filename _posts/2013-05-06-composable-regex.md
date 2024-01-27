@@ -29,7 +29,8 @@ For me, I've always told it with regex (and I think that's the [official](http:/
 
 For example, I frequently wonder why in the 21st century why we still deal with a syntax like this:
 
-[code]  
+```
+  
 (?:(?:\r\n)?[\t])\*(?:(?:(?:[^()\<\>@,;:\\".\[\] \000-\031]+(?:(?:(?:\r\n)?[\t]  
 )+|\Z|(?=[\["()\<\>@,;:\\".\[\]]))|"(?:[^\"\r\\]|\\.|(?:(?:\r\n)?[\t]))\*"(?:(?:  
 \r\n)?[\t])\*)(?:\.(?:(?:\r\n)?[\t])\*(?:[^()\<\>@,;:\\".\[\] \000-\031]+(?:(?:(  
@@ -37,7 +38,8 @@ For example, I frequently wonder why in the 21st century why we still deal with 
 \t]))\*"(?:(?:\r\n)?[\t])\*))\*@(?:(?:\r\n)?[\t])\*(?:[^()\<\>@,;:\\".\[\] \000-\0  
 31]+(?:(?:(?:\r\n)?[\t])+|\Z|(?=[\["()\<\>@,;:\\".\[\]]))|\[([^\[\]\r\\]|\\.)\*\  
 ](?:(?:\r\n)?[\t])\*)(?:\.(?:(?:\r\n)?[  
-[/code]
+
+```
 
 Even the most seasoned engineers couldn't tell me what this did off the bat.
 
@@ -55,24 +57,29 @@ While others have also tackled the issue, their solutions usually involved speci
 
 My regex patterns use white space ignored key value pairs for composable groups, and the very last line of the regex (where all the key value pairs are seperated by newlines) will be the final composed regex. In the end, the regular expressions now look something like this:
 
-[code]  
+```
+  
 group1 = [A-f]  
 group2 = [g-z]
 
 group1|group2  
-[/code]
+
+```
 
 And build out into
 
-[code]  
+```
+  
 [A-f]|[g-z]  
-[/code]
+
+```
 
 ## The builder
 
 The code to do this is pretty trivial. It's all simple string manipulation. Let me show you anyways:
 
-[csharp]  
+```csharp
+  
 public class Regexer  
 {  
  public String Regex { get; private set; }
@@ -125,7 +132,8 @@ for (int i = groups.Count - 1; i \>= 0; i--)
  }  
  }  
 }  
-[/csharp]
+
+```
 
 Basically build out all key/value pairs and string replace them going from the bottom of the call group up. The string replace also supports comments, by adding in "##" followed by whatever you want to comment.
 
@@ -137,7 +145,8 @@ I didn't think to account for ALL of those cases, but I was able to get a pretty
 
 Here is the composed regex I built:
 
-[code]  
+```
+  
 weirdChars = (!|-|\+|\\|\$|\^|~|#|%|\?|{|}|\_|/|=)  
 numbers = \d  
 characters = [A-z]  
@@ -165,11 +174,13 @@ comAddresses = (characters+(\.characters+)\*) ## stuff like a.b.c.d etc
 domain = (comAddresses|ipv6|ipv4)$ ## this has to be at the end
 
 (local)@(domain)  
-[/code]
+
+```
 
 Which compiles to:
 
-[csharp]  
+```csharp
+  
 (^(("(((!|-|\+|\\|\$|\^|~|#|%|\?|{|}|\_|/|=)|\d|[A-z])|(((!|-|\+|\\|\$|\^|~|#|%  
 |\?|{|}|\_|/|=)|\d|[A-z])+\.((!|-|\+|\\|\$|\^|~|#|%|\?|{|}|\_|/|=)|\d|[A-z])+)|@|  
 \s)+":(((!|-|\+|\\|\$|\^|~|#|%|\?|{|}|\_|/|=)|\d|[A-z])|(((!|-|\+|\\|\$|\^|~|#|%  
@@ -182,11 +193,13 @@ Which compiles to:
 |[A-z])+\.((!|-|\+|\\|\$|\^|~|#|%|\?|{|}|\_|/|=)|\d|[A-z])+)|@|\s)+")+))@((([A-z]+  
 (\.[A-z]+)\*)|((([a-f]|[A-F]|[0-9]){4}?:){7}?([a-f]|[A-F]|[0-9]){4}?)|((\d{1,3}.)  
 {3}(\d{1,3})))$)  
-[/csharp]
+
+```
 
 And passes all of these tests:
 
-[csharp]  
+```csharp
+  
 [Test]  
 [TestCase("someDude@gmail.com", true)]  
 [TestCase("foo", false)]  
@@ -262,7 +275,8 @@ if (pass)
  Assert.IsFalse(Regex.IsMatch(email, regex));  
  }  
 }  
-[/csharp]
+
+```
 
 At one point I had a problem with my ipv4 vs ipv6 validation, but now it was trivial to test. For the domain I could remove both `comAddresses` and `ipv6` and deal only with ipv4. Without having this kind of composable group I'd have to manually edit the enormous regex and it'd be easy to make a parenthesis mistake.
 

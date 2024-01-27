@@ -28,7 +28,8 @@ Since I was playing with fparsec last week, I decided to redo (or mostly) the pa
 
 As always, it starts with the data
 
-[fsharp]  
+```fsharp
+  
 type Op =  
  | Plus  
  | Minus  
@@ -58,13 +59,15 @@ and Ex =
  | Variable of string  
 and Argument =  
  | Element of Ex  
-[/fsharp]
+
+```
 
 ## Operators
 
 Parsing operators is trivial
 
-[fsharp]  
+```fsharp
+  
 let plus = pstring "+" \>\>% Plus
 
 let minus = pstring "-" \>\>% Minus
@@ -80,13 +83,15 @@ let gt = pstring "\>" \>\>% GreaterThan
 let lt = pstring "\<" \>\>% LessThan
 
 let op = spaces \>\>. choice[plus;minus;divide;mult;carrot;gt;lt]  
-[/fsharp]
+
+```
 
 ## Expressions
 
 But what was great was parsing expressions. These were complicated because I had to avoid left recursion, and in my C# parser I had a lot of edge conditions and had to deal with special backtracking. It was a nightmare. With FParsec you can create forward recursive parsers, basically you create a dummy variable that you use as the recursive parser. Later you populate a tied reference to it with what are the available recursive parser implementations.
 
-[fsharp]  
+```fsharp
+  
 // create a forward reference  
 // the expr is what we'll use in our parser combinators  
 // the exprImpl we'll populate with all the recursive options later  
@@ -108,7 +113,8 @@ let expressionOperation = lhExpression \>\>=? fun operandL -\>
 do exprImpl := spaces \>\>. choice[attempt expressionOperation;  
  attempt bracketExpression;  
  expression1]  
-[/fsharp]
+
+```
 
 `expression1` is a type of expression that is just a single element. `expressionOperation` is an expression that has an operator inbetween two expressions. To avoid left recursion, the left hand side of an expression is limited to either expressions of single elements, or expressions encapsulated in parenthesis. Then the right hand side can be either a parenthesis expression, or a regular expression. You'll notice that `expr` isn't actually defined yet when its used here on line 16. It's a placeholder for the recursive parser, which is tied to the mutable reference cell (exprImpl) that I populate after I've defined all the parsers. This lets you define a parser that can actually call itself recursively! Neat.
 
@@ -118,7 +124,8 @@ The `>>=?` operator applies the result to the following function, but if it fail
 
 I defined a scope as any valid statements between two curly brackets.
 
-[fsharp]  
+```fsharp
+  
 let funcInners, funcInnersImpl = createParserForwardedToRef()
 
 let scope = parse{  
@@ -131,21 +138,25 @@ let scope = parse{
  do! spaces  
  return Scope(text)  
 }  
-[/fsharp]
+
+```
 
 The forward parser here is going to be populated at the very end of my parser, since it will allow for any kind of statement like while loops, for loops, conditionals, assignment, etc. All the scope parser cares about is that it got stuff between curly brackets. Using this we can leverage it anywhere else that has curly brackets. Later on in the program I set this up:
 
-[fsharp]  
+```fsharp
+  
 (\* things that can be in functions \*)
 
 do funcInnersImpl := many1 (spaces \>\>? choice [scope; func; statement])  
-[/fsharp]
+
+```
 
 Which allows scopes, statements (delineated by semicolons), or other functions, to appear inside of a function or scope. So you can see how a scope and function can be recursive (by containing other scopes and functions inside of them).
 
 Anyways, lets parse a function
 
-[fsharp]  
+```fsharp
+  
 let innerArgs = sepEndBy1 (expr |\>\> Element) (pstring ",")  
 let arguments = innerArgs |\> between "(" ")"
 
@@ -159,13 +170,15 @@ let func = parse {
  let! scope = scope  
  return Function(name, arguments, scope)  
 }  
-[/fsharp]
+
+```
 
 ## Conditionals
 
 Conditionals were fun, because you can have an if statement, an if/else, or an if/elseif, or an if/elseif/.../else combo. In my previous C# parser I covered each type independently so I had a lot of extra overlap, but this time I wanted to see if I could create an aggregate parser combinator to handle all these scenarios for me in one.
 
-[fsharp]  
+```fsharp
+  
 let conditionalParser, conditionalParserImpl = createParserForwardedToRef()
 
 let ifBlock = parse{  
@@ -196,7 +209,8 @@ let noElseParse = parse{
 let! result = choice[attempt elseIfParse;elseParse;noElseParse]  
  return result  
 }  
-[/fsharp]
+
+```
 
 This time, I created a recursive parser that optionally removes an else statement and captures the scope, or removes the else element and calls back into the if parser, or just terminates (so an if with no else). The final result is a 3 way alternative that the if block can evaluate.
 
@@ -204,15 +218,18 @@ This time, I created a recursive parser that optionally removes an else statemen
 
 Here is a while loop
 
-[fsharp]  
+```fsharp
+  
 let whileLoop = (pstring "while" \>\>. spaces) \>\>. (expr |\> between "(" ")") \>\>= fun predicate -\>  
  scope \>\>= fun body -\>  
  preturn (WhileLoop(predicate, body))  
-[/fsharp]
+
+```
 
 And here is a for loop
 
-[fsharp]  
+```fsharp
+  
 let assign = parse{  
  let! ex = expr  
  do! spaces  
@@ -233,18 +250,21 @@ let forItems = tuple3 startCondition predicate endCondition |\> between "(" ")"
 
 forKeyword \>\>. forItems .\>\>. scope \>\>= fun ((start, predicate, end), body) -\>  
  preturn (start, predicate, end, body) |\>\> ForLoop  
-[/fsharp]
+
+```
 
 Which gives you a result like this
 
-[code]  
+```
+  
 test "for(x=1;y\<z;y+1){}";;  
 val it : Ast list =  
  [ForLoop  
  (Assign (Variable "x",Float 1.0),  
  Full (Variable "y",LessThan,Variable "z"),  
  Full (Variable "y",Plus,Float 1.0),Scope null)]  
-[/code]
+
+```
 
 ## Conclusion
 

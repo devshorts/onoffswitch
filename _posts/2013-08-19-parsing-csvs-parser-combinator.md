@@ -32,21 +32,26 @@ The principle behind combinators is that they are a way to take two functions an
 
 For example, lets say I have a function defined like this:
 
-[fsharp]  
+```fsharp
+  
 let parser = state -\> result \* state  
-[/fsharp]
+
+```
 
 So it takes some input state, and gives you some sort of result along with a new state.
 
 To make this useful though, I need to get the result and do something else with it. So, lets say I have another function that takes a result, and gives you a function that takes a new state and returns a new result.
 
-[fsharp]  
+```fsharp
+  
 let applier = result -\> (state -\> result \* state)  
-[/fsharp]
+
+```
 
 Is it possible to combine these two somehow? Sure:
 
-[fsharp]  
+```fsharp
+  
 let combiner parser applier =  
  fun state -\>  
  match parser state with  
@@ -54,25 +59,32 @@ let combiner parser applier =
  let nextParser = applier result  
  nextParser newState  
  | (None, newState) -\> (None, newState)  
-[/fsharp]
+
+```
 
 What's the function signature of this combiner function?
 
-[fsharp]  
+```fsharp
+  
 (state -\> result \* state) -\> (result -\> (state -\> result \* state)) -\> (state -\> result \* state)  
-[/fsharp]
+
+```
 
 That's kind of a mouthful, so lets add a type alias:
 
-[fsharp]  
+```fsharp
+  
 type Parser = state -\> result \* state  
-[/fsharp]
+
+```
 
 Now what is the type signature?
 
-[fsharp]  
+```fsharp
+  
 Parser -\> (result -\> Parser) -\> Parser  
-[/fsharp]
+
+```
 
 That's a lot better.
 
@@ -84,19 +96,23 @@ What's neat about this is you can use this basic `combiner` function to build up
 
 Building a parser function is easy, it can be anything. Remembering the signature:
 
-[fsharp]  
+```fsharp
+  
 state -\> result \* state  
-[/fsharp]
+
+```
 
 Here is something that parsers a single character from a string:
 
-[fsharp]  
+```fsharp
+  
 let oneCharParser =  
  fun (state:string) -\>  
  let firstChar = state.Chars(0)  
  let remainingState = state.Substring(0, state.Length - 1)  
  (Some(firstChar), remainingState)  
-[/fsharp]
+
+```
 
 You can create more complex parsers too, maybe one that takes a regular expression or matches on a specific string. Anything you want.
 
@@ -104,35 +120,43 @@ You can create more complex parsers too, maybe one that takes a regular expressi
 
 Now that there is a combiner, and a way to define a parser, lets build on that. First lets alias the `combiner` function I first wrote out to make it a little easier to use:
 
-[fsharp]  
+```fsharp
+  
 let (\>\>=) current next = combiner current next  
-[/fsharp]
+
+```
 
 This operator, mimics the syntax from fparsec (and haskells parsec). Next, lets make a combinator function that takes two parsers, and returns the result of the second parser (ignoring the result of the first):
 
-[fsharp]  
+```fsharp
+  
 let (\>\>.) parser1 parser2 =  
  parser1 \>\>= fun firstResult -\>  
  parser2 \>\>= fun secondResult -\>  
  secondResult  
-[/fsharp]
+
+```
 
 But wait, that won't really work. Remember that the combiners second argument wants a function that takes a result and returns a parser (which is a function that takes a state and returns a result) [i.e. of the signature `result -> (state -> result * state)`.
 
 If you look closely, we aren't returning a parser at the end of this, we are just returning a value (i.e. just `result`). We need some sort of way to return a value as a parser. Hmm, fparsec has this and its called `preturn`. Let's add this too:
 
-[fsharp]  
+```fsharp
+  
 let preturn value = fun state -\> (Some(value), state)  
-[/fsharp]
+
+```
 
 Not so bad. Now lets tie it in:
 
-[fsharp]  
+```fsharp
+  
 let (\>\>.) parser1 parser2 =  
  parser1 \>\>= fun firstResult -\>  
  parser2 \>\>= fun secondResult -\>  
  preturn secondResult  
-[/fsharp]
+
+```
 
 Awesome, now the magic that is the F# type inference system is happy!
 
@@ -155,13 +179,15 @@ In FParsec and other combinators, the state is a character stream. But when buil
 
 When building my parser I kept this in mind and made the combinator library work on a general state interface that I called `IStreamP`
 
-[fsharp]  
+```fsharp
+  
 type IStreamP\<'StateType, 'ConsumeType\> =  
  abstract member state : 'StateType  
  abstract member consume : int -\> 'ConsumeType option \* IStreamP\<'StateType, 'ConsumeType\>  
  abstract member backtrack : unit -\> unit  
  abstract member hasMore : unit -\> bool  
-[/fsharp]
+
+```
 
 Using this interface I was able to implement a string parser state, as well as a binary parser state. Both states can be reused with all the combinator functions which is part of what makes parser combinators so robust. You get to mix language functionality with the grammar you are parsing.
 
@@ -169,23 +195,28 @@ Using this interface I was able to implement a string parser state, as well as a
 
 Now that I have all the basic building blocks, lets try parsing a CSV. The bulk of the work is being able to parse a string. But to parse a string, we have to see if the state matches something. So lets start with that. The combinator I wrote has a generic match function that you inject a predicate to:
 
-[fsharp]  
+```fsharp
+  
 let matcher eval target =  
  fun currentState -\>  
  match eval currentState target with  
  | Some(amount) -\> currentState.consume amount  
  | None -\> (None, currentState)  
-[/fsharp]
+
+```
 
 The signature of the eval function is:
 
-[fsharp]  
+```fsharp
+  
 state -\> 'a -\> int  
-[/fsharp]
+
+```
 
 So an evaluator function takes the current state, and some sort of target (maybe you are trying to match on a specific string) and if the predicate returns some integer amount, the state consumes the amount the predicate told it to take. A simple way of doing this is to see if the beginning of the string matches what you want to take:
 
-[fsharp]  
+```fsharp
+  
 type ParseState = State\<string, string\>
 
 let private getStringStream (state:ParseState) = (state :?\> StringStreamP)
@@ -193,24 +224,28 @@ let private getStringStream (state:ParseState) = (state :?\> StringStreamP)
 let private startsWith (input:ParseState) target = (input |\> getStringStream).startsWith input target
 
 let matchStr str = matcher startsWith str  
-[/fsharp]
+
+```
 
 Basically its just getting a starts with expression match function from the state class. The idea here is that each state class can contain its own predicates to match on, so you don't have to mix stuff between a binary state parser and a string state parser.
 
 And just to show what the startsWith function looks like:
 
-[fsharp]  
+```fsharp
+  
 member x.startsWith (inputStream:IStreamP\<string, string\>) target =  
  if String.IsNullOrEmpty inputStream.state then None  
  else if inputStream.state.StartsWith target then  
  Some target.Length  
  else None
 
-[/fsharp]
+
+```
 
 Building on this we can create matches that match using regex, or do other work. Taking kind of a leap of faith here, let me show the finished CSV parser (full source is on my [github](https://github.com/devshorts/ParsecClone))
 
-[fsharp]  
+```fsharp
+  
 let delimType = ","
 
 let(|DelimMatch|EscapedType|Other|) i =  
@@ -254,9 +289,12 @@ let listItem\<'a\> = delim \>\>. opt csvElement
 let elements\<'a\> = csvElement .\<?\>\>. many listItem
 
 let lines\<'a\> = many (elements |\> sepBy \<| newline) .\>\> eof  
-[/fsharp]
 
-It should look very similiar to fparsec, but slightly different. For example, the [code].\<?\>\>.[/code] operator takes an item parser, and an item list parser, and optionally applies both the item and the list. If the list returns any results it preturns the first item with the item list, otherwise just returns the first item.
+```
+
+It should look very similiar to fparsec, but slightly different. For example, the ```
+.\<?\>\>.
+``` operator takes an item parser, and an item list parser, and optionally applies both the item and the list. If the list returns any results it preturns the first item with the item list, otherwise just returns the first item.
 
 ## Another example
 
@@ -264,7 +302,8 @@ Just to demonstrate the power of decoupling the combinator logic from the state/
 
 If we implement a new binary state stream, it might look like this:
 
-[fsharp]  
+```fsharp
+  
 type BinStream (state:Stream) =  
  let startPos = state.Position
 
@@ -286,11 +325,13 @@ member x.streamCanBeConsumed (state:IStreamP\<Stream, byte[]\> ) count =
  Some(count)  
  else  
  None  
-[/fsharp]
+
+```
 
 And we can define a whole bunch of basic parsers to work with this stream:
 
-[fsharp]  
+```fsharp
+  
 module BinParser =
 
 let private byteToInt (b:byte) = System.Convert.ToInt32(b)  
@@ -323,11 +364,13 @@ let int32\<'a\> = byte4 |\>\> toInt32
 let int64\<'a\> = byteN 8 |\>\> toInt64
 
 let intB\<'a\> = byte1 |\>\> byteToInt  
-[/fsharp]
+
+```
 
 And here is a unit test to show how it might be used:
 
-[fsharp]  
+```fsharp
+  
 [\<Test\>]  
 let ``test reading two sets of 4 bytes``() =  
  let bytes = [|0;1;2;3;4;5;6;7;8|] |\> Array.map byte
@@ -341,7 +384,8 @@ let parser = manyN 2 byte4
 let result = test binaryStream parser
 
 result |\> should equal [[|0;1;2;3|];[|4;5;6;7|]]  
-[/fsharp]
+
+```
 
 ## Conclusion
 

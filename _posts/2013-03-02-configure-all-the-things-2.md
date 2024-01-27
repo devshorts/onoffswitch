@@ -58,7 +58,8 @@ It's also worth thinking about the situation where configs can't be found. I lik
 
 It's also pretty easy to live-load your configurations, instead of just once on startup. If you create a file-watcher on your config class, and re-load it when it's changed, then you can have live up-to-date configurations. If your config file is live-editable, you can even throttle reloading the config at some regular intervals using [Rx](http://msdn.microsoft.com/en-us/data/gg577609.aspx), so you don't spam your system with configuration reloading. Just make sure to reference all your configuration options directly from the config class and don't make local copies of config values. Below is a simple example that will call a reload config function in 2 second intervals, while a file is being edited.
 
-[csharp]  
+```csharp
+  
 private void InitFileWatcher()  
 {  
  \_watcher = new FileSystemWatcher(Path.GetDirectoryName(Path.GetFullPath(Config.Path)), Path.GetFileName(Config.Path));  
@@ -75,7 +76,8 @@ private void ReloadLogConfig(EventPattern\<FileSystemEventArgs\> obj)
 {  
  Log.Debug(this, "{0} path was changed ({1}), reloading config", obj.EventArgs.FullPath, obj.EventArgs.ChangeType);  
 }  
-[/csharp]
+
+```
 
 ## Conclusion
 

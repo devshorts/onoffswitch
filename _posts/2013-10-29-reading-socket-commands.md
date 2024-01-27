@@ -31,7 +31,8 @@ But to do this I need a way to get commands from the control room in order to kn
 
 You can never assume you've read what you want off a socket, since you're only ever guaranteed 1 or more bytes when a read succeeds. This means you need to continue to read until you've read however much you expected.
 
-[fsharp]  
+```fsharp
+  
 /// Listens on a tcp client and returns a seq\<byte[]\> of all  
 /// found data  
 let rec private listenOnClient (client:TcpClient) =  
@@ -45,7 +46,8 @@ let bytes = Array.create 4096 (byte 0)
  yield! listenOnClient client  
  }
 
-[/fsharp]
+
+```
 
 This function yields a seq of byte arrays each time the socket succeeds in a read. I'm reading only up to a 4096 buffer and leveraging F# array slicing to return the bytes that were actually read. After a read, the function calls itself and continues to yield byte arrays forever.
 
@@ -53,22 +55,27 @@ This function yields a seq of byte arrays each time the socket succeeds in a rea
 
 The next step is taking those byte arrays and creating statements out of them. This means piecing them together and determining where newlines are. For example, if you read packets like
 
-[code]  
+```
+  
 Th  
 is is a comm  
 an  
 d\n  
-[/code]
+
+```
 
 It should really be handled like
 
-[code]  
+```
+  
 This is a command\n  
-[/code]
+
+```
 
 To do this, I first map the bytes to utf8 strings, and use a string builder to aggregate lines. By using the string split function, I can tell (by empty entries) where newlines appeared, and whether or not a final terminating newline exists. For any statements that are terminated by a newline I can yield the entire command.
 
-[fsharp]  
+```fsharp
+  
 /// Reads off the client socket and aggregates commands that are seperated by newlines  
 let packets (client:TcpClient) : seq\<string\> =  
  let filterEmpty = Seq.filter ((\<\>) String.Empty)  
@@ -93,7 +100,8 @@ builder.Append (Seq.last nonEmpties) |\> ignore
 for entry in (Seq.take (Seq.length nonEmpties - 1) nonEmpties) do  
  yield entry  
  }  
-[/fsharp]
+
+```
 
 ## Listening for commands
 
@@ -124,12 +132,14 @@ do! Async.SwitchToNewThread()
 
 Where the messages are matched with active patterns that parse the strings such as
 
-[fsharp]  
+```fsharp
+  
 let (|AdvanceCmd|\_|) (str:string) =  
  if str.StartsWith("advance ") then  
  str.Replace("advance ","").Trim() |\> Convert.ToInt32 |\> Some  
  else None  
-[/fsharp]
+
+```
 
 The great thing about this is you hide all the string handling and deal only with strongly typed, high level patterns. Adding new commands is just a matter of creating a new active pattern and updating the message match in the `listenForControlCommands` function.
 

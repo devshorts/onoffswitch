@@ -114,13 +114,15 @@ Any other file that needs definition mappings can include the one all aggregate.
 
 And again, I do the same kind of pattern with routes. I have a folder setup like this:
 
-[code]  
+```
+  
 routes  
 ├── index.js  
 ├── indexRoutes.ts  
 ├── userRoutes.ts  
 ├── ... etc  
-[/code]
+
+```
 
 Where index.js looks like this:
 

@@ -33,7 +33,8 @@ For my project we're tracking everything with what we call a `CorrelationId` whi
 
 ## The message wrapper
 
-[java]  
+```java
+  
 @Data  
 public class PersistableMessageContext implements CorrelationIdGetter, CorrelationIdSetter {  
  private final Object source;
@@ -50,7 +51,8 @@ setCorrelationId(UUID.fromString(s));
  }  
  catch(Throwable ex){}  
 }  
-[/java]
+
+```
 
 This is the message that I want to pass around. By containing its source correlation ID it can later be used to set the context when its being consumed
 
@@ -58,7 +60,8 @@ This is the message that I want to pass around. By containing its source correla
 
 I now have all my actors subclass this class
 
-[java]  
+```java
+  
 public abstract class LoggableActor extends UntypedActor {  
  @Override public void onReceive(final Object message) throws Exception {  
  Boolean wasSet = false;
@@ -87,7 +90,8 @@ if(wasSet) {
 
 public abstract void onReceiveImpl(final Object message) throws Exception;  
 }  
-[/java]
+
+```
 
 This lets me pass in anything that implements a `CorrelationIdGetter` and if it happens to also be a persisted message, pop out the inner message.
 
@@ -95,7 +99,8 @@ This lets me pass in anything that implements a `CorrelationIdGetter` and if it 
 
 Now the big issue here is to make sure that we are consistent in publishing messages. This means using routers, broadcasts, etc, all have to make sure to push out a message wrapped in a persistent container. To help make that easier I created a few augmented akka publisher classes. Below is a class with static methods (to make it easy to import) that wrap an actor ref or a router.
 
-[java]  
+```java
+  
 import akka.actor.ActorRef;  
 import akka.routing.Broadcast;  
 import akka.routing.Router;
@@ -139,21 +144,25 @@ src.route(new Broadcast(persistableMessageContext), sender);
  };  
  }  
 }  
-[/java]
+
+```
 
 The augmented actor:
 
-[java]  
+```java
+  
 public interface AkkaAugmentedActor {  
  void tell(Object msg, ActorRef sender);
 
 ActorRef getActor();  
 }  
-[/java]
+
+```
 
 And the augmented router:
 
-[java]  
+```java
+  
 public interface AkkaAugmentedRouter {  
  void route(Object msg, ActorRef sender);
 
@@ -161,7 +170,8 @@ void broadcast(Object msg, ActorRef sender);
 
 Router getRouter();  
 }  
-[/java]
+
+```
 
 ## Conclusion
 

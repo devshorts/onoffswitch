@@ -26,54 +26,68 @@ I just started playing with [fparsec](http://www.quanttec.com/fparsec/) which is
 
 As a quick example, I was following the [tutorial](http://www.quanttec.com/fparsec/tutorial.html) on the fparsec site and wanted to understand how to capture a value to store in a discriminated union. For example, if I have a type
 
-[fsharp]  
+```fsharp
+  
 type Token =  
  | Literal of string  
-[/fsharp]
+
+```
 
 How do I get a `Literal("foo")` created?
 
 All of the examples I saw never looked to instantiate that. After a bit of poking around I noticed that they were using the `|>>` syntax which is a function that is passed the result value of the capture. So when you do
 
-[fsharp]  
+```fsharp
+  
 pstring "foo" |\>\> Literal  
-[/fsharp]
+
+```
 
 You've invoked the constructor of the discriminated union similar to this:
 
-[fsharp]  
+```fsharp
+  
 let literal = "foo" |\> Literal  
-[/fsharp]
+
+```
 
 Which is equivalent to
 
-[fsharp]  
+```fsharp
+  
 let literal = Literal("foo")  
-[/fsharp]
+
+```
 
 This is because most of the fparsec functions and overloads give you back a Parser type
 
-[fsharp]  
+```fsharp
+  
 type Parser\<'TResult, 'TUserState\> = CharStream\<'TUserState\> -\> Reply\<'TResult\>  
-[/fsharp]
+
+```
 
 Which is just an alias for a function that takes a utf16 character stream that holds onto a user state and returns a reply that holds the value you wanted. If you look at [charstream](http://www.quanttec.com/fparsec/reference/charstream.html#CharStream) it looks similar to my simple [tokenizer](https://github.com/devshorts/LanguageCreator/blob/master/Lang/Lexers/TokenizableStreamBase.cs). The functions `|>>`, `>>=`, and `>>%` are all overloads that help you chain parsers and get your result back. If you are curious you can trace through their types [here](http://www.quanttec.com/fparsec/reference/primitives.html#members.:62::62::61:).
 
 Now, if you don't need to capture the result value and want to just create an instance of an empty union type then you can use the `>>%` syntax which will let you return a result:
 
-[fsharp]  
+```fsharp
+  
 let Token =  
  | Null  
 let nullTest = pstring "null" \>\>% Null  
-[/fsharp]
+
+```
 
 There are a bunch of overloaded methods and custom operators with fparsec. For example
 
-[fsharp]  
+```fsharp
+  
 let Token =  
  | Null  
 let nullTest = stringReturn "null" Null  
-[/fsharp]
+
+```
 
 Is equivalent to the `>>%` example.
 

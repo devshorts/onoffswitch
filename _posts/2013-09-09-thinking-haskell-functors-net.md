@@ -22,9 +22,11 @@ permalink: "/2013/09/09/thinking-haskell-functors-net/"
 ---
 I've been teaching myself haskell lately and came across an interesting language feature called functors. Functors are a way of describing a transformation when you have a boxed container. They have a generic signature of
 
-[fsharp]  
+```fsharp
+  
 ('a -\> 'b) -\> f 'a -\> f 'b  
-[/fsharp]
+
+```
 
 Where `f` isn't a "function", it's a type that contains the type of `'a`.
 
@@ -32,7 +34,8 @@ The idea is you can write custom map functions for types that act as generic con
 
 Anyways, let's do this in C# by assuming that we have a box type that holds something.
 
-[csharp]
+```csharp
+
 
 public class Box\<T\>  
 {  
@@ -43,28 +46,34 @@ var boxes = new List\<Box\<string\>\>();
 
 IEnumerable\<string\> boxNames = boxes.Select(box =\> box.Data);
 
-[/csharp]
+
+```
 
 We have a type `Box` and a list of `boxes`. Then we `Select` (or map) a box's inner data into another list. We could extract the projection into a separate function too:
 
-[csharp]  
+```csharp
+  
 public string BoxString(Box\<string\> p)  
 {  
  return p.Data;  
 }  
-[/csharp]
+
+```
 
 The type signature of this function is
 
-[csharp]  
+```csharp
+  
 Box-\> string  
-[/csharp]
+
+```
 
 But wouldn't it be nice to be able to do work on a boxes data without having to explicity project it out? Like, maybe define a way so that if you pass in a box, and a function that works on a string, it'll automatically unbox the data and apply the function to its data.
 
 For example something like this (but this won't compile obviously)
 
-[csharp]  
+```csharp
+  
 public String AddExclamation(String input){  
  return input + "!";  
 }
@@ -72,29 +81,35 @@ public String AddExclamation(String input){
 IEnumerable\<Box\<string\>\> boxes = new List\<Box\<string\>\>();
 
 IEnumerable\<string\> boxStringsExclamation = boxes.Select(AddExclamation);  
-[/csharp]
+
+```
 
 In C# we have to add the projection step (which in this case is overloaded):
 
-[csharp]  
+```csharp
+  
 public String AddExclamation(Box\<String\> p){  
  return AddExclamation(p.Data);  
 }  
-[/csharp]
+
+```
 
 In F# you have to do basically the same thing:
 
-[fsharp]  
+```fsharp
+  
 type Box\<'T\> = { Data: 'T }
 
 let boxes = List.init 10 (fun i -\> { Data= i.ToString() })
 
 let boxStrings = List.map (fun i -\> i.Data) boxes  
-[/fsharp]
+
+```
 
 But in Haskell, you can define this projection as part of the type by saying it is an instance of the `Functor` type class. When you make a generic type an instance of the functor type class you can define how maps work on the insides of that class.
 
-[fsharp]  
+```fsharp
+  
 data Box a = Data a deriving (Show)
 
 instance Functor Box where  
@@ -102,13 +117,16 @@ instance Functor Box where
 
 main =  
  print $ fmap (++"... your name!") (Data "my name")  
-[/fsharp]
+
+```
 
 This outputs
 
-[code]  
+```
+  
 Data "my name... your name!"  
-[/code]
+
+```
 
 Here I have a box that contains a value, and it has a value. Then I can define how a box behaves when someone maps over it. As long as the type of the box contents matches the type of the projection, the call to `fmap` works.
 

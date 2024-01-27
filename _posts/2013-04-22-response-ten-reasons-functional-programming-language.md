@@ -38,7 +38,8 @@ However, some aspects of functional are reasonably mainstream. Lambdas, options,
 
 The point here is that functional languages are usually syntactically shorter. An example the author posts is this:
 
-[csharp]  
+```csharp
+  
 public static class SumOfSquaresHelper  
 {  
  public static int Square(int i)  
@@ -56,32 +57,39 @@ public static int SumOfSquares(int n)
  return sum;  
  }  
 }  
-[/csharp]
+
+```
 
 compared to
 
-[fsharp]  
+```fsharp
+  
 let square x = x \* x  
 let sumOfSquares n = [1..n] |\> List.map square |\> List.sum  
-[/fsharp]
+
+```
 
 But that's cheating. What if we did this instead:
 
-[csharp]  
+```csharp
+  
 public int SumOfSquares(int n)  
 {  
  return Enumerable.Range(1, n).Select(i =\> i \* i).Sum();  
 }  
-[/csharp]
+
+```
 
 And
 
-[fsharp]  
+```fsharp
+  
 let square x = x \* x  
 let sumOfSquares n = [1..n]  
  |\> List.map square  
  |\> List.sum  
-[/fsharp]
+
+```
 
 Now who has more lines? It's all in how you see it. Granted, both are leveraging [higher order functions](http://en.wikipedia.org/wiki/Higher-order_function), but most modern imperative languages support that. Comparing crappy code with good code is never a comparison. Terse code can be written in any (almost) language (sorry Java).
 
@@ -89,14 +97,16 @@ Now who has more lines? It's all in how you see it. Granted, both are leveraging
 
 Personally I don't like space dependent languages since its easy to make scoping mistakes, but that notwithstanding, lets look at some Clojure:
 
-[fsharp]  
+```fsharp
+  
 (defn run-prep-tasks  
  [{:keys [prep-tasks] :as project}]  
  (doseq [task prep-tasks]  
  (let [[task-name & task-args] (if (vector? task) task [task])  
  task-name (main/lookup-alias task-name project)]  
  (main/apply-task task-name (dissoc project :prep-tasks) task-args)))  
-[/fsharp]
+
+```
 
 While functional usually has less curly braces, many functional languages have a whole lot more parenthesis
 
@@ -104,34 +114,42 @@ While functional usually has less curly braces, many functional languages have a
 
 This is a common complaint from people who aren't used to functional, and I can understand, because if someone asked you what the signature below does on first glance what would you say?
 
-[code]  
+```
+  
 ('State -\> 'T1 -\> 'T2 -\> 'State) -\> 'State -\> 'T1 list -\> 'T2 list -\> 'State  
-[/code]
+
+```
 
 Practiced functional programmers can tell its a function that takes a function (which takes a state, two items, and returns a new state) a seed state, and two lists, and returns a final state. This is the type signature of List.fold2 and its a mouthful!
 
 Compare to the example the author gave:
 
-[csharp]  
+```csharp
+  
 public IEnumerable\<IGrouping\<TKey, TSource\>\> GroupBy\<TSource, TKey\>(  
  IEnumerable\<TSource\> source,  
  Func\<TSource, TKey\> keySelector  
  )  
-[/csharp]
+
+```
 
 Immediately at first glance, without caring about the types, you can tell it returns an enumerable, it takes an enumerable, and it takes a function. At the signature you can even see how the source and the selector map to each other. Reading the code you get a sense of how things work together. I won't lie, the signature is nasty, and its verbose. Part of me wishes C# had inferred method signatures, but the other part really likes that I can glance at something and get a big picture overview of what is happening.
 
 On top of that, its easy to make the mistake of passing a function instead of applying a function. Take this example:
 
-[fsharp]  
+```fsharp
+  
 apply one two  
-[/fsharp]
+
+```
 
 You might think that we are applying two to one, or maybe one to two, or maybe I am passing in a function called one and an argument called two, or maybe both one and two are functions and are being combined and returned as another function, or maybe I meant to curry the apply function by applying one to two like this:
 
-[fsharp]  
+```fsharp
+  
 apply (one two)  
-[/fsharp]
+
+```
 
 It's very easy to make mistakes like this in functional, especially if the type arguments are generic enough. If the signature for `apply` is a `'a -> 'b -> 'c` then you don't know what you meant! Anyways, this is the complaint people have about implicit vs explicit typing.
 
@@ -151,15 +169,18 @@ I didn't really get this one. The author talks about how by having all the types
 
 This one is fun because I've brought this up with a coworker to discuss before. I, personally, really like the option type, but you can still have nulls. What about
 
-[fsharp]  
+```fsharp
+  
 let foo = None;
 
 Option.get foo  
-[/fsharp]
+
+```
 
 This results in:
 
-[code]  
+```
+  
 System.ArgumentException was unhandled  
  HResult=-2147024809  
  Message=The option value was None  
@@ -170,22 +191,27 @@ Parameter name: option
  at Microsoft.FSharp.Core.OptionModule.GetValue[T](FSharpOption`1 option)  
  at \<StartupCode$FSharpScratch\>.$Print.main@() in C:\Projects\Program.fs:line 28  
  InnerException:  
-[/code]
+
+```
 
 Oops! So, you still have to match on option discriminated unions for none which means you are still checking for some sort of empty thing. Instead of having
 
-[code]  
+```
+  
 if(x != null){  
 }  
-[/code]
+
+```
 
 You start having
 
-[code]  
+```
+  
 match x with  
  | Some item -\>  
  | \_ -\>  
-[/code]
+
+```
 
 I'm not saying matching is bad, just saying that its wrong to assume you get no exceptions since there are fewer nulls.
 

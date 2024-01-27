@@ -25,29 +25,34 @@ I really like doing all of my domain modeling with clean DSL's (domain specific 
 
 I found myself recently in a scenario where I have some methods that do work, and they all return a subtype of a response root. Something like:
 
-[java]  
+```java
+  
 class Response extends ResponseRoot {}
 
 class Worker{  
  Response doWork(Request request) { // }  
 }  
-[/java]
+
+```
 
 And I need to create a dynamic callback given the context of the request. So basically I want
 
-[java]  
+```java
+  
 Consumer\<ResponseRoot\> callback = generateCallback(request);
 
 Response response = doWork(request);
 
 callback.accept(response);  
-[/java]
+
+```
 
 However I am going to have a lot of this same boilerplate for many different kinds of requests. In a previous post I mentioned the `match` on runtime objects and this is the next phase of that scenario: take an untyped object, cast it to see what kind of object it is, depending on the object do a strongly typed method and then execute the callback.
 
 I could create a bunch of methods that just create a new client, do the work, then issue the callback but thats no fun. Why not something like
 
-[java]  
+```java
+  
 @Override public void processAsyncable(final Object input) throws Exception {  
  final Consumer\<ResponseRoot\> complete = getCompletionCallback(input);
 
@@ -58,11 +63,13 @@ match().with(SubRequest.class, afterDoing(this::subRequest, then(complete)))
 private SubRequestResponse subRequest(final SubRequest availabilityCheckEvent) throws Throwable {  
  // ...  
 }  
-[/java]
+
+```
 
 What is the `afterDoing` and the `then(complete)`? Its reminiscent of junit matchers and their DSL.
 
-[java]  
+```java
+  
 import org.jooq.lambda.fi.util.function.CheckedFunction;
 
 import java.util.function.Consumer;
@@ -100,7 +107,8 @@ public void accept(Y item){
  consumer.accept(item);  
  }  
 }  
-[/java]
+
+```
 
 The idea here is to try and model the "_Response subclasses RootResponse and I have a function that can take that subclassed item but I only know about the root_" statement. This is why there are 3 generics. By defining the verb and making it generic we can now give the verb the generic constraint necessary to model this `Response extends ResponseRoot` constraint. The first parameter gets the input function that generates the value to pass to the completor. The verb just wraps the consumer which is the final completion object.
 

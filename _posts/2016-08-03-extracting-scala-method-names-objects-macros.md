@@ -26,14 +26,16 @@ I have a soft spot in me for AST's ever since I went through the exercise of [bu
 
 I ran into a situation (as always) where I really wanted to get the name of a function dynamically. i.e.
 
-[scala]  
+```scala
+  
 class Foo {  
  val field: String = ""  
  def method(): Unit = {}  
 }
 
 val name: String = ??.field // = "field"  
-[/scala]
+
+```
 
 In .NET this is pretty easy since at runtime you can create an expression tree which gives you the AST. But I haven't been in .NET in a while, so off to macros I went!
 
@@ -53,7 +55,8 @@ Now you can actually debug your macro!
 
 First let me show the test
 
-[scala]  
+```scala
+  
 case class MethodNameTest(field1: Object) {  
  def getFoo(arg: Object): Unit = {}  
  def getFoo2(arg: Object, arg2: Object): Unit = {}  
@@ -76,13 +79,15 @@ it should "extract when the method is curried" in {
  methodName[MethodNameTest](m =\> m.getFoo2 \_) shouldEqual MethodName("getFoo2")  
  }  
 }  
-[/scala]
+
+```
 
 ![macro](http://onoffswitch.net/wp-content/uploads/2016/08/macro.png)
 
 `methodName` here is a macro that extracts the method name from a lambda passed in of the parameterized generic type. What's nice about how scala set up their macros is you provide an alias for your macro such that you can re-use the macro but type it however you want.
 
-[scala]  
+```scala
+  
 object MethodNames {  
  implicit def methodName[A](extractor: (A) =\> Any): MethodName = macro methodNamesMacro[A]
 
@@ -90,21 +95,25 @@ def methodNamesMacro[A: c.WeakTypeTag](c: Context)(extractor: c.Expr[(A) =\> Any
  ...  
  }  
 }  
-[/scala]
+
+```
 
 I've made the methodName function take a generic and a function that uses that generic (even though no actual instance is ever passed in). The nice thing about this is I can re-use the macro typed as another function elsewhere. Imagine I want to pin `[A]` so people don't have to type it. I can do exactly that!
 
-[scala]  
+```scala
+  
 case class Configuration (foo: String)
 
 implicit def config(extractor: Configuration =\> Any): MethodName = macro MethodNames.methodNamesMacro[Configuration]
 
 config(\_.foo) == "foo"  
-[/scala]
+
+```
 
 At this point its time to build the bulk of the macro. The idea is to inspect parts of the AST and potentially walk it to find the pieces we want. Here's what I ended up with:
 
-[scala]  
+```scala
+  
 def methodNamesMacro[A: c.WeakTypeTag](c: Context)(extractor: c.Expr[(A) =\> Any]): c.Expr[MethodName] = {  
  import c.universe.\_
 
@@ -141,7 +150,8 @@ reify {
  MethodName(literal.splice)  
  }  
 }  
-[/scala]
+
+```
 
 For more details on parts of the AST [here is a great resource](https://github.com/wolfe-pack/wolfe/wiki/Scala-AST-reference)
 

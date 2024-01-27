@@ -33,7 +33,8 @@ In either case, this post isn't about that. I just wanted to know how the hell t
 
 Let me lay out the final product first and we'll break it down:
 
-[scala]  
+```scala
+  
 trait Functor[F[\_]] {  
  def map[A, B](f: F[A])(m: A =\> B): F[B]  
 }
@@ -63,11 +64,13 @@ implicit def futureFunctor(implicit executionContext: ExecutionContext) = new Fu
  }  
  }  
 }  
-[/scala]
+
+```
 
 And no code is complete without a test...
 
-[scala]  
+```scala
+  
 class Tests extends FlatSpec with Matchers {
 
 import com.curalate.typelevel.Functor  
@@ -89,15 +92,18 @@ testMaps(Set(1)) shouldEqual Set(2)
 Await.result(testMaps(Future.successful(1)), Duration.Inf) shouldEqual 2  
  }  
 }  
-[/scala]
+
+```
 
 How did we get here? First if you look at the definition of functor again
 
-[scala]  
+```scala
+  
 trait Functor[F[\_]] {  
  def map[A, B](f: F[A])(m: A =\> B): F[B]  
 }  
-[/scala]
+
+```
 
 We're saying that
 
@@ -108,7 +114,8 @@ The nuanced part here is that the map takes an instance of `F[A]`. We need this 
 
 Lets make a functor for list, since that one is pretty easy:
 
-[scala]  
+```scala
+  
 object Functor {  
  implicit lazy val listFunctor = new Functor[List] {  
  override def map[A, B](f: List[A])(m: A =\> B) = {  
@@ -116,45 +123,53 @@ object Functor {
  }  
  }  
 }  
-[/scala]
+
+```
 
 Now we can get an instance of functor from a `List[T]`
 
 We could use it like this now:
 
-[scala]  
+```scala
+  
 def listMapper(f: Functor[List[Int]])(l: List[Int]) = {  
  f.map(l)(\_ + 1)  
 }  
-[/scala]
+
+```
 
 But that sort of sucks. I don't want to know I have a list, that defeats the purpose of a functor!
 
 What if we do
 
-[scala]  
+```scala
+  
 def intMapper[T[\_]](f: Functor[T[Int]])(l: T[Int]) = {  
  f.map(l)(\_ + 1)  
 }  
-[/scala]
+
+```
 
 Kind of better. Now I have a higher kinded type that doesn't care about what the box is. But I still need to somehow _get_ an instance of a functor to do my mapping.
 
 This is where the `ops` class come in:
 
-[scala]  
+```scala
+  
 implicit class FunctorOps[F[\_], A](f: F[A])(implicit functor: Functor[F]) {  
  def map[B](m: A =\> B): F[B] = {  
  functor.map(f)(m)  
  }  
 }  
-[/scala]
+
+```
 
 This guy says _given a container, and a functor for that container, here is a helpful map function_. It's giving us an extension method on `F[A]` that adds `map`. You may wonder, well dont' all things we're mapping on already have a map function? And the answer is yes, but the compiler doesn't _know_ that since we're dealing with only generics here!
 
 Now, we can import our functor ops class and finally get that last bit to work:
 
-[scala]  
+```scala
+  
 class Tests extends FlatSpec with Matchers {
 
 import com.curalate.typelevel.Functor  
@@ -176,7 +191,8 @@ testMaps(Set(1)) shouldEqual Set(2)
 Await.result(testMaps(Future.successful(1)), Duration.Inf) shouldEqual 2  
  }  
 }  
-[/scala]
+
+```
 
 Pulling it all together, we're asking for a type of `T` that is a box of anything that has an implicit `Functor[T]` typeclass. We want to use the `map` method on the functor of `T` and that map method comes because we leverage the implicit `FunctionOps`.
 

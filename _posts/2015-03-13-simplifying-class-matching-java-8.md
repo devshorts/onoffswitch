@@ -26,7 +26,8 @@ I'm knee deep in akka these days and its a great queueing framework, but unfortu
 
 You frequently see stuff like this in receive methods:
 
-[java]  
+```java
+  
 public void onReceive(Object message){  
  if(message instanceof Something){
 
@@ -36,7 +37,8 @@ public void onReceive(Object message){
 }  
  .. etc  
 }  
-[/java]
+
+```
 
 And while that technically works, I really hate it because it promotes a monolothic function doing too much work. It also encourages less disciplined devs to put logic into the if block. While this is fine for a few checks, what happens when you need to dispatch 10, or 20 different types? It's not uncommon in actor based systems to have lots of small message types.
 
@@ -46,7 +48,8 @@ In reality, all I want is that my receive function should act as dispatcher, doi
 
 Thankfully with java 8 and lambadas we can create some simple combinator style executors that let us do stuff like this:
 
-[java]  
+```java
+  
 @Override public void onReceive(final Object message) throws Exception {  
  match().with(Payload.class, this::handlePayload)  
  .with(ResizeWorkLoadMessage.class, this::processResize)  
@@ -62,13 +65,15 @@ private void handlePayload(Payload payload){
 private void processResize(ResizeWorkLoadMessage resizeWorkload){  
  // ...  
 }  
-[/java]
+
+```
 
 Now we have a simple cast matcher that checks a raw object type, does a monadic check to see which matcher succeeds (going from top down with priority) and if nothing matches executes the fallthrough.
 
 Building something like this is pretty trivial. It's just a combinator that captures the current state and delegates to the next state if the current cast doesn't succeed:
 
-[java]  
+```java
+  
 import java.util.function.BiFunction;  
 import java.util.function.Consumer;
 
@@ -121,7 +126,8 @@ public static ClassMatcher match() {
  return new ClassMatcher((a, b) -\> false);  
  }  
 }  
-[/java]
+
+```
 
 ## Performance
 
@@ -133,7 +139,8 @@ Caching an instance of your dispatcher cut the perf time in half, and when you b
 
 Just as an example a simple cacher:
 
-[java]  
+```java
+  
 import java.util.function.Supplier;
 
 public class ClassMatchCache {  
@@ -147,11 +154,13 @@ public ClassMatcher cache(Supplier\<ClassMatcher\> matchFactory) {
 return matcher;  
  }  
 }  
-[/java]
+
+```
 
 And you can now use it
 
-[java]  
+```java
+  
 public class EventHandler {  
  private ClassMatchCache mainDispatcher = new ClassMatchCache();
 
@@ -170,15 +179,18 @@ public void dispatch(Object o){
  .exec(o);  
  }  
 }  
-[/java]
+
+```
 
 Or use whatever caching mechanism works for you.
 
 But in the end, do 100 nanoseconds matter to you to jump through all these hoops? To put it in perspective the following statement
 
-[java]  
+```java
+  
 IntStream.range(0, 1000).map(i -\> i + 1).sum();  
-[/java]
+
+```
 
 Takes 400 times longer, averaging 4000 nanoseconds. And even then, what's 4000 nanoseconds? Thats 4 microseconds, and .004 milliseconds. In the large scope of real projects this is insignificant.
 

@@ -38,7 +38,8 @@ My first idea was to just have this be a UI only page that pulled from the insta
 
 First I abstracted the concept of a server into its own class where we could inject callbacks if we wanted to externally. I exposed the routing as an injection function so any other consumers can add routes to the expression app (so if I wanted to build the realtime API I could) without the server caring at all what's going on.
 
-[js]  
+```js
+  
 var express = require('express');  
 var http = require('http');  
 var app = express();  
@@ -68,11 +69,13 @@ this.addRoutes = function(callback){
  callback(app);  
  };  
 };  
-[/js]
+
+```
 
 I also added a class that abstracts socket.IO and lets us issue an action on connect, as well as external invoking an action. The idea here is that the moment someone connects we want to make sure to send the most to date data. Given that the client load will realistically be only 1, maybe 2 people, there isn't an issue of server spam here.
 
-[js]  
+```js
+  
 var io = require('socket.io');
 
 exports.RealTime = function(server){
@@ -107,11 +110,13 @@ this.push = function(data) {
  socketIO.sockets.json.emit("data", data);  
  }  
 };  
-[/js]
+
+```
 
 I also have a class that encapsulates pulling data from the instagram RSS feed by tag and transforms the result into a simpler object
 
-[js]  
+```js
+  
 var request = require('request');  
 var \_ = require('underscore').\_;  
 var xml2js = require("xml2js");  
@@ -150,11 +155,13 @@ request(options.host, function (error, response, body) {
  })  
  };  
 };  
-[/js]
+
+```
 
 Now finally the node entrypoint
 
-[js]  
+```js
+  
 var openurl = require("openurl");
 
 var Server = require("./src/server").Server,  
@@ -187,7 +194,8 @@ function runOnTimer(interval){
 new App().run();
 
 openurl.open('http://localhost:3000');  
-[/js]
+
+```
 
 The idea now is that anyone who connects to the websocket will immediately get an rss query pushed to them. From then on at an interval configured by config.json we'll just send any new stuff to them.
 
@@ -197,7 +205,8 @@ The ui is dirt simple. It's just a single angularJS page that registers a servic
 
 The main angular app, below, takes care of registering services and directives, as well as the initial routing (using ui-router)
 
-[js]  
+```js
+  
 function App(){  
  this.run = function(app){  
  new ServiceInitializer().initServices(app);  
@@ -219,11 +228,13 @@ $stateProvider.state('main', {
  });  
  }  
 }  
-[/js]
+
+```
 
 The service initializer and services are just wrappers on the realtime subscription
 
-[js]  
+```js
+  
 function ServiceInitializer(){  
  this.initServices = function (app){  
  app.service('realtime', realtime);  
@@ -252,11 +263,13 @@ this.registerRssPush = function (client){
  };  
  }  
 }  
-[/js]
+
+```
 
 And the directive that drives the single image display. I set it up so that the image and tagged text fade in together when the image has completed loading.
 
-[js]  
+```js
+  
 function Directives(){  
  this.initDirectives = function(app){  
  app.directive('instagram', instagram)  
@@ -281,11 +294,13 @@ $(img).bind("load", function(event){
  };  
  }  
 }  
-[/js]
+
+```
 
 The only controller we need is to handle the realtime socket and filtering of the new input data
 
-[js]  
+```js
+  
 function feedController($scope, realtime, $http){  
  $scope.feed = [];
 
@@ -307,33 +322,39 @@ var map = {};
 $scope.$apply();  
  });  
 }  
-[/js]
+
+```
 
 Since the data comes in via a websocket and not in the scope of a wrapped angular service we need to do a $scope.apply to make sure the page redraws.
 
 The view directive represents one single instagram image
 
-[html]  
+```html
+  
 \<img src="{{data.link}}"/\>
 
 \<div class="image-text"\>  
  {{ data.title }}  
 \</div\>  
-[/html]
+
+```
 
 And the main view is just a repeater of the directives (controlled by the main controller)
 
-[html]  
+```html
+  
 \<div class="repeat-body"\>  
  \<div class="instagram-element" ng-repeat="item in feed"\>  
  \<instagram data="item"\>\</instagram\>  
  \</div\>  
 \</div\>  
-[/html]
+
+```
 
 To drive the whole thing the relevant index page blocks look like
 
-[html]  
+```html
+  
 ///.. js includes etc...
 
 \<script\>  
@@ -348,7 +369,8 @@ new App().run(app);
 
 \</div\>  
  \</body\>  
-[/html]
+
+```
 
 ## Conclusion
 

@@ -31,13 +31,16 @@ _This article was originally published at [tech.blinemedical.com](http://tech.bl
 
 For our SignalR usage (version 0.5.2), I'm using the exposed [Hub](https://github.com/SignalR/SignalR/wiki/QuickStart-Hubs) functionality, not the[persistent connections](https://github.com/SignalR/SignalR/wiki/QuickStart-Persistent-Connections) since I liked the encapsulation that Hub's gave us. In the following example, we have a local member variable called `Connection` which is a `HubConnection` type created with this code.
 
-[csharp]  
+```csharp
+  
 HubConnection Connection = new HubConnection(Url);  
-[/csharp]
+
+```
 
 HubConnection has a Start method that you use to initialize connections to the Url.&nbsp; `Connection.Start()` internally creates an asynchronous task that looks like this, after unwrapping the nicely packaged methods:
 
-[csharp]  
+```csharp
+  
 private Task Negotiate(IClientTransport transport)  
 {  
  var negotiateTcs = new TaskCompletionSource\<object\>();
@@ -83,13 +86,15 @@ var tcs = new TaskCompletionSource\<object\>();
 
 return tcs.Task;  
 }  
-[/csharp]
+
+```
 
 The comment above the `IsFaulted` check says that if the server fails to connect, an exception is set and the transport is closed``. Since SignalR utilizes the task parallel library we can just call Start() again and get a new task.
 
 Here is the snippet we use to continuously reconnect:
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// Handles if the connection start task fails and retries every 5 seconds until  
 /// it succeeds  
@@ -143,16 +148,19 @@ private void RetryConnectionStartRescheduler()
  });
 
 }  
-[/csharp]
+
+```
 
 `ThreadUtil.ScheduleToThreadPool` is a wrapper we have on top of the Rx framework's threadpool scheduler. Internally it looks like this
 
-[csharp]  
+```csharp
+  
 public static void ScheduleToThreadPool(TimeSpan executeTime, Action action)  
 {  
  Scheduler.ThreadPool.Schedule(DateTime.Now.Add(executeTime), action);  
 }  
-[/csharp]
+
+```
 
 It's important to note that you have to touch the exception object of a faulted task or use the exception Handle method in order to avoid an [UnobservedTaskExceptions](http://msdn.microsoft.com/en-us/library/dd997415.aspx). Those happen to unobserved exceptions which are then rethrown on the finalizer thread.
 

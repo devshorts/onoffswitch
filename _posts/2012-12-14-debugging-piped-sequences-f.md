@@ -28,19 +28,24 @@ _This article was originally published at [tech.blinemedical.com](http://tech.bl
 
 In F# you can create [piped operations](http://www.c-sharpcorner.com/uploadfile/rmcochran/fsharp-types-and-the-forward-pipe-operator/) using the `|>` operator. This takes the output of the previous statement and funnels it as the input to the next statement. Using the pipe operator, a statement like this:
 
-[fsharp]  
+```fsharp
+  
 x |\> f |\> g |\> h  
-[/fsharp]
+
+```
 
 Means having functions nested like this:
 
-[fsharp]  
+```fsharp
+  
 h(g(f(x))  
-[/fsharp]
+
+```
 
 So a piece of code like this:
 
-[fsharp]  
+```fsharp
+  
 let print item = Console.WriteLine(item.ToString)
 
 let seqDebug =  
@@ -49,11 +54,13 @@ let seqDebug =
  |\> List.filter (fun i -\> i \< 5)  
  |\> List.head  
  |\> print  
-[/fsharp]
+
+```
 
 Decompiles into this (formatting added):
 
-[csharp]  
+```csharp
+  
 [DebuggerBrowsable(DebuggerBrowsableState.Never)]  
 internal static Unit seqDebugu00407;
 
@@ -68,13 +75,16 @@ public static void mainu0040()
 
 u0024Program.seqDebugu00407 = (Unit) null;  
 }  
-[/csharp]
+
+```
 
 Which really boils down to:
 
-[csharp]  
+```csharp
+  
 seqDebug = Print(Head(Filter(Map(sequence))))  
-[/csharp]
+
+```
 
 The F# syntax is nice because it lets us write code from the outside in, instead of inside out.
 
@@ -88,7 +98,8 @@ Thankfully, Visual Studio has thought of this and you can use the _[Step Into Sp
 
 The example is a little trivial, since you would've just put a breakpoint in the print statement, right? But what if you are piping through F# operators like `List.map` and `List.filter`? In these cases it can be hard to know what is the direct input to these functions since the input argument is automatically applied. For these scenarios, a simple identity function can be really helpful:
 
-[fsharp]  
+```fsharp
+  
 let identity item = item
 
 let seqDebug =  
@@ -97,7 +108,8 @@ let seqDebug =
  |\> identity  
  |\> List.filter (fun i -\> i \< 5)  
  |\> List.head  
-[/fsharp]
+
+```
 
 So you can sprinkle in your identity function and put breakpoints there. This way you can inject yourself into the middle of this sequence.
 
@@ -107,13 +119,16 @@ Taking this one step further, sometimes I want to print out a value in the middl
 
 However, F# lets you define [your own operators](http://msdn.microsoft.com/en-us/library/dd233204.aspx), so I created one that I like to call the "argument identity" that executes a function which returns void and then returns the original argument (acting as an argument identity function):
 
-[fsharp]  
+```fsharp
+  
 let (~~) (func:'a-\> unit) (arg:'a) = (func arg) |\> fun () -\> arg  
-[/fsharp]
+
+```
 
 The `~~` symbol is a [prefix](http://msdn.microsoft.com/en-us/library/dd233204.aspx) operator that takes a function of one argument that returns unit, then closes the argument into a function with type `unit -> 'a`. Then I pipe the return value (unit) to the anonymous function (that takes unit) which will return the closed value of the original argument. Now I can do things like this:
 
-[fsharp]  
+```fsharp
+  
 let (~~) (func:'a-\> unit) (arg:'a) = (func arg) |\> fun () -\> arg
 
 let seqDebug =  
@@ -124,15 +139,18 @@ let seqDebug =
  |\> ~~ Console.WriteLine  
  |\> List.head  
  |\> ~~ Console.WriteLine  
-[/fsharp]
+
+```
 
 Which prints out
 
-[csharp]  
+```csharp
+  
 [1; 2; 3; ...]  
 [1; 2]  
 1  
-[/csharp]
+
+```
 
 You obviously don't need your own operator, you can make it a named helper function if you want. Either way, some sort of argument identity function is useful in these scenarios.
 
@@ -140,12 +158,14 @@ You obviously don't need your own operator, you can make it a named helper funct
 
 And of course, when all else fails, you can break up the sequence into a series of `let` statements to debug it the old fashioned way.
 
-[fsharp]  
+```fsharp
+  
 let seqDebugDecomposed =  
  let source = [0..1000]  
  let sourcePlusOne = List.map (fun i -\> i + 1) source  
  let filteredSource = List.filter (fun i -\> i \< 3) sourcePlusOne  
  let listHead = List.head filteredSource  
  print listHead  
-[/fsharp]
+
+```
 

@@ -28,7 +28,8 @@ The original authors compiled their version against jackson-core 2.4.\* but the 
 
 Anyways, now you get the niceties of being able to do:
 
-[java]  
+```java
+  
 @Value  
 public class ValueType{  
  @JsonProperty  
@@ -37,13 +38,16 @@ public class ValueType{
 @JsonProperty  
  private String description;  
 }  
-[/java]
+
+```
 
 And instantiate your mapper:
 
-[java]  
+```java
+  
 new ObjectMapper().setAnnotationIntrospector(new JacksonLombokAnnotationIntrospector());  
-[/java]
+
+```
 
 Enjoy!
 

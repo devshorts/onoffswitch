@@ -30,7 +30,8 @@ For a basic threadpool manager it's really pretty simple. First you start with n
 
 It's important to note the `ManualResetEvent`. This means that the mutex will stay signaled (i.e. wait's will exit immediately) until the queue is empty. If we used an `AutoResetEvent` then if you queued up too much too fast the threadpool would miss events that were added while all the threads were running.
 
-[csharp]  
+```csharp
+  
 public static class ThreadUtil  
 {  
  #region Data
@@ -157,5 +158,6 @@ ThreadStart action = null;
 
 #endregion  
 }  
-[/csharp]
+
+```
 

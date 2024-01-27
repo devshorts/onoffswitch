@@ -21,11 +21,13 @@ permalink: "/2013/05/16/bad-image-format-invalid-access-memory-location/"
 ---
 Wow, two bad image format posts in one day. So, the previous post talked about debugging 64bit vs 32 bit assemblies. But after that was solved I ran into another issue. This time with the message:
 
-[csharp]  
+```csharp
+  
 Unhandled Exception: System.BadImageFormatException: Could not load file or assembly 'Interop.dll' or one of its dependencies. Invalid access to memory location. (Exception from HRESULT: 0x800703E6)  
  at Program.Program.Run(Args args, Boolean fastStart)  
  at Program.Program.Main(String[] args) in C:\Projects\Program.cs:line 36  
-[/csharp]
+
+```
 
 Gah, what gives?
 

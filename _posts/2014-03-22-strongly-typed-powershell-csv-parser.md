@@ -42,15 +42,18 @@ To solve that, I figured I could leverage the [F# data csv library](http://fshar
 
 As emitting bytecode is a pain in the ass, I wanted to keep my data classes simple. If I had a csv like:
 
-[code]  
+```
+  
 Name,Age,Title  
 Anton,30,Sr Engineer  
 Faisal,30,Sr Engineer  
-[/code]
+
+```
 
 Then I wanted to emit a class like
 
-[csharp]  
+```csharp
+  
 public class Whatever{  
  public String Name;  
  public String Age;  
@@ -62,7 +65,8 @@ public Whatever(String name, String age, String title){
  Title = title;  
  }  
 }  
-[/csharp]
+
+```
 
 Since that would be the bare minimum that powershell would need to display the type.
 
@@ -70,7 +74,8 @@ Since that would be the bare minimum that powershell would need to display the t
 
 First, lets look at the final result of what we need. The best way to do this is to create a sample type in an assembly and then to use `Ildasm` (an IL disassembler) to view the bytecode. For example, the following class
 
-[csharp]  
+```csharp
+  
 using System;
 
 namespace Sample  
@@ -87,11 +92,13 @@ public Class1(String f, String b)
  }  
  }  
 }  
-[/csharp]
+
+```
 
 Decompiles into this:
 
-[code]  
+```
+  
 .method public hidebysig specialname rtspecialname  
  instance void .ctor(string f,  
  string b) cil managed  
@@ -111,13 +118,15 @@ Decompiles into this:
  IL\_0016: nop  
  IL\_0017: ret  
 } // end of method Class1::.ctor  
-[/code]
+
+```
 
 While I didn't just divine how to write bytecode by looking at the IL (I followed some other blog posts), when I got an "invalid bytecode" CLR runtime error, it was nice to be able to compare what I was emitting which what I expected to emit. This way simple errors (like forgetting to load something on the stack) became pretty apparent.
 
 To emit the proper bytecode, we need a few boilerplate items: an assembly, a type builder, an assembly builder, a module builder, and a field builder. These are responsible for the metadata you need to finally emit your built type.
 
-[fsharp]  
+```fsharp
+  
 let private assemblyName = new AssemblyName("Dynamics")
 
 let private assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.RunAndSave)
@@ -132,7 +141,8 @@ let private fieldBuilder (typeBuilder:TypeBuilder) name fieldType : FieldBuilder
 let private createConstructor (typeBuilder:TypeBuilder) typeList =  
  typeBuilder.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, typeList |\> List.toArray)
 
-[/fsharp]
+
+```
 
 None of this is really all that interesting and hopefully is self explanatory.
 
@@ -140,7 +150,8 @@ The `fieldBuilder` is important since that will let us declare our local fields.
 
 Here is the necessary code to build such a constructor.
 
-[fsharp]  
+```fsharp
+  
 let private callDefaultConstructor (gen: ILGenerator) =  
  let objType = typeof\<obj\>  
  gen.Emit(OpCodes.Call, objType.GetConstructor(Type.EmptyTypes))  
@@ -175,7 +186,8 @@ fieldsWithIndexes
  |\> ignore
 
 generator |\> completeConsructor  
-[/fsharp]
+
+```
 
 A few points of interest.
 
@@ -185,7 +197,8 @@ A few points of interest.
 
 The final piece of the block is to tie it all together. Create field instances, take the target types and create a constructor, then return the type.
 
-[fsharp]  
+```fsharp
+  
 type FieldName = string  
 type TypeName = string
 
@@ -199,23 +212,27 @@ let make (name : TypeName) (types : (FieldName \* Type) list)=
 definedConstructor |\> build fields
 
 typeBuilder.CreateType()  
-[/fsharp]
+
+```
 
 ## Instantiating your type
 
 Lets say we have a record that describes a field, its type, and a target value
 
-[fsharp]  
+```fsharp
+  
 type DynamicField = {  
  Name : String;  
  Type : Type;  
  Value: obj;  
 }  
-[/fsharp]
+
+```
 
 Then we can easily instantiate a target type with
 
-[fsharp]  
+```fsharp
+  
 let instantiate (typeName : TypeName) (objInfo : DynamicField list) =  
  let values = objInfo |\> List.map (fun i -\> i.Value) |\> List.toArray  
  let types = objInfo |\> List.map (fun i -\> (i.Name, i.Type))
@@ -223,7 +240,8 @@ let instantiate (typeName : TypeName) (objInfo : DynamicField list) =
 let t = make typeName types
 
 Activator.CreateInstance(t, values)  
-[/fsharp]
+
+```
 
 It's important to note that `values` is an `obj []`. Because its an object array we can pass it to the activates overloaded function that wants a `params obj[]` and so it'll treat each object in the object array as another argument to the constructor.
 
@@ -231,7 +249,8 @@ It's important to note that `values` is an `obj []`. Because its an object array
 
 Since there is a way to dynamically create classes at runtime, it should be easy for us to leverage this to do the csv strong typing. In fact, the entire reader is this and emits to you a list of strongly typed entries:
 
-[fsharp]  
+```fsharp
+  
 open System  
 open System.Reflection  
 open System.IO  
@@ -261,7 +280,8 @@ let typeData = make (randomName()) fields
  let paramsArr = item.Columns |\> Array.map (fun i -\> i :\> obj)  
  yield Activator.CreateInstance(typeData, paramsArr)  
  ]  
-[/fsharp]
+
+```
 
 The `randomName()` is a silly workaround to make sure I don't create the same `Type` in an assembly. Each time you run the csv reader it'll create a new random type representing that csv's data. I could maybe have optimized this that if someone calls in for a type with the same list of headers that another type had then to re-use that type instead of creating a duplicate, oh well.
 
@@ -271,7 +291,8 @@ Like I mentioned in the beginning, there is a major flaw here. The issue is that
 
 Either way, here is the entire csv cmdlet
 
-[fsharp]  
+```fsharp
+  
 namespace CsvHandler
 
 open DataEmitter  
@@ -297,7 +318,8 @@ fileStream
  |\> CsvReader.load  
  |\> List.toArray  
  |\> this.WriteObject  
-[/fsharp]
+
+```
 
 This reads an implicit file name (or file with wildcards) and leverages the inherited `PsCmdlet` class to resolve the path from the passed in file (or expand any splat'd files like `some*`). All we do now is pass each file stream to the reader, convert to an array, and pass it to the next item in the powershell pipe.
 
@@ -305,14 +327,16 @@ This reads an implicit file name (or file with wildcards) and leverages the inhe
 
 Maybe this whole exercise was overkill, but let's finish it out anyways. Let's say we have a csv like this:
 
-[code]  
+```
+  
 Year,Make,Model,Description,Price  
 1997,Ford,E350,"ac, abs, moon",3000.00  
 1999,Chevy,"Venture ""Extended Edition""","",4900.00  
 1999,Chevy,"Venture ""Extended Edition, Very Large""",,5000.00  
 1996,Jeep,Grand Cherokee,"MUST SELL!  
 air, moon roof, loaded",4799.00  
-[/code]
+
+```
 
 We can do the following
 
@@ -331,7 +355,8 @@ After getting draft one done, I thought about the handling of the IL generator i
 
 After some mulling I realized that implementing a computation expression to handle the seeded state would be perfect for both scenarios. We can create an IlBuilder computation expression that will hold onto the reference of the generator and pass it to any function that uses `do!` syntax. We can do the same for the auto incremented index with a different builder. Let me show you the final result and then the builders:
 
-[fsharp]  
+```fsharp
+  
 let private build (fields : FieldBuilder list) (cons : ConstructorBuilder) =  
  let generator = cons.GetILGenerator()
 
@@ -351,11 +376,13 @@ for field in fields do
 
 do! emitReturn  
  }  
-[/fsharp]
+
+```
 
 And both builders:
 
-[fsharp]  
+```fsharp
+  
 (\* encapsulates an incrementable index \*)  
 type IncrementingCounterBuilder () =  
  let mutable start = 0  
@@ -374,7 +401,8 @@ member this.Return(v) = ()
  member this.For(col, func) = for item in col do func item  
  member this.Combine expr1 expr2 = ()  
  member this.Delay expr = expr()  
-[/fsharp]
+
+```
 
 Now all mutability and state is contained in the expression. I think this is a much cleaner implementation and the functions I used in the builder workflow didn't have to have their function signatures changed!
 

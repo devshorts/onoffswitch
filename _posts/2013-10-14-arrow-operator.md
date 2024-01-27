@@ -65,7 +65,8 @@ Turns out this is part of the `Control.Arrow` module and defines an interesting 
 
 A quick translation attempt turned out the following small module
 
-[fsharp]  
+```fsharp
+  
 module Arrow =  
  let split x = (x, x)  
  let combine f (x, y) = f x y  
@@ -76,16 +77,19 @@ module Arrow =
  let (.\*\*\*.) = onTuple  
  let (.&&&.) = onSingle  
  let onSingleCombine op f g = (onSingle f g) \>\> combine op  
-[/fsharp]
+
+```
 
 To break down what's going on here, we can follow an example posted in the haskell wiki.
 
-[fsharp]  
+```fsharp
+  
 let div2 x = x / 2  
 let m3p1 x = 3\*x + 1
 
 let example = onSingleCombine (+) div2 m3p1 8  
-[/fsharp]
+
+```
 
 What this is really doing is:
 

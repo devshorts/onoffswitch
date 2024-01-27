@@ -36,7 +36,8 @@ To that end our first foray into services was built on top of Twitter [Finagle s
 
 Finagle by itself isn't super opinionated. It gives you building blocks to build services (service discovery, circuit breaking, monitoring/metrics, varying protocols, etc) but doesn't give you much else. Our first set of services built on finagle used Thrift over HTTP. [Thrift](https://Thrift.apache.org/), similiar to protobuf, is an intermediate declarative language that creates RPC style services. For example:
 
-[code lang=text]  
+```text
+  
 namespace java tutorial  
 namespace py tutorial
 
@@ -45,7 +46,8 @@ service MultiplicationService
 {  
  int multiply(1:int n1, 2:int n2),  
 }  
-[/code]
+
+```
 
 Will create an RPC service called `MultiplicationService` that takes 2 parameters. Our implementation at Curalate hosted Thrift over HTTP (serializing Thrift as JSON) since all our services are web based behind ELB's in AWS.
 

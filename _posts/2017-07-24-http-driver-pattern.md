@@ -43,7 +43,8 @@ In practice, I found that retrofit (even with scala's issues) didn't work well i
 
 However, taking the idea from retrofit we can abstract away http calls with an http driver. Http really isn't that complicated, especially for how its used in conjuction with service to service calls:
 
-[scala]  
+```scala
+  
 import scala.concurrent.{ExecutionContext, Future}
 
 case class ApiRequest(  
@@ -134,19 +135,22 @@ def bytesRaw[TRes: Manifest](
  body: Option[Array[Byte]]  
  )(implicit executionContext: ExecutionContext): Future[BodyResponse[TRes]]  
 }  
-[/scala]
+
+```
 
 Service owners who want to distribute a client can create clients that have no dependencies (other than the driver definition. Platform maintainers, like myself, can be dilligent about making sure the driver interface _never breaks_, or if it does is broken in a new namespace such that different versions can peacefully co-exist in the same process.
 
 An example client can now look like
 
-[scala]  
+```scala
+  
 class ServiceClient(driver: HttpDriver) {  
  def ping()(implicit executionContext: ExecutionContext): Future[Unit] = {  
  driver.get[Unit]("/health").map(\_.data)  
  }  
 }  
-[/scala]
+
+```
 
 But we still need to provide an implementation of a driver. This is where we can decouple things and provide drivers that are properly tooled with all the fatness we want (netty/finagle/zipkin tracing/monitoring/etc) and service owners can bind their clients to whatever driver they want. Those provided implementations can be in their own shared library that only service's bind to (not service clients! i.e. terminal endpoints in the dependency graph)
 
@@ -161,14 +165,16 @@ There are few advantages here:
 
 We can do some other cool stuff now too, given we've abstracted away how to call http code. Another common issue with clients is dealing with meaningful errors that aren't just the basic http 5xx/4xx codes. For example, if you throw a 409 conflict you may want the client to actually receive a `WidgetInIncorrectState` exception for some calls, and in other calls maybe a `FooBarInUse` error that contains more semantic information. Basically overloading what a 409 means for a particular call/query. One way of doing this is with a discriminator in the error body:
 
-[code lang=text]  
+```text
+  
 HTTP 409 response:  
 {  
  "code": "WidgetInIncorrectState",  
  "widgetName: "foo",  
  "widgetSize": 1234  
 }  
-[/code]
+
+```
 
 Given we don't want client code pulling in a json library to do json parsing, the driver needs to support [context aware deserialization](https://github.com/FasterXML/jackson-docs/wiki/JacksonPolymorphicDeserialization).
 
@@ -180,7 +186,8 @@ To do that, I've exposed a `MultiType` object that defines
 
 And it looks like:
 
-[code lang=scala]  
+```scala
+  
 /\*\*  
  \* A type representing deserialization of multiple types.  
  \*  
@@ -203,11 +210,13 @@ case class MultiType[T](
 case class SubType[T: Manifest](path: Option[String] = None) {  
  val clazz = manifest[T].runtimeClass.asInstanceOf[Class[T]]  
 }  
-[/code]
+
+```
 
 Using this in a client looks like:
 
-[code lang=scala]  
+```scala
+  
 class ServiceClient(driver: HttpDriver) {  
  val errorMappers = MultiType[ApiException](discriminatorField = "code", Map(  
  "invalidData" -\> SubType[InvalidDataException]()  
@@ -217,13 +226,15 @@ def ping()(implicit executionContext: ExecutionContext): Future[Unit] = {
  driver.get[Unit]("/health").map(\_.data).failWithOnCode(500, errorMappers)  
  }  
 }  
-[/code]
+
+```
 
 This is saying that when I get the value `invalidData` in the json response of field `code` on an http 500 error, to actually throw an `InvalidDataException` in the client.
 
 How does this work? Well just like the http driver, we've abstracted the serializer and that's all plugged in by the service consumer
 
-[code lang=scala]  
+```scala
+  
 case class DiscriminatorDoesntExistException(msg: String) extends Exception(msg)
 
 object JacksonHttpSerializer {  
@@ -259,7 +270,8 @@ private def addPrefix(s: String, p: String) = {
  p + s.stripPrefix(p)  
  }  
 }  
-[/code]
+
+```
 
 # Inherent issues
 

@@ -28,59 +28,72 @@ When building service architectures one thing you need to solve is how to pass c
 
 I'm working in [finatra](https://twitter.github.io/finatra/) these days, and I love this framework. It's got all the things I loved from [dropwizard](https://github.com/dropwizard/dropwizard) but in a scala first way. Todays challenge was that I wanted to be able to pass request http headers around between services in a typesafe way that could be used in thread local request contexts. Basically I want to send
 
-[code]  
+```
+  
 X-Magic-Header someValue  
-[/code]
+
+```
 
 And be able to resolve that into a `MagicHeader(value: T)` class.
 
 The first attempt is easy, just parse header values into case classes:
 
-[scala]  
+```scala
+  
 case class MagicHeader(value: String)  
-[/scala]
+
+```
 
 But the question I have is how do I enforce that the header string `X-Magic-Value` is directly correlated to the case class `MagicHeader`?
 
-[scala]  
+```scala
+  
 object MagicHeader {  
  val key = "X-Magic-Header"  
 }
 
 case class MagicHeader(value: String)  
-[/scala]
+
+```
 
 Maybe, but still, when someone sends the value out, they can make a mistake:
 
-[scala]  
+```scala
+  
 setRequestHeader("X-mag1c-whatevzer" -\> magicHeader.value)  
-[/scala]
+
+```
 
 That sucks, I don't want that. I want it strictly paired. I'm looking for what is in essence a case class that has 2 fields: key, value, but where the key is _fixed_. How do I do that?
 
 I like to start with how I want to use something, and then work backwards to how to make that happen. Given that, lets say we want an api kind of like:
 
-[scala]  
+```scala
+  
 object Experimental {  
  val key = "Experimental"
 
 override type Value = String  
 }  
-[/scala]
+
+```
 
 And I'd like to be able to do something like
 
-[scala]  
+```scala
+  
 val experimentKey = Experimental("experiment abc")  
 (experimentKey.key -\> experimentKey.value) shouldEqual  
  ("Experimental" -\> "experiment abc")  
-[/scala]
+
+```
 
 I know this means I need an apply method somewhere, and I know that I want a tuple of (key, value). I also know that because I have a path dependent type of the second value, that I can do something with that
 
 Maybe I can fake an apply method to be like
 
-[scala]  
+```scala
+  
 trait ContextKey {  
  val key: String
 
@@ -100,17 +113,20 @@ def apply(data: Value): Key = new Key {
 override def \_2: Value = data  
  }  
 }  
-[/scala]
+
+```
 
 And update my object to be
 
-[scala]  
+```scala
+  
 object Experimental extends ContextKey {  
  val key = "Experimental"
 
 override type Value = String  
 }  
-[/scala]
+
+```
 
 Now my object has a mixin of an apply method that creates an anonmyous tuple of type `String, Value`. You can create instances of `Experimental` but you can't ever set the key name itself! However, I can still _access_ the pinned key because the anonymous tuple has it!
 
@@ -118,7 +134,8 @@ But in the case that I wanted, I wanted to use these as http header values. Whic
 
 We can do that by adding now a few extra methods on the ContextKey trait:
 
-[scala]  
+```scala
+  
 trait ContextKeyType[T] extends Product2[String, T] {  
  def unparse: String  
 }
@@ -171,11 +188,13 @@ override def canEqual(that: Any): Boolean = {
  }  
  }  
 }  
-[/scala]
+
+```
 
 This introduces a parse and unparse method which converts things to and from strings. A http header object can now define how to convert it:
 
-[scala]  
+```scala
+  
 object Experimental extends ContextKey {  
  val key = "Experimental"  
  override type Value = String
@@ -184,13 +203,15 @@ override def parse(value: String): String = value
 
 override def unparse(value: String): String = value  
 }  
-[/scala]
+
+```
 
 So, if we want to maybe send JSON in a header, or a long/int/uuid we can now parse and unparse that value pre and post wire.
 
 Now lets add a utility to convert a `Map[String, String]` which could represent an http header map, into a set of strongly typed context values:
 
-[scala]  
+```scala
+  
 object ContextValue {  
  def find[T \<: ContextKey](search: T, map: Map[String, String]): Option[T#Value] = {  
  map.collectFirst {  
@@ -198,11 +219,13 @@ object ContextValue {
  }  
  }  
 }  
-[/scala]
+
+```
 
 Back in finatra land, lets add a http filter
 
-[scala]  
+```scala
+  
 case class CurrentRequestContext(  
  experimentId: Option[Experimental.Value],  
 )
@@ -233,7 +256,8 @@ class RemoteContextFilter extends SimpleFilter[Request, Response] {
 service(request)  
  }  
 }  
-[/scala]
+
+```
 
 From here on out, we can provide a set of strongly typed values that are basically case classes with hidden keys
 

@@ -206,12 +206,14 @@ console.log("ready " + new Date().getTime());
 
 Notice the while loop that should sit for a few seconds. When you hit `http://localhost:3000/add/test` the console logs
 
-[code]  
+```
+  
 registered failure function  
 registered success function  
 ready 1361995555376  
 success 1361995556530  
-[/code]
+
+```
 
 which shows that the timer was deferred until the execution flow returned. When control flow exited, the delayed test function ran, emitting the event and executing our callbacks.
 

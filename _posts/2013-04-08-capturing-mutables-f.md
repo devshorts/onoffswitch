@@ -27,21 +27,25 @@ I was talking about F# with a coworker recently and we were discussing the merit
 
 But, there is a small caveat with mutables: you can't close over them. Look at the following example:
 
-[fsharp]  
+```fsharp
+  
 let g() =  
  let mutable f = 0;
 
 fun () -\> Console.WriteLine f  
-[/fsharp]
+
+```
 
 The intent is that calling `g()` would give you a new function that writes `f` to the console. In C# it would be the same as
 
-[csharp]  
+```csharp
+  
 public Action g(){  
  int f = 0;  
  return () =\> Console.WriteLine(f);  
 }  
-[/csharp]
+
+```
 
 Both examples look functionally the same, but the F# example actually gives you the following compiler error:
 
@@ -63,26 +67,32 @@ Instead, if you do need to return a captured mutable value in a function closure
 
 A modified version of our example that would now work looks like this:
 
-[fsharp]  
+```fsharp
+  
 let g() =  
  let f = ref 0;
 
 fun () -\> Console.WriteLine !f
 
 g()()  
-[/fsharp]
+
+```
 
 Notice the `!` which dereferences the cell. This example outputs
 
-[code]  
+```
+  
 0  
-[/code]
+
+```
 
 Without the `!`, though, you'd get
 
-[code]  
+```
+  
 Microsoft.FSharp.Core.FSharpRef`1[System.Int32]  
-[/code]
+
+```
 
 Showing you that `f` isn't really an int, it's a boxed heap value of an int.
 

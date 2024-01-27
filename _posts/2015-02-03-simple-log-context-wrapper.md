@@ -23,17 +23,21 @@ permalink: "/2015/02/03/simple-log-context-wrapper/"
 ---
 I'm still toying around with the scala play! framework and I wanted to check out how I can make logging contextual information easy. In the past with .NET I've used and written libraries that wrap the current log provider and give you extra niceties with logging. One of my favorites was being able to do stuff like
 
-[csharp]  
+```csharp
+  
 var foo = "1";  
 var bar = "2";  
 logger.With(new { foo, bar }).Info("data")  
-[/csharp]
+
+```
 
 Which would output a log line like
 
-[code]  
+```
+  
 data, foo=1; bar=2  
-[/code]
+
+```
 
 The logger's "with" was even chainable so you could capture a previously built "with" context and re-use it. It was really nice when you want to create a baseline logging context for complex functions.
 
@@ -43,7 +47,8 @@ Either way, this makes for a good experiment.
 
 First off, the final product
 
-[scala]  
+```scala
+  
 val logInfo = With(  
  "request-uri" -\> rh.uri,  
  "request-time" -\> (System.currentTimeMillis() - start)  
@@ -51,22 +56,26 @@ val logInfo = With(
 val compound = logInfo and With("date" -\> "bar")
 
 logger.info("handled", compound)  
-[/scala]
+
+```
 
 Which outputs
 
-[code]  
+```
+  
 [info] LoggingFilter$ - handled request-uri=/; request-time=164; date=bar  
 [info] LoggingFilter$ - handled request-uri=/assets/javascripts/jquery-1.9.0.min.js; request-time=347; date=bar  
 [info] LoggingFilter$ - handled request-uri=/assets/stylesheets/main.css; request-time=362; date=bar  
 [info] LoggingFilter$ - handled request-uri=/assets/images/favicon.png; request-time=478; date=bar  
-[/code]
+
+```
 
 This is a snippet I'm playing with in a root level timing filter for a scala play app. The "date -\> bar" association is just for demonstration of combining contexts
 
 The full filter looks like
 
-[scala]  
+```scala
+  
 object LoggingFilter extends Filter{  
  val logger = Log(getClass)
 
@@ -88,13 +97,15 @@ logger.info("handled", compound)
 result  
  }  
 }  
-[/scala]
+
+```
 
 Basically this creates a "With" object that is composable with other "with" objects which takes in a variable list of tuples and internally stores them as a map.
 
 The factory function "Log" just instantiates the initial context object for tracking of state and captures the scala Play! logger to pass in
 
-[scala]  
+```scala
+  
 object Log {  
  def apply(src : Class[\_]) = new Log(Logger(src))  
 }
@@ -114,11 +125,13 @@ def and(other: LogData) = {
  new LogData(logMap ++ other.logMap)  
  }  
 }  
-[/scala]
+
+```
 
 Now you should see the log wrapper. It just wraps the scala play logger and takes in an extra log data if its passed in:
 
-[scala]  
+```scala
+  
 class Log(logger: LoggerLike) {
 
 def getMessage(s: String, data: LogData): String = {  
@@ -138,17 +151,20 @@ def warn(s: String, m: LogData = null, t: Throwable = null) = logger.warn(getMes
 def error(s: String, m: LogData = null, t: Throwable = null) = logger.error(getMessage(s, m))
 
 }  
-[/scala]
+
+```
 
 At this point we just need to create the with context class, which again is just a factory function for the LogData class
 
-[scala]  
+```scala
+  
 object With {  
  def apply(tup: (String, Any)\*) = {  
  new LogData(tup.map(i =\> (i.\_1, i.\_2.toString)).toMap)  
  }  
 }  
-[/scala]
+
+```
 
 Since the main logger takes LogData instances this kind of works out well
 

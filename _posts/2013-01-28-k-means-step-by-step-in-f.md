@@ -30,28 +30,35 @@ In short, k-means is a way to put data into groups based on distance between nea
 
 Imagine you have some 1-dimensional data like
 
-[csharp]  
+```csharp
+  
 1, 2, 5, 14, 17, 19, 20  
-[/csharp]
+
+```
 
 And you want to group this into two groups. Pretty easily you can see that 1, 2, and 5 go into one group, and 14, 17, 19, 20 should go in another group. But why? For this small data set we intuitively figured out that 1, 2, and 5 are close together, but at the same time far away from 14, 17, 19, and 20, which are also close together. Really what we did was we calculated the centroid of each group and assigned the values to the centroid. A centroid is a fancy way of saying center point of a group. It's calculated by taking the average of a group.
 
 For example, if we have the group
 
-[csharp]  
+```csharp
+  
 1, 2, 5  
-[/csharp]
+
+```
 
 What is its centroid? The answer is
 
-[csharp]  
+```csharp
+  
 (1 + 2 + 5) / 3 = 2.666  
-[/csharp]
+
+```
 
 So with k-means you end up with k centroids and a bunch of data grouped to that centroid. It's grouped to that centroid because that data is closest to that centroid vs any other centroid. To calculate the centroids and grouping k-means uses an [iterative process](http://home.dei.polimi.it/matteucc/Clustering/tutorial_html/kmeans.html):
 
 - Pick k random points. So if you are doing a k=2 clustering, just pick 2 random points from your data set. These are going to be our initial centroids. It doesn't matter if it's right, or even if the points are the same. The algorithm is going to fine tune things for us. Technically this is called the [Forgy Method](http://en.wikibooks.org/wiki/Data_Mining_Algorithms_In_R/Clustering/K-Means#Implementation) of initialization. There are a bunch of other ways to initialize your centroids, but Forgy seems to be pretty common.
-- For every point, calculate its distance from the centroid. So lets say we picked points 1 and 2 as our centroids. The [distances](http://en.wikipedia.org/wiki/Euclidean_distance) then look like this:[csharp]  
+- For every point, calculate its distance from the centroid. So lets say we picked points 1 and 2 as our centroids. The [distances](http://en.wikipedia.org/wiki/Euclidean_distance) then look like this:```csharp
+  
  Δ1 Δ2  
 1 0 1  
 2 1 0  
@@ -60,11 +67,14 @@ So with k-means you end up with k centroids and a bunch of data grouped to that 
 17 16 15  
 19 18 17  
 20 19 18  
-[/csharp]
-- Now what we do is assign each data point to its nearest centroid. So, obviously, point 1 is closest to the initial arbitrary point 1 centroid. And you can see that basically everything else is closer to the arbitrary point 2 centroid. So we're left with a grouping like this now:[csharp]  
+
+```
+- Now what we do is assign each data point to its nearest centroid. So, obviously, point 1 is closest to the initial arbitrary point 1 centroid. And you can see that basically everything else is closer to the arbitrary point 2 centroid. So we're left with a grouping like this now:```csharp
+  
 data around centroid 1: 1  
 data around centroid 2: 2, 5, 14, 17, 19, 20  
-[/csharp]
+
+```
 - Now, the next step is to calculate new centroids based on these groups. For this example, we can take the average of all the points together to find the new center. So the new centroids become 1 and 12.83. Now we go back to step 2 using the new centroids. If you keep track of the current centroid and the previous centroid, then you can stop the k-means calculation when centroids don't change between iterations. At this point everything has converged and you've got your k clusters
 
 Unfortunately k-means doesn't always converge, so you can add a convergence delta (i.e. if the centroid between the current and previous iterations hasn't really changed much, so it's within some acceptable range) or an iteration limit (only try to cluster 100 times) so you can set bounds on the clustering.
@@ -73,7 +83,8 @@ Unfortunately k-means doesn't always converge, so you can add a convergence delt
 
 The first thing to do for my implementation is to define a structure representing a single data point. I created a `DataPoint` class that takes a float list which represents the data points dimensions. So, a 1-dimesional data point would have a float list of one element. A 2-d data point has one of two points (x and y), etc. To give credit where credit is due, I took the dimensional array representation from [another F# implementation](http://www.navision-blog.de/2009/01/29/n-dimensional-k-means-clustering-with-f/).
 
-[fsharp]  
+```fsharp
+  
 type DataPoint(input:float list) =  
  member this.Data = input  
  member this.Dimensions = List.length input  
@@ -89,7 +100,8 @@ type DataPoint(input:float list) =
  acc + (d2Item - d1Item)\*\*2.0  
  ) 0.0 d1.Data d2.Data  
  sqrt(sums)  
-[/fsharp]
+
+```
 
 It has its data, the dimensions, an equality overload (so I can compare data points by their data and not by reference), as well as a static helper method to calculate the euclidean distance between two n-dimensional points. Here I'm using the `fold2` method which can fold two lists simultaneously.
 
@@ -97,7 +109,8 @@ It has its data, the dimensions, an equality overload (so I can compare data poi
 
 For fun, I wanted to use F#'s data aliasing feature, so I created some helper types to make dealing with tuples and other data pairing easier. I've defined the following
 
-[fsharp]  
+```fsharp
+  
 type Centroid = DataPoint
 
 type Cluster = Centroid \* DataPoint List
@@ -109,7 +122,8 @@ type DistanceAroundCentroid = DataPoint \* Centroid \* Distance
 type Clusters = Cluster List
 
 type ClustersAndOldCentroids = Clusters \* Centroid list  
-[/fsharp]
+
+```
 
 The only unfortunate thing is you need to explicitly mention aliased types for the type inference to work properly. The reason is because F# will prefer native types to typed aliases (why choose `Distance` over float unless you are told to), but it would've been nice if it had some way to prefer local type aliases in a module.
 
@@ -117,13 +131,16 @@ The only unfortunate thing is you need to explicitly mention aliased types for t
 
 This next major step is to take the current raw data list and what the current centroids are and cluster them. A cluster is a centroid and its associated data points. To make things clearer, I created a helper function `distFromCentroid` which takes a point, a centroid, and returns a tuple of point \* centroid \* distance.
 
-[fsharp]  
+```fsharp
+  
 let private distFromCentroid pt centroid : DistanceAroundCentroid = (pt, centroid, (DataPoint.Distance centroid pt))  
-[/fsharp]
+
+```
 
 The bulk of the k-means work is in `assignCentroids`. First, for every data point, we calculate its distance from the current centroid. Then we select the centroid which is closest to our data points and create a list of point \* centroid tuples. Once we have a list of point \* centroid tuples, we want to group this list by the second value in the tuple: the centroid. Here, I'm leveraging the pipe operator to do the grouping and mapping. First, we group the lists by the centroid. This gives us a list of `centroid * (datapoint * centroid)` items. But this isn't quite right yet. We want to end up with a list of `centroid * dataPoint list` so I passed this temporary list through some other minor filtering and formatting.
 
-[fsharp]  
+```fsharp
+  
 (\*  
  Takes the input list and the current group of centroids.  
  Calculates the distance of each point from each centroid  
@@ -156,7 +173,8 @@ List.toSeq dataPointsWithCentroid
  )  
  |\> Seq.toList
 
-[/fsharp]
+
+```
 
 ## Calculating new centroids
 
@@ -166,7 +184,8 @@ First I create an empty n-dimension array of all zeros, initialized by the dimen
 
 For example, if I have two points of two dimensions [1, 2] and [3, 4] I add 1 and 3 together to make the first dimension, then 2 and 4 together to make the second dimension. This gives me an intermediate vector of [4,6]. Then I can average each dimension by the number of data points used, so in our example we used two data points, so the new centroid would be [2, 3]. Since a centroid is the same as a data point (even though one that doesn't exist in our original raw set), we can return the new centroid as a data point. Having everything treated as data points makes the calculations easier.
 
-[fsharp]  
+```fsharp
+  
 (\*  
  take each float list representing an n-dimesional space for every data point  
  and average each dimension together. I.e. element 1 for each point gets averaged together  
@@ -183,11 +202,13 @@ let private calculateCentroidForPts (dataPointList:DataPoint List) =
 // scale the nDimensional sums by the size  
  let newCentroid = List.map(fun pt -\> pt/((float)(List.length dataPointList))) addedDimensions  
  new DataPoint(newCentroid)  
-[/fsharp]
+
+```
 
 Here is the function to aggregate list elements together
 
-[fsharp]  
+```fsharp
+  
 (\* goes through two lists and adds each element together  
  i.e. index 1 with index 1, index 2 with index2  
  and returns a new list of the items aggregated  
@@ -202,7 +223,8 @@ let private addListElements list1 list2 operator =
  let head2 = List.head list2  
  addListElements' (List.tail list1) (List.tail list2) ((operator head1 head2)::accumulator) operator  
  addListElements' list1 list2 [] operator  
-[/fsharp]
+
+```
 
 I'm using a hidden accumulator so that the function will be tail recursive.
 
@@ -216,7 +238,8 @@ The above code only does one single cluster iteration though . What we need is a
 
 For each iteration create a new set of clusters, then test to see if if the centroids are the same. If they are, we've converged and we can end. If not, see if the clusters are "close enough" (the convergence delta). The final base case is if we've clustered the max iterations then return.
 
-[fsharp]  
+```fsharp
+  
 (\*  
  Start with the input source and the clustering amount  
  but also take in a max iteration limit as well as a converge  
@@ -263,13 +286,15 @@ cluster' (initialClusters, extractCentroidsFromClusters initialClusters) limit
 \*)
 
 let cluster data k = clusterWithIterationLimit data k Int32.MaxValue 0.0  
-[/fsharp]
+
+```
 
 ## Demo
 
 Using the sample data from the beginning of this post, let's run it through my k-means clusterer:
 
-[fsharp]  
+```fsharp
+  
 module KDataTest
 
 open System  
@@ -290,17 +315,20 @@ KMeans.cluster sampleData kClusterValue
 
 Console.ReadKey() |\> ignore
 
-[/fsharp]
+
+```
 
 And the output is
 
-[csharp]  
+```csharp
+  
 Centroid [2.66666666666667], with data points:  
 [1], [2], [5]
 
 Centroid [17.5], with data points:  
 [14], [17], [19], [20]  
-[/csharp]
+
+```
 
 Full source available at our [github](https://github.com/blinemedical/KMeans)
 

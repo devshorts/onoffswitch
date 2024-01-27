@@ -161,7 +161,8 @@ The idea is we have a string, and our original roots. We then look for the suffi
 
 Lets look at some basic examples of how to use the Trie:
 
-[code]  
+```
+  
 \*PrefixTree\> tries = build ["word", "wooordz", "happy", "hoppy"]
 
 \*PrefixTree\> guess "h" tries  
@@ -178,7 +179,8 @@ Just ["happy"]
 
 \*PrefixTree\> guess "hi" tries  
 Nothing  
-[/code]
+
+```
 
 ## Conclusion
 

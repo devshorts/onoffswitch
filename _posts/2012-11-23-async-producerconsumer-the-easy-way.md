@@ -33,7 +33,8 @@ Even though `BlockingCollection` effectively synchronizes your producer/consumer
 
 Here is an example where the consumer takes one second each time it consumes an item.
 
-[csharp]  
+```csharp
+  
 private readonly ManualResetEvent \_testMutex = new ManualResetEvent(false);
 
 [Test]  
@@ -75,11 +76,13 @@ private void FinishedEventHandler(object sender, BlockingCollectionEventArgs e)
 {  
  \_testMutex.Set();  
 }  
-[/csharp]
+
+```
 
 This prints out
 
-[csharp]  
+```csharp
+  
 9/17/2012 6:22:43 PM: Produced item 0  
 9/17/2012 6:22:43 PM: Produced item 1  
 9/17/2012 6:22:43 PM: Produced item 2  
@@ -100,7 +103,8 @@ This prints out
 9/17/2012 6:22:51 PM: Consuming item: 7  
 9/17/2012 6:22:52 PM: Consuming item: 8  
 9/17/2012 6:22:53 PM: Consuming item: 9  
-[/csharp]
+
+```
 
 First, I created the blocking collection wrapper and made sure to put it in a `using` block since it's disposable (the thread waiting on the blocking collection will need to be cleaned up). Then I registered a function to be executed each time an item is consumed. Calling `Start()` begins consuming. Once I'm done - even after the using block disposes of the wrapper - the separate consumer thread could still be running (processing whatever is left), but it is no longer blocking on additions and will complete consuming any pending items.
 
@@ -108,7 +112,8 @@ First, I created the blocking collection wrapper and made sure to put it in a `u
 
 When you call `.Start()` we start our independent consumer thread.
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// Start the consumer  
 /// \</summary\>  
@@ -118,11 +123,13 @@ public void Start()
  \_thread = new Thread(QueueConsumer) {Name = "BlockingConsumer"};  
  \_thread.Start();  
 }  
-[/csharp]
+
+```
 
 This is the queue consumer that runs in the separate thread that executes the registered consumer action. The consuming action is locked to make changing the consuming action threadsafe.
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// The actual consumer queue that runs in a seperate thread  
 /// \</summary\>  
@@ -168,11 +175,13 @@ if (FinishedEvent != null)
  //Log.Error(this, ex, "Error consuming from queue of type {0}", typeof(T));  
  }  
 }  
-[/csharp]
+
+```
 
 And when the wrapper is disposed, we set `CompleteAdding` on the blocking collection which tells the collection to stop waiting for new additions and finish out whatever is left in the queue.
 
-[csharp]  
+```csharp
+  
 protected void Dispose(bool disposing)  
 {  
  if(disposing)  
@@ -191,7 +200,8 @@ public void Dispose()
 {  
  Dispose(true);  
 }  
-[/csharp]
+
+```
 
 The remaining properties and functions on the wrapper let you
 

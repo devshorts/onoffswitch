@@ -31,7 +31,8 @@ But the coming of Java 8 I think a lot of these problems will be solved. Not to 
 
 Anyways, I present to you my first Java program in 5 years:
 
-[java]  
+```java
+  
 import java.util.List;  
 import java.util.concurrent.ExecutionException;
 
@@ -52,9 +53,11 @@ return "foo";
 System.out.println("done");  
  }  
 }  
-[/java]
 
-[java]  
+```
+
+```java
+  
 import java.util.concurrent.Callable;  
 import java.util.concurrent.ExecutorService;  
 import java.util.concurrent.Executors;  
@@ -75,11 +78,13 @@ public static Future\<?\> queueToPool(Callable\<?\> r){
  return \_threadPoolExecutor.submit(r);  
  }  
 }  
-[/java]
+
+```
 
 The program does nothing useful. I just wanted to see what it was like to write some java lambda code, and I was pleasantly surprised. Even though lambda's in Java 8 aren't actually first class functions, but are in fact wrappers on interfaces that are tagged with the `@FunctionalInterface` attribute. For example, look at `Supplier` (which is analgous to `Action` in C#, i.e a function with no arguments that when executed returns a value)
 
-[java]  
+```java
+  
 @FunctionalInterface  
 public interface Supplier\<T\> {
 
@@ -90,13 +95,15 @@ public interface Supplier\<T\> {
  \*/  
  T get();  
 }  
-[/java]
+
+```
 
 Java's lambda magic looks to rely on the fact that if an interface has the attribute, then it can be auto converted into a lambda as long as there is only one function that is not implemented. You could, however, treat the interface the old fashioned java way: create an anonymous class that implements `get` and execute .get(). Still, why would you want to?
 
 To demonstrate the interface to function mapping you can see both the _new way_ and the _old way_ of doing the same things
 
-[java]  
+```java
+  
 Supplier\<String\> newWay = () -\> "new way";
 
 Supplier\<String\> oldWay = new Supplier\<String\>() {  
@@ -105,13 +112,15 @@ Supplier\<String\> oldWay = new Supplier\<String\>() {
  return "old way";  
  }  
 };  
-[/java]
+
+```
 
 My only gripe here is that the supplier is still an interface. It's not a first class function, meaning I can't just execute `newWay()`. I have to do `newWay.get()` which seems stupid at first. But, there is a reason.
 
 The reason is that you can now have `default` implementation in interfaces, meaning that you can create an interface instance that has a bunch of stuff defined but create one off lambda overrides of another method. This is pretty neat. Look at this example:
 
-[java]  
+```java
+  
 @FunctionalInterface  
 public interface TestMethods{  
  public void doWork();
@@ -120,16 +129,19 @@ default void doOtherWork(){
  System.out.println("do other work default method");  
  }  
 }  
-[/java]
+
+```
 
 Now I can either do the old fashioned way (creating an anonymous class and implementing `doWork`) or I can create an instance that is assigned a lambda, which does the same thing:
 
-[java]  
+```java
+  
 TestMethods m = () -\> System.out.println("creating the do work method at instantation");
 
 m.doWork();  
 m.doOtherWork();  
-[/java]
+
+```
 
 If you have more than one undefined method in a functional interface the compiler will bitch at you, rightfully so.
 

@@ -27,7 +27,8 @@ permalink: "/2013/04/01/flyweight-locking/"
 
 Imagine we have a WCF service that signs a student into a class where the student has a name, an id, and a classroom id that they belong to. Something like this:
 
-[csharp]  
+```csharp
+  
 [ServiceContract]  
 public interface ISchoolService  
 {  
@@ -47,11 +48,13 @@ public class Student
 [DataMember]  
  public int StudentId { get; set; }  
 }  
-[/csharp]
+
+```
 
 And our service implementation could be
 
-[csharp]  
+```csharp
+  
 public class SchoolService : ISchoolService  
 {  
  public void SignIntoClass(Student student)  
@@ -62,12 +65,15 @@ public class SchoolService : ISchoolService
  }  
  }  
 }  
-[/csharp]
+
+```
 
 Remember that entry point for this service is multi-threaded, the same student could log in from multiple locations simultaneously and that would add them to the class twice, since both threads could evaluate
 
-[csharp]  
-StudentStorage.Instance.IsStudentInClass(student)[/csharp]
+```csharp
+  
+StudentStorage.Instance.IsStudentInClass(student)
+```
 
 as false if the student hadn't been added yet (assuming our internal storage calls weren't atomic or threadsafe).
 
@@ -75,7 +81,8 @@ We'd probably be inclined to just throw a lock statement around `SignIntoClass` 
 
 A flyweight locking mechanism uses two sets of locks. One is a global lock, and one is a context lock. The global lock is used to synchronize getting context locks and the context locks are used to lock on the critical section for the action group. Lets add a flyweight lock to our student class and see what this really means
 
-[csharp]  
+```csharp
+  
 public class SchoolService : ISchoolService  
 {  
  private static readonly IDictionary\<int, object\> \_classroomLocks = new Dictionary\<int, object\>();
@@ -105,7 +112,8 @@ public void SignIntoClass(Student student)
  }  
  }  
 }  
-[/csharp]
+
+```
 
 Now what we're doing is getting a context level lock for the classrooms and using the dictionary as the global lock. All requests for a specific classroom are synchronized, but other classrooms can continue to do work even while one classroom could be busy inside of the lock.
 

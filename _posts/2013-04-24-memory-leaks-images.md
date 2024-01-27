@@ -26,7 +26,8 @@ I ran into a neat C# memory leak today that I wanted to share. It's not often yo
 
 Look at this and see if you can spot the leak:
 
-[csharp]  
+```csharp
+  
 public static class Extensions  
 {  
  public static Image Append(this Image source, Image append)  
@@ -60,7 +61,8 @@ appendedImage.Dispose();
 
 Console.ReadLine();  
 }  
-[/csharp]
+
+```
 
 What this code does is create 25 instances of my bigImage.jpg (6.5MB), and then creates a new image consisting of those 25 images side by side. The aggregate function folds the list into a single image using the `Append` extension method. This way the accumulator is the new running image.
 
@@ -74,7 +76,8 @@ Weird...
 
 What if I get rid of the fold and append everything in one go?
 
-[csharp]  
+```csharp
+  
 public static Image Append(this Image source, List\<Image\> appends)  
 {  
  var newImage = new Bitmap(source.Width + appends.Count() \* source.Width, source.Height);  
@@ -111,7 +114,8 @@ appendedImage.Dispose();
 
 Console.ReadLine();  
 }  
-[/csharp]
+
+```
 
 And now when I wait on the read at the end
 
@@ -147,7 +151,8 @@ The reason the second version works is because I am not making intermediary imag
 
 Now, understanding the issue, I was able to mimic the problem outside of the aggregate function:
 
-[csharp]  
+```csharp
+  
 public static void MemLeak()  
 {  
  var src = @"C:\users\anton.kropp\desktop\bigImage.jpg";
@@ -163,11 +168,13 @@ image1.Dispose();
 
 Console.ReadLine();  
 }  
-[/csharp]
+
+```
 
 Just because it's the same variable, does not mean it's the same reference. Actually if we modify the code like this we can really drive the point home:
 
-[csharp]  
+```csharp
+  
 public static void MemLeak()  
 {  
  var src = @"C:\users\anton.kropp\desktop\bigImage.jpg";
@@ -190,11 +197,13 @@ image1.Dispose();
 Console.ReadLine();  
 }
 
-[/csharp]
+
+```
 
 Which prints out
 
-[code]  
+```
+  
 References equal? False  
 References equal? False  
 References equal? False  
@@ -205,7 +214,8 @@ References equal? False
 References equal? False  
 References equal? False  
 References equal? False  
-[/code]
+
+```
 
 Which makes sense.
 

@@ -37,17 +37,20 @@ Now that I'm done (but never finished) with the project I really appreciate how 
 
 The first step to implementing a domain specific language, or even a general purpose language, is to figure out what the string representing the program means. You have to figure out that something like this:
 
-[csharp]  
+```csharp
+  
 int foo = 1;
 
 void func(){  
  print "abc";  
 }  
-[/csharp]
+
+```
 
 Really means
 
-[csharp]  
+```csharp
+  
 int  
 foo  
 equals  
@@ -62,7 +65,8 @@ word
 quoted string  
 semicolon  
 right bracket  
-[/csharp]
+
+```
 
 To do this you need to first break up the program into a series of strings that you know are independent tokens, such as "int", and "foo". This is called tokenizing. Then you then need to go over that list and say "oh hey, I found this token 'int' but really it means `TokenType.Int`". Converting the strings to strong types is called lexing. Translating the string into strong types makes it significantly easier to work on it later.
 
@@ -78,7 +82,8 @@ Let me give an example of why you want to use snapshots. Pretend you are trying 
 
 Here is the base class:
 
-[csharp]  
+```csharp
+  
 public class TokenizableStreamBase\<T\> where T : class  
 {  
  public TokenizableStreamBase(Func\<List\<T\>\> extractor)  
@@ -154,11 +159,13 @@ public void CommitSnapshot()
  SnapshotIndexes.Pop();  
  }  
 }  
-[/csharp]
+
+```
 
 And here is my entire tokenizer that creates a consumable stream of characters from the input source:
 
-[csharp]  
+```csharp
+  
 public class Tokenizer : TokenizableStreamBase\<String\>  
 {  
  public Lexer(String source) :  
@@ -168,7 +175,8 @@ public class Tokenizer : TokenizableStreamBase\<String\>
  }  
 }
 
-[/csharp]
+
+```
 
 In a later post I'll describe how I built my parser, which is responsible for creating abstract syntax trees and logical validation of the code. The parser re-uses the tokenizer stream base and instead of using characters (like the tokenizer stream) uses a stream of tokens.
 
@@ -180,7 +188,8 @@ So, lets say I want to match the word "int" to token `Int` I'll have a matcher t
 
 To build the matchers, I started with an abstract base:
 
-[csharp]  
+```csharp
+  
 public abstract class MatcherBase : IMatcher  
 {  
  public Token IsMatch(Tokenizer tokenizer)  
@@ -208,13 +217,15 @@ return match;
 
 protected abstract Token IsMatchImpl(Tokenizer tokenizer);  
 }  
-[/csharp]
+
+```
 
 This takes a `Tokenizer` and hands the tokenizer to whatever subclasses the abstract base for the match implementation. The base class will make sure to handle snapshots. If the matcher returns a non-null token then it will commit the snapshot otherwise it can roll it back and let the next matcher try.
 
 As an example, here is the matcher for whitespace tokens. For whitespace I don't really care how much whitespace there was, just that there was whitespace. In fact in the end I discard whitespace completely since it doesn't really matter. If it found whitespace it'll return a new token of token type whitespace. Otherwise it'll return null.
 
-[csharp]  
+```csharp
+  
 class MatchWhiteSpace : MatcherBase  
 {  
  protected override Token IsMatchImpl(Tokenizer tokenizer)  
@@ -236,11 +247,13 @@ if (foundWhiteSpace)
 return null;  
  }  
 }  
-[/csharp]
+
+```
 
 Below is another matcher that finds quoted strings. You can set the quote delimiter to be either a " or a '. So "this" matches and so does 'this'.
 
-[csharp]  
+```csharp
+  
 public class MatchString : MatcherBase  
 {  
  public const string QUOTE = "\"";
@@ -282,11 +295,13 @@ if (str.Length \> 0)
 return null;  
  }  
 }  
-[/csharp]
+
+```
 
 The next matcher (below) does the bulk of the work. This one finds built in keywords and special characters by taking an input string, and the final token it should represent. It determines if the current stream contains that token and then emits it. The idea is if you know "int" is a built in type, and it should match to some `TokenType.Int`, you can pass that info to a `MatchKeyword` instance and it'll find the token for you if it exists. The `Match` property contains the raw string you want to match on, and the `TokenType` property represents the strongly typed type that should be paired to the raw string:
 
-[csharp]  
+```csharp
+  
 public class MatchKeyword : MatcherBase  
 {  
  public string Match { get; set; }
@@ -343,25 +358,31 @@ if (found)
 return null;  
  }  
 }  
-[/csharp]
+
+```
 
 The special characters list is an injected list of keyword matchers that let the current matcher know when things are delimited. For example, we want to support both
 
-[csharp]  
+```csharp
+  
 if(  
-[/csharp]
+
+```
 
 and
 
-[csharp]  
+```csharp
+  
 if (  
-[/csharp]
+
+```
 
 In the first block, the keyword "if" is delimited by a special character "(" and not just whitespace. By using special characters AND whitespace as delimiters we can have whitespace agnostic code.
 
 For my language I supported the following special characters and keywords:
 
-[csharp]  
+```csharp
+  
 public enum TokenType  
 {  
  Infer,  
@@ -413,11 +434,13 @@ public enum TokenType
  Try,  
  Catch  
 }  
-[/csharp]
+
+```
 
 It's a lot, but at the same time it's not nearly enough! Still, having a single matcher that can match on known tokens means extending the language at this level is quite easy. Here is the construction of the list of my matchers. Order here matters since it determines precedence. You can see now that to add new keywords or characters to the grammar only requires defining a new enum and updating the appropriate match list.
 
-[csharp]  
+```csharp
+  
 private List\<IMatcher\> InitializeMatchList()  
 {  
  // the order here matters because it defines token precedence
@@ -493,11 +516,13 @@ matchers.AddRange(new List\<IMatcher\>
 
 return matchers;  
 }  
-[/csharp]
+
+```
 
 To actually run through and get the tokens we do this
 
-[csharp]  
+```csharp
+  
 public IEnumerable\<Token\> Lex()  
 {  
  Matchers = InitializeMatchList();
@@ -531,22 +556,26 @@ return
  where token != null  
  select token).FirstOrDefault();  
 }  
-[/csharp]
+
+```
 
 And the only thing left is in the constructor of the Tokenizer
 
-[csharp]  
+```csharp
+  
 public Lexer(String source)  
 {  
  Tokenizer = new Tokenizer(source);  
 }  
-[/csharp]
+
+```
 
 ## Testing
 
 Lets see it in action in a unit test. Keep in mind the tokenizer and lexer do only the most basic syntax validation, but not much. It's more about creating a typed token stream representing your code. Later we can use the typed token stream to create meaningful data structures representing the code.
 
-[csharp]  
+```csharp
+  
 [Test]  
 public void TestTokenizer()  
 {  
@@ -559,11 +588,13 @@ foreach (var token in tokens)
  Console.WriteLine(token.TokenType + " - " + token.TokenValue);  
  }  
 }  
-[/csharp]
+
+```
 
 And this prints us out
 
-[csharp]  
+```csharp
+  
 Word - function  
 Void - void  
 Int - int  
@@ -583,7 +614,8 @@ Int - 6
 Comma - ,  
 Int - 7  
 Float - 8.0  
-[/csharp]
+
+```
 
 Now we're in a position that we can start parsing our language.
 

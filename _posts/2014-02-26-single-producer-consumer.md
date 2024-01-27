@@ -31,7 +31,8 @@ What I need is a blocking consumer, a way to publish items, a threadsafe way to 
 
 First let me show a subscriber instance. This is like a public token that the consumer of the topic will get when they subscribe. All it has is a registered `OnNext` action and a way to unsubscribe itself from whatever its subscribed to.
 
-[csharp]  
+```csharp
+  
 public class Subscriber\<T\>{  
  private Action\<Subscriber\<T\>\> UnSubscribeAction { get; set; }
 
@@ -47,11 +48,13 @@ public Subscriber(Action\<Subscriber\<T\>\> unsubscribe, Action\<T\> onNext){
 OnNext = onNext;  
  }  
 }  
-[/csharp]
+
+```
 
 And now the actual single producer many consumer (SPMC) implementation. It's responsible for handling the listening on the consuming enumerable, the dispatching into the blocking collection, as well as parallelizing the re-distribution of the consumers. It's pretty simple!
 
-[csharp]  
+```csharp
+  
 public class SPMC\<T\> : IDisposable  
 {  
  public SPMC (int boundedSize = int.MaxValue)  
@@ -109,11 +112,13 @@ public void Dispose ()
 
 #endregion  
 }  
-[/csharp]
+
+```
 
 And of course, a unit test to demonstrate its usage
 
-[csharp]  
+```csharp
+  
 [Test]  
 public void TestCase ()  
 {  
@@ -153,7 +158,8 @@ Assert.GreaterOrEqual (subscriber3Collect.Count, 4);
  Assert.GreaterOrEqual (subscriber2Collect.Count, 9);  
  Assert.GreaterOrEqual (subscriber1Collect.Count, 4);  
 }  
-[/csharp]
+
+```
 
 The asserts are greater than or equal just to give a 1 second wiggle room for the time dispatch variance.
 

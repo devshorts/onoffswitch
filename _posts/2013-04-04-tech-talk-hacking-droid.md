@@ -29,7 +29,8 @@ Facebook's engineers tried to break their application up into multiple droid exe
 
 You can see the buffer structure they linked to [here](https://github.com/android/platform_dalvik/blob/android-2.3.7_r1/vm/LinearAlloc.h#L33):
 
-[c]  
+```cpp
+  
 /\*  
  \* Linear allocation state. We could tuck this into the start of the  
  \* allocated region, but that would prevent us from sharing the rest of  
@@ -45,7 +46,8 @@ char\* mapAddr; /\* start of mmap()ed region \*/
 
 short\* writeRefCount; /\* for ENFORCE\_READ\_ONLY \*/  
 } LinearAllocHdr;  
-[/c]
+
+```
 
 The team and I had a good time talking about their thought process and whether what they did was a good idea or not as well as critiquing decisions by the [dalvik](http://en.wikipedia.org/wiki/Dalvik_(software)) designers. Some ideas and discussions that came up were:
 

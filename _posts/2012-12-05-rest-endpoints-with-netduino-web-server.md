@@ -31,13 +31,16 @@ I have a [Netduino plus](http://www.Netduino.com/Netduinoplus/specs.htm) at home
 
 But to expose your Netduino to the web you need to write a simple web server. Basically open a socket at port 80 and read/write requests out to it. The Netduino community is great at sharing code and I quickly found a nice web server by [Jasper Schuurmans](http://www.schuurmans.cc/multi-threaded-web-server-for-Netduino-plus). His server code let you define [RESTful](http://en.wikipedia.org/wiki/Representational_state_transfer) routes like this
 
-[csharp]  
+```csharp
+  
 http://NetduinoIPAddress/targetFunction/arg1/arg2/...  
-[/csharp]
+
+```
 
 Which was super cool. It even filtered out non-registered commands, allowing you to control what requests would trigger a "_command found_" event. Here is the basic main of his demo.
 
-[csharp]  
+```csharp
+  
 public static void Main()  
 {  
  // Instantiate a new web server on port 80.  
@@ -95,7 +98,8 @@ switch (e.Command.CommandString)
  }  
  }  
 }  
-[/csharp]
+
+```
 
 While this certainly works, there were a few things I didn't like about this setup:
 
@@ -108,7 +112,8 @@ While this certainly works, there were a few things I didn't like about this set
 
 Before we dig into what I changed, lets look at my final reworked main and you can compare it to the original main I posted above:
 
-[csharp]  
+```csharp
+  
 public static void Main()  
 {  
  LcdWriter.Instance.Write("Web Demo Ready!" + DateTime.Now.TimeOfDay);
@@ -122,7 +127,8 @@ WebServerWrapper.StartWebServer();
 
 RunUtil.KeepRunning();  
 }  
-[/csharp]
+
+```
 
 Here, `BasicPage` is an object that encapsulates its route definitions as well as what to invoke when a target route is found. Next, I'm registering the object with a web service wrapper and then starting the web server. This way, I've removed the command handling from our main loop and encapsulated logic into individual components.
 
@@ -132,20 +138,23 @@ In order to get rid of the central switch statement, I wanted to encapsulate all
 
 As an example, let's create a class that prints whatever arguments were received from the server onto a connected LCD. First we'll have it implement a target interface called `IEndPointProvider` which looks like this:
 
-[csharp]  
+```csharp
+  
 public interface IEndPointProvider  
 {  
  void Initialize();  
  ArrayList AvailableEndPoints();  
 }  
-[/csharp]
+
+```
 
 - `Initialize` would be class specific initialization logic. If we don't need to use resources until we are about to fire up the server then we can put that logic into here.
 - `AvailableEndPoints` is a list of `EndPoints` that we can use to register with the server. In case you're wondering about the `ArrayList`, .NET Micro [doesn't support generics](http://informatix.miloush.net/Microframework/Articles/CisFeatures.aspx), so we're not using something like `List<T>`
 
 And here is my implementation of `IEndPointProvider` which echos the arguments to a connected LCD:
 
-[csharp]  
+```csharp
+  
 public class BasicPage : IEndPointProvider  
 {  
  #region Endpoint initialization
@@ -192,7 +201,8 @@ return "OK. Wrote out: " + (text.Length == 0 ? "n/a" : text);
 
 #endregion  
 }  
-[/csharp]
+
+```
 
 You can see that we're exposing an array list of `EndPoint` objects that define the action to execute, what the target action's name is (i.e. the REST endpoint), and a short description about what the endpoint does (for an API listing we can create later).
 
@@ -202,7 +212,8 @@ The target function `Echo` takes an `EndPointActionArguments` object that contai
 
 Let's take a look at what an endpoint is.
 
-[csharp]  
+```csharp
+  
 public delegate string EndPointAction(EndPointActionArguments arguments, params string[] items);
 
 public class EndPointActionArguments  
@@ -247,13 +258,16 @@ public string[] Arguments { set { \_arguments = value; } }
  return "Unknown action";  
  }  
 }  
-[/csharp]
+
+```
 
 An `EndPoint` has a delegate named `Action` for a function with a signature
 
-[csharp]  
+```csharp
+  
 string Foo(EndPointActionArguments arguments, params string[] items)  
-[/csharp]
+
+```
 
 The `Action` would return a string that the web server will then write back out onto the target socket. We also pass an `EndPointActionArguments` to the delegate which contains a reference to the original socket request (outgoing to the client) and serves as encapsulation if we want to add more parameters to send through to the endpoint later. The last argument is a variable list of strings that relates to the REST url argument list.
 
@@ -267,7 +281,8 @@ Now that I've encapsulated action/state information into a single class, I wrapp
 
 Keeping with the original event dispatching mechanism, I moved the handling of the `EndPointReceived` event into the wrapper and out of the main program.
 
-[csharp]  
+```csharp
+  
 /// \<summary\>  
 /// Wrapper class on top of a multi threaded web server  
 /// Allows classes to register REST style endpoints  
@@ -351,13 +366,15 @@ e.ReturnString = e.Command.Execute(misc);
  }  
  }  
 }  
-[/csharp]
+
+```
 
 # A few web server changes
 
 Jaspers web server is simple and ingenious. I like it's simplicity and it was easy to extend. When the web server receives a request, it parses the first line of a raw http GET from the header to figure out it's "route". As an example, here is a request I generated for _http://localhost/function/arg1/arg2_. Everything after the first line is discarded since we just care about the _/function/arg1/arg2_ part
 
-[csharp]  
+```csharp
+  
 GET /function/arg1/arg2 HTTP/1.1  
 Host: localhost  
 User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11  
@@ -366,11 +383,13 @@ Accept-Encoding: gzip,deflate,sdch
 Accept-Language: en-US,en;q=0.8  
 Accept-Charset: ISO-8859-1,utf-8;q=0.7,\*;q=0.3  
 Cookie: ASP.NET\_SessionId=ue1s3blzxxwbrrohasgwpbbv  
-[/csharp]
+
+```
 
 Once it has the right request url from the header, the server will see if any registered endpoint `Name` property matches the request name. If it does it'll parse the remaining arguments. This all happens in `InterpretRequest`. I didn't change any of this logic. What I changed was what `InterpretRequest` returns and how the final command is dispatched. Here is the main server listening loop:
 
-[csharp]  
+```csharp
+  
 using (var server = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))  
 {  
  server.Bind(new IPEndPoint(IPAddress.Any, Port));
@@ -434,7 +453,8 @@ SendResponse(response, connection);
 
 }  
 }  
-[/csharp]
+
+```
 
 What I modified from the original server code was
 
@@ -450,7 +470,8 @@ What I modified from the original server code was
 
 Lets take a look again at our main program block.
 
-[csharp]  
+```csharp
+  
 public static void Main()  
 {  
  LcdWriter.Instance.Write("Web Demo Ready!" + DateTime.Now.TimeOfDay);
@@ -464,7 +485,8 @@ WebServerWrapper.StartWebServer();
 
 RunUtil.KeepRunning();  
 }  
-[/csharp]
+
+```
 
 You can see that we've now decoupled public interaction with the web server, as well as allow each class to define whatever routes it wants. If we wanted to rename the route `EchoArgs` and have it point to another function, it'd be trivial to change that within `BasicPage`. If we wanted `BasicPage` to implement two functions such as `EchoArgs` and `BlinkLEDABunch` we could do that, all without having to update our main entrypoint.
 
@@ -487,10 +509,12 @@ Firing up the app
 
 Using curl to send some arguments
 
-[csharp]  
+```csharp
+  
 \>curl http://192.168.2.11/echoargs/heyguys!/whatsup!  
 OK. Wrote out: heyguys! whatsup!  
-[/csharp]
+
+```
 
 Results on the Netduino
 
