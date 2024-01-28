@@ -39,23 +39,29 @@ For example, I discovered [Arrows](http://en.wikipedia.org/wiki/Arrow_(computer_
 
 My initial solution I did the way I'd probably write it in F#:
 
-[haskell]  
+```haskell
+  
 encode :: Eq a =\> [a] -\> [(Int, a)]  
 encode a = map (\x -\> (length x, head x)) . group $ a  
-[/haskell]
+
+```
 
 But, one of the alternate solutions to the problem was cleaner and used an operator I'd never seen
 
-[haskell]  
+```haskell
+  
 encode :: Eq a =\> [a] -\> [(Int, a)]  
 encode a = map (length &&& head) . group $ a  
-[/haskell]
+
+```
 
 What the hell was `&&&`? If we break down the function `length &&& head` a little we'll see it has a signature of
 
-[haskell]  
+```haskell
+  
 (length &&& head) :: [a] -\> (Int, a)  
-[/haskell]
+
+```
 
 The function takes a list and will apply the first function to the list as the first element of the tuple (length) and then apply the second function to the list and that'll give you the second element of the tuple.
 

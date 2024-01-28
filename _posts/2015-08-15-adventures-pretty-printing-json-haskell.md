@@ -28,7 +28,8 @@ Anyways, I digress. Playing with haskell and I thought I'd try poking with Aeson
 
 My sample class is
 
-[haskell]  
+```haskell
+  
 {-# LANGUAGE DeriveGeneric #-}
 
 module Types where
@@ -43,13 +44,15 @@ data Person =
 
 instance ToJSON Person  
 instance FromJSON Person  
-[/haskell]
+
+```
 
 And I just wanted to make a simple hello world where I'd read in some data, make my object, and print pretty json to the screen.
 
 On my first try:
 
-[haskell]  
+```haskell
+  
 import Data.Aeson  
 import Types
 
@@ -68,7 +71,8 @@ let person = Person firstName lastName
 print $ (encode person)
 
 return ()  
-[/haskell]
+
+```
 
 When I run `cabal build;cabal run` I now get
 
@@ -84,7 +88,8 @@ kropp
 
 Certainly JSON, but I want it _pretty_. I found [aeson-pretty](https://hackage.haskell.org/package/aeson-pretty) and gave that a shot. Now I'm doing:
 
-[haskell]  
+```haskell
+  
 import Data.Aeson  
 import Data.Aeson.Encode.Pretty  
 import Types
@@ -104,7 +109,8 @@ let person = Person firstName lastName
 print $ (encodePretty person)
 
 return ()  
-[/haskell]
+
+```
 
 And I got:
 
@@ -120,11 +126,13 @@ kropp
 
 Hmm. I can see that it _should_ be pretty, but it isn't. How come? Lets check out the types:
 
-[haskell]  
+```haskell
+  
 Prelude \> import Data.Aeson  
 Prelude Data.Aeson \> :t encode  
 encode :: ToJSON a =\> a -\> Data.ByteString.Lazy.Internal.ByteString  
-[/haskell]
+
+```
 
 Whats a lazy bytestring?
 
@@ -136,14 +144,17 @@ And the lazy one is the, well, lazy version. Through some googling I find that t
 
 I need to somehow make a lazy bytestring into a regular string. This leads me to this:
 
-[haskell]  
+```haskell
+  
 getJson :: ToJSON a =\> a -\> String  
 getJson d = unpack $ decodeUtf8 $ BSL.toStrict (encodePretty d)  
-[/haskell]
+
+```
 
 So I first evaluate the bytestring into a strict version (instead of lazy), then decode it to utf8, then unpack the text class into strings (apparenlty text is more efficient but more API's use String).
 
-[haskell]  
+```haskell
+  
 Prelude \> :t toStrict  
 toStrict :: ByteString -\> Data.ByteString.Internal.ByteString
 
@@ -152,11 +163,13 @@ decodeUtf8 :: Data.ByteString.Internal.ByteString -\> Text
 
 Prelude \> :t Data.Text.unpack  
 Data.Text.unpack :: Text -\> String  
-[/haskell]
+
+```
 
 And now, finally:
 
-[haskell]  
+```haskell
+  
 import Data.Aeson  
 import Data.Aeson.Encode.Pretty  
 import qualified Data.ByteString.Lazy as BSL  
@@ -182,39 +195,47 @@ let person = Person firstName lastName
 print $ getJson person
 
 return ()  
-[/haskell]
+
+```
 
 Which gives me
 
-[haskell]  
+```haskell
+  
 First name  
 anton  
 Last name  
 kropp  
 "{\n \"lastName\": \"kropp\",\n \"firstName\": \"anton\"\n}"  
-[/haskell]
+
+```
 
 AGHH! Still! Ok, more googling. Google google google.
 
 Last piece of the puzzle is that print is really `putStrLn . show`
 
-[haskell]  
+```haskell
+  
 Prelude \> let x = putStrLn . show  
 Prelude \> x "foo\nbar"  
 "foo\nbar"  
-[/haskell]
+
+```
 
 And if we just do
 
-[haskell]  
+```haskell
+  
 Prelude \> putStrLn "foo\nbar"  
 foo  
 bar  
-[/haskell]
+
+```
 
 The missing ticket. Finally all put together:
 
-[haskell]  
+```haskell
+  
 import Data.Aeson  
 import Data.Aeson.Encode.Pretty  
 import qualified Data.ByteString.Lazy as BSL  
@@ -240,7 +261,8 @@ let person = Person firstName lastName
 putStrLn $ getJson person
 
 return ()  
-[/haskell]
+
+```
 
 Which gives me:
 

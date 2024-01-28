@@ -30,21 +30,25 @@ The classical way of dealing with prefix tries is to store the suffixes using a 
 
 The main data structure I had was like this
 
-[haskell]  
+```haskell
+  
 type Key a = [a]
 
 data Trie key = Node (Maybe key) [Trie key] Bool deriving (Show, Eq, Read)  
-[/haskell]
+
+```
 
 So a trie is really just a node that has a list of other tries (which would be its suffixes). You can see an example of the structure with the word "foo":
 
-[haskell]  
+```haskell
+  
 [Node (Just 'f')  
  [Node (Just 'o')  
  [Node (Just 'o') [] True]  
  False]  
  False]  
-[/haskell]
+
+```
 
 It's printable to the screen, equatable, and can be serialized from text. It also contains a boolean field representing if it is the end of a word or not. You can see the boolean at the last "o" of the word, indicating the word terminates. All the other characters are non-terminating fields.
 
@@ -52,19 +56,22 @@ It's printable to the screen, equatable, and can be serialized from text. It als
 
 Let's add a helper method to find a key in a list of tries. Remember that each root can contain a list of other trie's, so it'll be nice to be able to say "_hey, we're at root X which has a list of possible suffix starts Y. Let's find the next root from the list of Y and return it_".
 
-[haskell]  
+```haskell
+  
 {-  
  Finds a key in the trie list that matches the target key  
 -}  
 findKey :: (Eq t) =\> t -\> [Trie t] -\> Maybe (Trie t)  
 findKey key tries = L.find (\(Node next \_ \_) -\> next == Just key) tries  
-[/haskell]
+
+```
 
 It takes an equatable value, and a list of Trie's of those values, and finds the key returned as an option type.
 
 We could even now write code to find a Trie
 
-[haskell]  
+```haskell
+  
 {-  
  Takes a key list and finds the trie that fullfils that prefix  
 -}  
@@ -73,7 +80,8 @@ findTrie [] \_ = Nothing
 findTrie (x:[]) tries = findKey x tries  
 findTrie (x:xs) tries = findKey x tries \>\>= nextTrie  
  where nextTrie (Node \_ next \_) = findTrie xs next  
-[/haskell]
+
+```
 
 Since `findKey` is an option type, we can leverage the option monadic bind operator `>>=`. This operator will pass a result to the next function only if the result is a `Just` type. This is a way to safely process 'nullable' items.
 
@@ -81,7 +89,8 @@ Since `findKey` is an option type, we can leverage the option monadic bind opera
 
 Now the insertion code, which honestly was the most complicated.
 
-[haskell]  
+```haskell
+  
 insert :: (Eq t) =\> Key t -\> [Trie t] -\> [Trie t]  
 insert [] t = t  
 insert (x:xs) tries =  
@@ -94,7 +103,8 @@ insert (x:xs) tries =
  except value = (L.filter ((/=) value) tries)  
  isEndWord = if xs == [] then True else False  
  toggleWordEnd old = if xs == [] then True else old  
-[/haskell]
+
+```
 
 The trick to pure functional insertion is that you need to _rebuild_ the entire data structure WHILE you search for where you want to actually add things.
 
@@ -110,7 +120,8 @@ I found this concept to be a little complicated because its both finding, updati
 
 Once you can build a trie though, we can leverage haskells list comprehensions to fold the words back out
 
-[haskell]  
+```haskell
+  
 {-  
  Gives you all the available words in the trie list  
 -}  
@@ -127,7 +138,8 @@ allWords tries =
  []:(rawWords suffixes)  
  else  
  rawWords suffixes]  
-[/haskell]
+
+```
 
 Since we have a list of roots, we can go through each suffix and append the root character to it. If we encounter a word, we can pop in an empty list to create a delimiter. The list comprehension will do every combination of every root with its suffixes, so we will get each word.
 
@@ -137,7 +149,8 @@ But, this makes a list of characters and so I wanted to flatmap the list to crea
 
 We can even do auto complete stuff now! Let's look at how to guess what the available suffixes would be:
 
-[haskell]  
+```haskell
+  
 {-  
  This function takes a key list and returns the  
  full words that match the key list. But, since we already  
@@ -153,7 +166,8 @@ guess word trie =
  where  
  source isWord = if isWord then [word] else []  
  prependOriginal word = map (\elem -\> word ++ elem)  
-[/haskell]
+
+```
 
 The idea is we have a string, and our original roots. We then look for the suffixes and when we find the target trie that ends at the word we have, we can find all the words after that and prepend our original word.
 

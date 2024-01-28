@@ -64,7 +64,8 @@ And the sample input/output:
 
 And here is my haskell solution
 
-[haskell]  
+```haskell
+  
 module Temp where
 
 import Control.Monad  
@@ -96,7 +97,8 @@ getPairs = do
 
 printPairs :: IO [(Item, Item)] -\> IO [String]  
 printPairs pairs = fmap (map formatPair) pairs  
-[/haskell]
+
+```
 
 I had a lot of fun with this one, since it really forced me to understand and utilize `fmap` given that you had to deal with being in the `IO` monad. I also liked being "forced" to separate the IO from the pure. I say forced in quotes because it's really not that helpful to do all your work in the IO function; it's not reusable.
 

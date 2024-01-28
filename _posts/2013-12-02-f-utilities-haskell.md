@@ -28,25 +28,29 @@ For example, if we wanted to do `(x+2)+3` in f#
 
 ```fsharp
   
-let chained = (+) 2 \>\> (+) 3  
+let chained = (+) 2 >> (+) 3  
 
 ```
 
 Compare to haskell:
 
-[haskell]  
-chained :: Integer -\> Integer  
+```haskell
+  
+chained :: Integer -> Integer  
 chained = (+3) . (+2)  
-[/haskell]
+
+```
 
 In haskell, the +2 is given the argument 3, then that value is given to +3. In f# you work left to right, which I think is more readable.
 
 Anyways, this is an easy problem to solve by defining a cusotm infix operator
 
-[haskell]  
-(\>\>\>) :: (a -\> b) -\> (b -\> c) -\> (a -\> c)  
-(\>\>\>) a b = b . a  
-[/haskell]
+```haskell
+  
+(>>>) :: (a -> b) -> (b -> c) -> (a -> c)  
+(>>>) a b = b . a  
+
+```
 
 Now we can do the same combinations as in F#.
 
@@ -54,10 +58,12 @@ Another thing that bugs me is pipe operator in haskell. I want to be able to pip
 
 Again, easy fix though
 
-[haskell]  
-(|\>) :: t -\> (t -\> b) -\> b  
-(|\>) a b = b $ a  
-[/haskell]
+```haskell
+  
+(|>) :: t -> (t -> b) -> b  
+(|>) a b = b $ a  
+
+```
 
 Now we can do `1 |> (+1)` and get `2`. Fun!
 
